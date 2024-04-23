@@ -152,6 +152,9 @@ def test_fn(cfg: DictConfig):
 
 
 def run_one_scene(model, images, crop_params=None, query_frame_num=3):
+    """
+    images have been normalized to the range [0, 1] instead of [0, 255]
+    """
     batch_num, frame_num, image_dim, height, width = images.shape
     device = images.device
     reshaped_image = images.reshape(batch_num * frame_num, image_dim, height, width)
