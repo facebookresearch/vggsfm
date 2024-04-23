@@ -57,7 +57,7 @@ After downloading the model checkpoint, specify its path in the ```resume_ckpt``
 python test.py
 ```
 
-You should see something like:
+When it finishes (it would take several hours to complete the testing on the whole IMC dataset), you should see something like:
 
 ```bash
 ----------------------------------------------------------------------------------------------------
