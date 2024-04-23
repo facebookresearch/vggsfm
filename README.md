@@ -73,6 +73,8 @@ If your machine support ```torch.bfloat16```, you are welcome to enable the ```u
 Typically, running our model on a 25-frame IMC scene takes approximately 40 seconds. If you're looking to save time, you can adjust the ```query_frame_num``` to 1. This adjustment reduces the inference time to roughly 15 seconds, while maintaining a comparable performance.
 
 
+If want to run the model on your own data, please check the ```run_one_scene``` function in ```test.py```. We are also going to provide a demo file for it very soon. The default output cameras of ```run_one_scene``` follows the PyTorch3D convention. You can set ```return_in_pt3d=False``` to let it return in COLMAP convention. 
+
 
 ## Acknowledgement
 

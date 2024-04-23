@@ -65,6 +65,7 @@ class Triangulator(nn.Module):
         max_reproj_error=4,
         init_tri_angle_thres=16,
         min_valid_track_length=3,
+        return_in_pt3d = True,
     ):
         """
         Conduct triangulation and bundle adjustment given
@@ -229,10 +230,12 @@ class Triangulator(nn.Module):
             # From OpenCV/COLMAP to PyTorch3D
             rot_BA = extrinsics[:, :3, :3]
             trans_BA = extrinsics[:, :3, 3]
-            rot_BA = rot_BA.clone().permute(0, 2, 1)
-            trans_BA = trans_BA.clone()
-            trans_BA[:, :2] *= -1
-            rot_BA[:, :, :2] *= -1
+            
+            if return_in_pt3d:
+                rot_BA = rot_BA.clone().permute(0, 2, 1)
+                trans_BA = trans_BA.clone()
+                trans_BA[:, :2] *= -1
+                rot_BA[:, :, :2] *= -1
 
             BA_cameras = PerspectiveCameras(R=rot_BA, T=trans_BA, device=device)
 

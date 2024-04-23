@@ -103,9 +103,13 @@ def test_fn(cfg: DictConfig):
             # Run the model
             if cfg.use_bf16:
                 with autocast(dtype=torch.bfloat16):
-                    predictions = run_one_scene(model, images, crop_params=crop_params, query_frame_num = cfg.query_frame_num)
+                    predictions = run_one_scene(model, images, crop_params=crop_params, 
+                                                query_frame_num = cfg.query_frame_num,
+                                                return_in_pt3d = cfg.return_in_pt3d)
             else:
-                predictions = run_one_scene(model, images, crop_params=crop_params, query_frame_num = cfg.query_frame_num)
+                predictions = run_one_scene(model, images, crop_params=crop_params, 
+                                            query_frame_num = cfg.query_frame_num,
+                                            return_in_pt3d=cfg.return_in_pt3d)
 
         pred_cameras = predictions["pred_cameras"]
 
@@ -151,7 +155,7 @@ def test_fn(cfg: DictConfig):
     return True
 
 
-def run_one_scene(model, images, crop_params=None, query_frame_num=3):
+def run_one_scene(model, images, crop_params=None, query_frame_num=3, return_in_pt3d=True):
     """
     images have been normalized to the range [0, 1] instead of [0, 255]
     """
@@ -229,7 +233,14 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3):
     pred_cameras = pose_predictions["pred_cameras"]
 
     # Conduct Triangulation and Bundle Adjustment
-    BA_cameras = triangulator(pred_cameras, pred_track, pred_vis, images, preliminary_dict, pred_score=pred_score)
+    
+    # If we want to keep the result in the format of COLMAP,
+    # please set return_in_pt3d = False,
+    # and get the rot and trans by 
+    # BA_cameras.R, BA_cameras.T
+    BA_cameras = triangulator(pred_cameras, pred_track, pred_vis, images, 
+                              preliminary_dict, pred_score=pred_score,
+                              return_in_pt3d=return_in_pt3d)
     predictions["pred_cameras"] = BA_cameras
 
     return predictions
