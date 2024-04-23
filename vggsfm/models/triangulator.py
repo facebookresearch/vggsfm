@@ -65,7 +65,7 @@ class Triangulator(nn.Module):
         max_reproj_error=4,
         init_tri_angle_thres=16,
         min_valid_track_length=3,
-        return_in_pt3d = True,
+        return_in_pt3d=True,
     ):
         """
         Conduct triangulation and bundle adjustment given
@@ -208,8 +208,9 @@ class Triangulator(nn.Module):
                 ba_options.print_summary = False
 
                 for BA_iter in range(BA_iters):
-                    if BA_iter == (BA_iters-1): ba_options.print_summary = True
-                    
+                    if BA_iter == (BA_iters - 1):
+                        ba_options.print_summary = True
+
                     points3D, extrinsics, intrinsics, valid_tracks = iterative_global_BA(
                         pred_tracks,
                         intrinsics,
@@ -221,7 +222,7 @@ class Triangulator(nn.Module):
                         image_size,
                         min_valid_track_length=min_valid_track_length,
                         max_reproj_error=max_reproj_error,
-                        ba_options = ba_options,
+                        ba_options=ba_options,
                     )
                     max_reproj_error = max_reproj_error // 2
             except:
@@ -230,7 +231,7 @@ class Triangulator(nn.Module):
             # From OpenCV/COLMAP to PyTorch3D
             rot_BA = extrinsics[:, :3, :3]
             trans_BA = extrinsics[:, :3, 3]
-            
+
             if return_in_pt3d:
                 rot_BA = rot_BA.clone().permute(0, 2, 1)
                 trans_BA = trans_BA.clone()

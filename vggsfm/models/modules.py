@@ -15,7 +15,6 @@ from torch import Tensor
 from itertools import repeat
 
 
-
 # From PyTorch internals
 def _ntuple(n):
     def parse(x):
@@ -41,6 +40,7 @@ class ResidualBlock(nn.Module):
     """
     ResidualBlock: construct a block of two conv layers with residual connections
     """
+
     def __init__(self, in_planes, planes, norm_fn="group", stride=1, kernel_size=3):
         super(ResidualBlock, self).__init__()
 

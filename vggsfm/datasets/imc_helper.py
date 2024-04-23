@@ -6,7 +6,7 @@
 
 
 # Adapted from https://github.com/ubc-vision/image-matching-benchmark
-# and 
+# and
 # https://github.com/colmap/colmap
 
 import os

@@ -23,7 +23,12 @@ from gluefactory.models.extractors.sift import SIFT
 from vggsfm.datasets.imc import IMCDataset
 
 from vggsfm.two_view_geo.estimate_preliminary import estimate_preliminary_cameras
-from vggsfm.utils.utils import set_seed_and_print, farthest_point_sampling, calculate_index_mappings, switch_tensor_order
+from vggsfm.utils.utils import (
+    set_seed_and_print,
+    farthest_point_sampling,
+    calculate_index_mappings,
+    switch_tensor_order,
+)
 from vggsfm.utils.metric import camera_to_rel_deg, calculate_auc, calculate_auc_np
 
 
@@ -51,13 +56,7 @@ def test_fn(cfg: DictConfig):
     model = accelerator.prepare(model)
 
     # Prepare test dataset
-    test_dataset = IMCDataset(
-        IMC_DIR=cfg.IMC_DIR,
-        split="test",
-        img_size=1024,
-        normalize_cameras = False,
-        cfg=cfg,
-    )
+    test_dataset = IMCDataset(IMC_DIR=cfg.IMC_DIR, split="test", img_size=1024, normalize_cameras=False, cfg=cfg)
 
     if cfg.resume_ckpt:
         # Reload model
@@ -65,13 +64,12 @@ def test_fn(cfg: DictConfig):
         model.load_state_dict(checkpoint, strict=True)
         accelerator.print(f"Successfully resumed from {cfg.resume_ckpt}")
 
-
-    error_dict = {"rError":[], "tError":[]}
+    error_dict = {"rError": [], "tError": []}
 
     sequence_list = test_dataset.sequence_list
-    
-    for seq_name in sequence_list: 
-        print("*"*50 + f" Testing on Scene {seq_name} " + "*"*50)
+
+    for seq_name in sequence_list:
+        print("*" * 50 + f" Testing on Scene {seq_name} " + "*" * 50)
 
         # Load the data
         batch = test_dataset.get_data(sequence_name=seq_name)
@@ -83,8 +81,8 @@ def test_fn(cfg: DictConfig):
         fl = batch["fl"].to(device)
         pp = batch["pp"].to(device)
         crop_params = batch["crop_params"].to(device)
-        
-        # Prepare gt cameras 
+
+        # Prepare gt cameras
         gt_cameras = PerspectiveCameras(
             focal_length=fl.reshape(-1, 2),
             principal_point=pp.reshape(-1, 2),
@@ -92,66 +90,71 @@ def test_fn(cfg: DictConfig):
             T=translation.reshape(-1, 3),
             device=device,
         )
-        
+
         # Unsqueeze to have batch size = 1
         images = images.unsqueeze(0)
         crop_params = crop_params.unsqueeze(0)
-        
+
         batch_size = len(images)
 
         with torch.no_grad():
             # Run the model
             if cfg.use_bf16:
                 with autocast(dtype=torch.bfloat16):
-                    predictions = run_one_scene(model, images, crop_params=crop_params, 
-                                                query_frame_num = cfg.query_frame_num,
-                                                return_in_pt3d = cfg.return_in_pt3d)
+                    predictions = run_one_scene(
+                        model,
+                        images,
+                        crop_params=crop_params,
+                        query_frame_num=cfg.query_frame_num,
+                        return_in_pt3d=cfg.return_in_pt3d,
+                    )
             else:
-                predictions = run_one_scene(model, images, crop_params=crop_params, 
-                                            query_frame_num = cfg.query_frame_num,
-                                            return_in_pt3d=cfg.return_in_pt3d)
+                predictions = run_one_scene(
+                    model,
+                    images,
+                    crop_params=crop_params,
+                    query_frame_num=cfg.query_frame_num,
+                    return_in_pt3d=cfg.return_in_pt3d,
+                )
 
         pred_cameras = predictions["pred_cameras"]
-
 
         # For more details about error computation,
         # You can refer to IMC benchmark
         # https://github.com/ubc-vision/image-matching-benchmark/blob/master/utils/pack_helper.py
-        
-        
+
         # Compute the error
         rel_rangle_deg, rel_tangle_deg = camera_to_rel_deg(pred_cameras, gt_cameras, accelerator.device, batch_size)
-        
+
         print(f"    --  Mean Rot   Error (Deg) for this scene: {rel_rangle_deg.mean():10.2f}")
         print(f"    --  Mean Trans Error (Deg) for this scene: {rel_tangle_deg.mean():10.2f}")
 
         error_dict["rError"].extend(rel_rangle_deg.cpu().numpy())
         error_dict["tError"].extend(rel_tangle_deg.cpu().numpy())
 
-
-
-    rError = np.array(error_dict['rError'])
-    tError = np.array(error_dict['tError'])
+    rError = np.array(error_dict["rError"])
+    tError = np.array(error_dict["tError"])
 
     # you can choose either calculate_auc/calculate_auc_np, they lead to the same result
     Auc_30, normalized_histogram = calculate_auc_np(rError, tError, max_threshold=30)
     Auc_3 = np.mean(np.cumsum(normalized_histogram[:3]))
     Auc_5 = np.mean(np.cumsum(normalized_histogram[:5]))
     Auc_10 = np.mean(np.cumsum(normalized_histogram[:10]))
-    
-    
+
     print(f"Testing Done")
-    
-    for _ in range(5): print("-"*100)
-    
+
+    for _ in range(5):
+        print("-" * 100)
+
     print("On the IMC dataset")
     print(f"Auc_3  (%): {Auc_3 * 100}")
     print(f"Auc_5  (%): {Auc_5 * 100}")
     print(f"Auc_10 (%): {Auc_10 * 100}")
     print(f"Auc_30 (%): {Auc_30 * 100}")
-    
-    for _ in range(5): print("-"*100)
-    
+
+    for _ in range(5):
+        print("-" * 100)
+
     return True
 
 
@@ -216,8 +219,12 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, return_in_
     if crop_params is not None:
         boundaries = crop_params[:, :, -4:-2].abs().to(device)
         boundaries = torch.cat([boundaries, reshaped_image.shape[-1] - boundaries], dim=-1)
-        hvis = torch.logical_and(pred_track[..., 1] >= boundaries[:, :, 1:2], pred_track[..., 1] <= boundaries[:, :, 3:4])
-        wvis = torch.logical_and(pred_track[..., 0] >= boundaries[:, :, 0:1], pred_track[..., 0] <= boundaries[:, :, 2:3])
+        hvis = torch.logical_and(
+            pred_track[..., 1] >= boundaries[:, :, 1:2], pred_track[..., 1] <= boundaries[:, :, 3:4]
+        )
+        wvis = torch.logical_and(
+            pred_track[..., 0] >= boundaries[:, :, 0:1], pred_track[..., 0] <= boundaries[:, :, 2:3]
+        )
         force_vis = torch.logical_and(hvis, wvis)
         pred_vis = pred_vis * force_vis.float()
 
@@ -233,14 +240,20 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, return_in_
     pred_cameras = pose_predictions["pred_cameras"]
 
     # Conduct Triangulation and Bundle Adjustment
-    
+
     # If we want to keep the result in the format of COLMAP,
     # please set return_in_pt3d = False,
-    # and get the rot and trans by 
+    # and get the rot and trans by
     # BA_cameras.R, BA_cameras.T
-    BA_cameras = triangulator(pred_cameras, pred_track, pred_vis, images, 
-                              preliminary_dict, pred_score=pred_score,
-                              return_in_pt3d=return_in_pt3d)
+    BA_cameras = triangulator(
+        pred_cameras,
+        pred_track,
+        pred_vis,
+        images,
+        preliminary_dict,
+        pred_score=pred_score,
+        return_in_pt3d=return_in_pt3d,
+    )
     predictions["pred_cameras"] = BA_cameras
 
     return predictions
@@ -295,7 +308,6 @@ def find_query_frame_indexes(reshaped_image, camera_predictor, query_frame_num, 
     fps_idx = farthest_point_sampling(distance_matrix, query_frame_num, most_common_frame_index)
 
     return fps_idx
-
 
 
 if __name__ == "__main__":

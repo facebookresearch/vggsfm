@@ -35,7 +35,6 @@ from .triangulation_helpers import (
 from ..two_view_geo.utils import calculate_depth_batch, calculate_residual_indicator
 
 
-
 def triangulate_by_pair(extrinsics, tracks_normalized, eps=1e-12):
     """
     Given B x S x 3 x 4 extrinsics and B x S x N x 2 tracks_normalized,
@@ -166,7 +165,7 @@ def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size):
 
     # Prepare BA options
     ba_options = prepare_ba_options()
-    
+
     # Conduct BA
     pycolmap.bundle_adjustment(reconstruction, ba_options)
 
@@ -543,7 +542,6 @@ def global_BA(
     camera_type="simple_pinhole",
 ):
     ba_options = prepare_ba_options()
-    
 
     # triangulated_points
     BA_points = triangulated_points[valid_tracks]
@@ -569,7 +567,7 @@ def iterative_global_BA(
     image_size,
     min_valid_track_length=2,
     max_reproj_error=1,
-    ba_options = None,
+    ba_options=None,
 ):
     # normalize points from pixel
     principal_point_refined = intrinsics[:, [0, 1], [2, 2]].unsqueeze(-2)
@@ -598,8 +596,8 @@ def iterative_global_BA(
     BA_inlier_masks = filtered_inlier_mask[:, valid_tracks]
 
     if ba_options is None:
-        ba_options = pycolmap.BundleAdjustmentOptions()    
-    
+        ba_options = pycolmap.BundleAdjustmentOptions()
+
     reconstruction = batch_matrix_to_pycolmap(
         BA_points, extrinsics, intrinsics, BA_tracks, BA_inlier_masks, image_size, camera_type="simple_pinhole"
     )

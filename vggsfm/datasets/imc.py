@@ -23,10 +23,9 @@ from .camera_transform import (
     adjust_camera_to_bbox_crop_,
     adjust_camera_to_image_scale_,
     bbox_xyxy_to_xywh,
-) 
+)
 
 from .imc_helper import parse_file_to_list, load_calib
-
 
 
 Image.MAX_IMAGE_PIXELS = None
@@ -64,7 +63,6 @@ class IMCDataset(Dataset):
                 # In some settings, the scene london_bridge is removed from IMC
                 bag_names = [name for name in bag_names if "london_bridge" not in name]
 
-
             for bag_name in bag_names:
                 parts = bag_name.split("/")  # Split the string into parts by '/'
                 location = parts[-4]  # The location part is at index 5
@@ -90,7 +88,6 @@ class IMCDataset(Dataset):
 
                     fl = torch.from_numpy(np.stack([intri[0, 0], intri[1, 1]], axis=0))
                     pp = torch.from_numpy(np.stack([intri[0, 2], intri[1, 2]], axis=0))
-
 
                     filtered_data.append(
                         {
@@ -122,7 +119,7 @@ class IMCDataset(Dataset):
             self.transform = transform
 
         random_aug = False  # do not use random_aug for IMC
-        
+
         if random_aug and not eval_time:
             self.jitter_scale = cfg.jitter_scale
             self.jitter_trans = cfg.jitter_trans
@@ -132,14 +129,13 @@ class IMCDataset(Dataset):
 
         self.img_size = img_size
         self.eval_time = eval_time
-        
+
         self.normalize_cameras = normalize_cameras
 
         print(f"Data size of IMC: {len(self)}")
 
     def __len__(self):
         return len(self.sequence_list)
-
 
     def _crop_image(self, image, bbox, white_bg=False):
         if white_bg:
@@ -157,7 +153,6 @@ class IMCDataset(Dataset):
             return self.get_data(index=idx_N, ids=None)
         else:
             raise NotImplementedError("Do not train on IMC.")
-
 
     def get_data(self, index=None, sequence_name=None, ids=None, return_path=False):
         if sequence_name is None:
@@ -191,18 +186,17 @@ class IMCDataset(Dataset):
             rotations.append(anno["R"])
             translations.append(anno["T"])
 
-            # focal length and principal point 
-            # from OPENCV to PT3D 
+            # focal length and principal point
+            # from OPENCV to PT3D
             original_size_wh = np.array(image.size)
             scale = min(original_size_wh) / 2
             c0 = original_size_wh / 2.0
             focal_pytorch3d = anno["focal_length"] / scale
-            
+
             # mirrored principal point
             p0_pytorch3d = -(anno["principal_point"] - c0) / scale
             focal_lengths.append(focal_pytorch3d)
             principal_points.append(p0_pytorch3d)
-
 
         batch = {"seq_name": sequence_name, "frame_num": len(metadata)}
 
@@ -210,7 +204,6 @@ class IMCDataset(Dataset):
         images_transformed = []
         new_fls = []
         new_pps = []
-
 
         for i, (anno, image) in enumerate(zip(annos, images)):
             w, h = image.width, image.height
@@ -229,7 +222,7 @@ class IMCDataset(Dataset):
                 # No you should not go here for IMC
                 # because we never use IMC for training
                 bbox_jitter = self._jitter_bbox(bbox)
-            
+
             bbox_xywh = torch.FloatTensor(bbox_xyxy_to_xywh(bbox_jitter))
 
             # Cropping images
@@ -239,7 +232,7 @@ class IMCDataset(Dataset):
 
             crop_paras = calculate_crop_parameters(image, bbox_jitter, crop_dim, self.img_size)
             crop_parameters.append(crop_paras)
-            
+
             # Crop image by bbox_jitter
             image = self._crop_image(image, bbox_jitter)
 
@@ -266,26 +259,20 @@ class IMCDataset(Dataset):
         batch["rawR"] = batchR.clone()
         batch["rawT"] = batchT.clone()
 
-
         # From OPENCV/COLMAP to PT3D
         batchR = batchR.clone().permute(0, 2, 1)
         batchT = batchT.clone()
         batchR[:, :, :2] *= -1
         batchT[:, :2] *= -1
 
-
         cameras = PerspectiveCameras(
             focal_length=new_fls.float(), principal_point=new_pps.float(), R=batchR.float(), T=batchT.float()
         )
 
-
         if self.normalize_cameras:
             # Move the cameras so that they stay in a better coordinate
             # This will not affect the evaluation result
-            normalized_cameras, points = normalize_cameras(
-                cameras,
-                points=None,
-            )
+            normalized_cameras, points = normalize_cameras(cameras, points=None)
 
             if normalized_cameras == -1:
                 print("Error in normalizing cameras: camera scale was 0")
@@ -340,4 +327,3 @@ def calculate_crop_parameters(image, bbox_jitter, crop_dim, img_size):
         [-cc[0], -cc[1], crop_width, s, bbox_after[0], bbox_after[1], bbox_after[2], bbox_after[3]]
     ).float()
     return crop_parameters
-

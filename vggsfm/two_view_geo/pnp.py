@@ -25,7 +25,6 @@ from .perspective_n_points import efficient_pnp
 from kornia.geometry.calibration.pnp import solve_pnp_dlt
 
 
-
 from .utils import (
     generate_samples,
     sampson_epipolar_distance_batched,
@@ -34,6 +33,7 @@ from .utils import (
     local_refinement,
     _torch_svd_cast,
 )
+
 
 def conduct_pnp(points3D, points2D, intrinsics, max_ransac_iters=1024, max_error=8, lo_num=50, f_trials=51):
     """

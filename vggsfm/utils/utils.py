@@ -23,7 +23,6 @@ import torch.nn.functional as F
 from .metric import closed_form_inverse
 
 
-
 def calculate_index_mappings(query_index, S, device=None):
     """
     Construct an order that we can switch [query_index] and [0]
@@ -42,7 +41,6 @@ def switch_tensor_order(tensors, order, dim=1):
     Switch the tensor among the specific dimension
     """
     return [torch.index_select(tensor, dim, order) for tensor in tensors]
-
 
 
 def set_seed_and_print(seed):

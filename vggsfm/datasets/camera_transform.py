@@ -68,14 +68,11 @@ def _convert_pixels_to_ndc(
     return focal_length, principal_point
 
 
-
-
-
 def normalize_cameras(
     cameras, compute_optical=True, first_camera=True, normalize_trans=True, scale=1.0, points=None, max_norm=False
 ):
     """
-    Normalizes cameras such that 
+    Normalizes cameras such that
     (1) the optical axes point to the origin and the average distance to the origin is 1
     (2) the first camera is the origin
     (3) the translation vector is normalized
@@ -97,9 +94,6 @@ def normalize_cameras(
         new_cameras, points = normalize_translation(new_cameras, points=points, max_norm=max_norm)
 
     return new_cameras, points
-
-
-
 
 
 def compute_optical_transform(new_cameras, points=None):
@@ -129,7 +123,6 @@ def compute_optical_transform(new_cameras, points=None):
     return new_cameras, points
 
 
-
 def compute_optical_axis_intersection(cameras):
     centers = cameras.get_camera_center()
     principal_points = cameras.principal_point
@@ -153,7 +146,6 @@ def compute_optical_axis_intersection(cameras):
     return p_intersect, dist, p_line_intersect, pp2, r
 
 
-
 def intersect_skew_line_groups(p, r, mask):
     # p, r both of shape (B, N, n_intersected_lines, 3)
     # mask of shape (B, N, n_intersected_lines)
@@ -161,7 +153,6 @@ def intersect_skew_line_groups(p, r, mask):
     _, p_line_intersect = _point_line_distance(p, r, p_intersect[..., None, :].expand_as(p))
     intersect_dist_squared = ((p_line_intersect - p_intersect[..., None, :]) ** 2).sum(dim=-1)
     return p_intersect, p_line_intersect, intersect_dist_squared, r
-
 
 
 def intersect_skew_lines_high_dim(p, r, mask=None):
@@ -192,12 +183,11 @@ def _point_line_distance(p1, r1, p2):
     return d, line_pt_nearest
 
 
-
 def first_camera_transform(cameras, rotation_only=False, points=None):
     """
     Transform so that the first camera is the origin
     """
-    
+
     new_cameras = cameras.clone()
     new_transform = new_cameras.get_world_to_view_transform()
 
@@ -217,8 +207,6 @@ def first_camera_transform(cameras, rotation_only=False, points=None):
     new_cameras.T = new_matrix[:, 3, :3]
 
     return new_cameras, points
-
-
 
 
 def normalize_translation(new_cameras, points=None, max_norm=False):
@@ -241,4 +229,3 @@ def normalize_translation(new_cameras, points=None, max_norm=False):
         points = points / t_gt_scale
 
     return new_cameras, points
-

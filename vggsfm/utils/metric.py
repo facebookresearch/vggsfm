@@ -138,6 +138,7 @@ def camera_to_rel_deg(pred_cameras, gt_cameras, device, batch_size):
 
     return rel_rangle_deg, rel_tangle_deg
 
+
 def calculate_auc_np(r_error, t_error, max_threshold=30):
     """
     Calculate the Area Under the Curve (AUC) for the given error arrays.
