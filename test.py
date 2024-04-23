@@ -101,7 +101,11 @@ def test_fn(cfg: DictConfig):
 
         with torch.no_grad():
             # Run the model
-            predictions = run_one_scene(model, images, crop_params=crop_params)
+            if cfg.use_bf16:
+                with autocast(dtype=torch.bfloat16):
+                    predictions = run_one_scene(model, images, crop_params=crop_params, query_frame_num = cfg.query_frame_num)
+            else:
+                predictions = run_one_scene(model, images, crop_params=crop_params, query_frame_num = cfg.query_frame_num)
 
         pred_cameras = predictions["pred_cameras"]
 

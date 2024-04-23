@@ -57,6 +57,20 @@ After downloading the model checkpoint, specify its path in the ```resume_ckpt``
 python test.py
 ```
 
+You should see something like:
+
+----------------------------------------------------------------------------------------------------
+On the IMC dataset
+Auc_5  (%): 71.90304909560726
+Auc_10 (%): 80.58532299741603
+Auc_30 (%): 90.00782084409991
+----------------------------------------------------------------------------------------------------
+
+
+If your machine support ```torch.bfloat16```, you are welcome to enable the ```use_bf16``` option in the configuration file. Our model was trained using bf16 and the testing performance is nearly identical when using bf16.
+
+Typically, running our model on a 25-frame IMC scene takes approximately 40 seconds. If you're looking to save time, you can adjust the ```query_frame_num``` to 1. This adjustment reduces the inference time to roughly 15 seconds, while maintaining a comparable performance.
+
 
 
 ## Acknowledgement

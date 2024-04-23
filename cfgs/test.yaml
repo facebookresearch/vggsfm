@@ -1,5 +1,8 @@
-debug: False
 seed: 0
+debug: False
+use_bf16: False
+query_frame_num: 3
+
 
 IMC_DIR: /data/home/jianyuan/OpenSource/VGGSfM/tmp/phototourism
 resume_ckpt:  /data/home/jianyuan/OpenSource/VGGSfM/tmp/vggsfm.bin

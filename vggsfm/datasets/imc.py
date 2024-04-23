@@ -58,8 +58,8 @@ class IMCDataset(Dataset):
         if split == "train":
             raise ValueError("We don't want to train on IMC")
         elif split == "test":
-            # IMC_DIR = os.path.join(IMC_DIR, "test")
             bag_names = glob.glob(os.path.join(IMC_DIR, "*/set_100/sub_set/*.txt"))
+
 
             for bag_name in bag_names:
                 parts = bag_name.split("/")  # Split the string into parts by '/'
