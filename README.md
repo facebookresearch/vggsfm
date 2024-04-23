@@ -19,7 +19,7 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 **Updates:**
 
-- [Apr 23, 2024] Release the code and model weight for VGGSfM V1.1.
+- [Apr 23, 2024] Release the code and model weight for VGGSfM v1.1.
 
 
 
