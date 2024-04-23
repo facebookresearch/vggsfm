@@ -57,7 +57,7 @@ After downloading the model checkpoint, specify its path in the ```resume_ckpt``
 python test.py
 ```
 
-You should see something like:
+You should see something like (yes the performance jumps a lot compared to v1, i.e., the paper version):
 
 ```bash
 ----------------------------------------------------------------------------------------------------
