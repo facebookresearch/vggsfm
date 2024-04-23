@@ -68,7 +68,7 @@ Auc_30 (%): 90.00782084409991
 ----------------------------------------------------------------------------------------------------
 ```
 
-If your machine support ```torch.bfloat16```, you are welcome to enable the ```use_bf16``` option in the configuration file. Our model was trained using bf16 and the testing performance is nearly identical when using bf16.
+If your machine support ```torch.bfloat16```, you are welcome to enable the ```use_bf16``` option in the configuration file or by ```python test.py use_bf16=True```. Our model was trained using bf16 and the testing performance is nearly identical when using bf16.
 
 Typically, running our model on a 25-frame IMC scene takes approximately 40 seconds. If you're looking to save time, you can adjust the ```query_frame_num``` to 1. This adjustment reduces the inference time to roughly 15 seconds, while maintaining a comparable performance.
 
