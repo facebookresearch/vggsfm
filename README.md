@@ -43,7 +43,7 @@ wget https://www.cs.ubc.ca/research/kmyi_data/imc2021-public/imc-2021-test-gt-ph
 tar -xzvf imc-2021-test-gt-phototourism.tar.gz
 ```
 
-Once the dataset is downloaded and extracted, you'll need to specify its path in the ```IMC_DIR``` field in the ./cfgs/test.yaml configuration file.
+Once the dataset is downloaded and extracted, you'll need to specify its path in the ```IMC_DIR``` field in the ./cfgs/test.yaml configuration file or give it as an input such as ```python test.py IMC_DIR=YOUR/PATH```.
 
 Next, you'll need to download the model checkpoint from [Google Drive](https://drive.google.com/file/d/1eSJDMj7tWsM2FzVZAiWYSpvm5bSUIZwq/view?usp=sharing).
 
