@@ -2,6 +2,7 @@ seed: 0
 debug: False
 use_bf16: False
 query_frame_num: 3
+imc_scene_eight: False
 
 
 IMC_DIR: /data/home/jianyuan/OpenSource/VGGSfM/tmp/phototourism

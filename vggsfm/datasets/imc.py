@@ -60,6 +60,10 @@ class IMCDataset(Dataset):
         elif split == "test":
             bag_names = glob.glob(os.path.join(IMC_DIR, "*/set_100/sub_set/*.txt"))
 
+            if cfg.imc_scene_eight:
+                # In some settings, the scene london_bridge is removed from IMC
+                bag_names = [name for name in bag_names if "london_bridge" not in name]
+
 
             for bag_name in bag_names:
                 parts = bag_name.split("/")  # Split the string into parts by '/'
