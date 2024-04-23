@@ -59,13 +59,14 @@ python test.py
 
 You should see something like:
 
+```bash
 ----------------------------------------------------------------------------------------------------
 On the IMC dataset
 Auc_5  (%): 71.90304909560726
 Auc_10 (%): 80.58532299741603
 Auc_30 (%): 90.00782084409991
 ----------------------------------------------------------------------------------------------------
-
+```
 
 If your machine support ```torch.bfloat16```, you are welcome to enable the ```use_bf16``` option in the configuration file. Our model was trained using bf16 and the testing performance is nearly identical when using bf16.
 
