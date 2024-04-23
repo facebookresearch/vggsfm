@@ -125,6 +125,7 @@ def test_fn(cfg: DictConfig):
 
     # you can choose either calculate_auc/calculate_auc_np, they lead to the same result
     Auc_30, normalized_histogram = calculate_auc_np(rError, tError, max_threshold=30)
+    Auc_3 = np.mean(np.cumsum(normalized_histogram[:3]))
     Auc_5 = np.mean(np.cumsum(normalized_histogram[:5]))
     Auc_10 = np.mean(np.cumsum(normalized_histogram[:10]))
     
@@ -134,6 +135,7 @@ def test_fn(cfg: DictConfig):
     for _ in range(5): print("-"*100)
     
     print("On the IMC dataset")
+    print(f"Auc_3  (%): {Auc_3 * 100}")
     print(f"Auc_5  (%): {Auc_5 * 100}")
     print(f"Auc_10 (%): {Auc_10 * 100}")
     print(f"Auc_30 (%): {Auc_30 * 100}")
