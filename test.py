@@ -109,6 +109,12 @@ def test_fn(cfg: DictConfig):
 
         pred_cameras = predictions["pred_cameras"]
 
+
+        # For more details about error computation,
+        # You can refer to IMC benchmark
+        # https://github.com/ubc-vision/image-matching-benchmark/blob/master/utils/pack_helper.py
+        
+        
         # Compute the error
         rel_rangle_deg, rel_tangle_deg = camera_to_rel_deg(pred_cameras, gt_cameras, accelerator.device, batch_size)
         
