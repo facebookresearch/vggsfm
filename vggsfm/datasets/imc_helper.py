@@ -23,7 +23,6 @@ import numpy as np
 
 
 import json
-from jsmin import jsmin
 import cv2
 import h5py
 import numpy as np
@@ -549,24 +548,6 @@ def build_composite_image(image_path1, image_path2, axis=1, margin=0, background
 
     return (composite, (voff1, voff2), (hoff1, hoff2))
 
-
-def load_json(json_path):
-    """Loads JSON file."""
-
-    with open(json_path) as js_file:
-        out = parse_json(js_file.read())
-    return out
-
-
-def parse_json(str1):
-    minified = jsmin(str1).replace("\n", " ")
-    minified = minified.replace(",]", "]")
-    minified = minified.replace(",}", "}")
-    if minified.startswith('"') and minified.endswith('"'):
-        minified = minified[1:-1]
-
-    json_load = json.loads(minified)
-    return json_load
 
 
 def save_h5(dict_to_save, filename):
