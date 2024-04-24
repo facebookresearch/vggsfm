@@ -61,7 +61,7 @@ When it finishes (it would take several hours to complete the testing on the who
 
 ```bash
 ----------------------------------------------------------------------------------------------------
-On the IMC dataset
+On the IMC dataset  (query_frame_num=3)
 Auc_3  (%): 64.74418604651163
 Auc_5  (%): 72.20720930232558
 Auc_10 (%): 80.98441860465115
@@ -72,9 +72,10 @@ If your machine support ```torch.bfloat16```, you are welcome to enable the ```u
 
 Typically, running our model on a 25-frame IMC scene takes approximately 40 seconds. If you're looking to save time, you can adjust the ```query_frame_num``` to 1. This adjustment reduces the inference time to roughly 15 seconds, while maintaining a comparable performance.
 
+
 ```bash
 ----------------------------------------------------------------------------------------------------
-On the IMC dataset
+On the IMC dataset (query_frame_num=1)
 Auc_3  (%): 61.99207579672695
 Auc_5  (%): 69.78997416020671
 Auc_10 (%): 78.88826873385013
