@@ -62,15 +62,25 @@ When it finishes (it would take several hours to complete the testing on the who
 ```bash
 ----------------------------------------------------------------------------------------------------
 On the IMC dataset
-Auc_5  (%): 71.90304909560726
-Auc_10 (%): 80.58532299741603
-Auc_30 (%): 90.00782084409991
+Auc_3  (%): 64.74418604651163
+Auc_5  (%): 72.20720930232558
+Auc_10 (%): 80.98441860465115
 ----------------------------------------------------------------------------------------------------
 ```
 
 If your machine support ```torch.bfloat16```, you are welcome to enable the ```use_bf16``` option in the configuration file or by ```python test.py use_bf16=True```. Our model was trained using bf16 and the testing performance is nearly identical when using bf16.
 
 Typically, running our model on a 25-frame IMC scene takes approximately 40 seconds. If you're looking to save time, you can adjust the ```query_frame_num``` to 1. This adjustment reduces the inference time to roughly 15 seconds, while maintaining a comparable performance.
+
+```bash
+----------------------------------------------------------------------------------------------------
+On the IMC dataset
+Auc_3  (%): 61.99207579672695
+Auc_5  (%): 69.78997416020671
+Auc_10 (%): 78.88826873385013
+----------------------------------------------------------------------------------------------------
+```
+
 
 
 If want to run the model on your own data, please check the ```run_one_scene``` function in ```test.py```. We are also going to provide a demo file for it very soon. The default output cameras of ```run_one_scene``` follows the PyTorch3D convention. You can set ```return_in_pt3d=False``` to let it return in COLMAP convention. 
