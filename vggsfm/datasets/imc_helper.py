@@ -17,20 +17,11 @@ from copy import deepcopy
 from datetime import datetime
 
 
-import os
-import cv2
-import numpy as np
-
-
-import json
 import cv2
 import h5py
-import numpy as np
 
 
-import os
 import collections
-import numpy as np
 import struct
 import argparse
 
