@@ -61,7 +61,7 @@ When it finishes (it would take several hours to complete the testing on the who
 
 ```bash
 ----------------------------------------------------------------------------------------------------
-On the IMC dataset  (query_frame_num=3)
+On the IMC dataset (query_frame_num=3)
 Auc_3  (%): 64.74418604651163
 Auc_5  (%): 72.20720930232558
 Auc_10 (%): 80.98441860465115
