@@ -28,7 +28,13 @@ pip install hydra-core --upgrade
 pip install omegaconf opencv-python einops visdom 
 pip install accelerate==0.24.0
 
-pip install gluefactory
+
+# install gluefactory
+git clone --recursive https://github.com/cvg/glue-factory dependency/glue-factory
+cd dependency/glue-factory/
+python -m pip install -e .  # editable mode
+cd ../../
+
 # Ensure the version of pycolmap is 0.5.0
 pip install pycolmap==0.5.0
 
