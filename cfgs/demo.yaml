@@ -5,7 +5,7 @@ query_frame_num: 3
 return_in_pt3d: True
 load_gt: False
 
-SEQ_DIR: /PATH/TO/YOUR/IMAGE/FOLDER
+SEQ_DIR: /data/home/jianyuan/OpenSource/VGGSfM/tmp/kyoto
 resume_ckpt:  /data/home/jianyuan/OpenSource/VGGSfM/tmp/vggsfm.bin
 
 

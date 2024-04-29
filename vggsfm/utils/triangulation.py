@@ -449,20 +449,23 @@ def triangulate_tracks(
 
         # Refine it again
         # if you want to, you can repeat the local refine more and more
+        lo_num_sec = 10
+        if lo_num<=lo_num_sec: lo_num_sec = lo_num
+
         lo_inlier_mask = (lo_angular_error) <= (max_rad_error)
         lo_triangulated_points_2, lo_tri_angles_2, lo_angular_error_2 = local_refine_and_compute_error(
             tracks_normalized,
             extrinsics,
             extrinsics_expand,
             lo_inlier_mask,
-            10,
+            lo_num_sec,
             min_tri_angle,
             invalid_vis_conf_mask,
             max_rad_error=max_rad_error,
         )
 
         # combine the first and second local refinement results
-        lo_num += 10
+        lo_num += lo_num_sec
         lo_triangulated_points = torch.cat([lo_triangulated_points, lo_triangulated_points_2], dim=1)
         lo_angular_error = torch.cat([lo_angular_error, lo_angular_error_2], dim=1)
         lo_tri_angles = torch.cat([lo_tri_angles, lo_tri_angles_2], dim=1)
@@ -501,6 +504,7 @@ def local_refine_and_compute_error(
 
     inlier_num = inlier_mask.sum(dim=-1)
     sorted_values, sorted_indices = torch.sort(inlier_num, dim=1, descending=True)
+
 
     # local refinement
     lo_triangulated_points, lo_tri_angles, lo_invalid_che_mask = local_refinement_tri(
