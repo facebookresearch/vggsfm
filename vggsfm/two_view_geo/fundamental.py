@@ -85,6 +85,9 @@ def estimate_fundamental(
         sampson_fn = sampson_epipolar_distance_batched
 
     residuals = sampson_fn(points1, points2, fmat_ransac, squared=squared)
+    if loopresidual: torch.cuda.empty_cache()
+
+
 
     # If we know some matches are invalid,
     # we can simply force its corresponding errors as a huge value
@@ -103,7 +106,9 @@ def estimate_fundamental(
     # we can compute all of its inliers
     # and then feed these inliers to 8p algorithm
     fmat_lo = local_refinement(run_8point, points1, points2, inlier_mask, sorted_indices, lo_num=lo_num)
+    if loopresidual: torch.cuda.empty_cache()
     residuals_lo = sampson_fn(points1, points2, fmat_lo, squared=squared)
+    if loopresidual: torch.cuda.empty_cache()
 
     if second_refine:
         # We can do this again to the predictd fmats from last run of 8p algorithm
@@ -115,7 +120,9 @@ def estimate_fundamental(
         fmat_lo_second = local_refinement(
             run_8point, points1, points2, inlier_mask_lo, sorted_indices_lo, lo_num=lo_more
         )
+        if loopresidual: torch.cuda.empty_cache()
         residuals_lo_second = sampson_fn(points1, points2, fmat_lo_second, squared=squared)
+        if loopresidual: torch.cuda.empty_cache()
         fmat_lo = torch.cat([fmat_lo, fmat_lo_second], dim=1)
         residuals_lo = torch.cat([residuals_lo, residuals_lo_second], dim=1)
         lo_num += lo_more
@@ -129,6 +136,7 @@ def estimate_fundamental(
 
     all_fmat = torch.cat([fmat_ransac, fmat_lo], dim=1)
     residuals_all = torch.cat([residuals, residuals_lo], dim=1)
+    
     residual_indicator, inlier_num_all, inlier_mask_all = calculate_residual_indicator(
         residuals_all, max_thres, debug=True
     )

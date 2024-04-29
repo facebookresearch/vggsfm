@@ -211,7 +211,7 @@ class Triangulator(nn.Module):
                     if BA_iter == (BA_iters - 1):
                         ba_options.print_summary = True
 
-                    points3D, extrinsics, intrinsics, valid_tracks = iterative_global_BA(
+                    points3D, extrinsics, intrinsics, valid_tracks, reconstruction = iterative_global_BA(
                         pred_tracks,
                         intrinsics,
                         extrinsics,
@@ -240,7 +240,7 @@ class Triangulator(nn.Module):
 
             BA_cameras = PerspectiveCameras(R=rot_BA, T=trans_BA, device=device)
 
-            return BA_cameras
+            return BA_cameras, extrinsics, intrinsics, points3D, reconstruction
 
 
 def pt3d_camera_to_opencv_EFP(pred_cameras, image_size, B, S):

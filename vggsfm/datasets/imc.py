@@ -38,8 +38,7 @@ class IMCDataset(Dataset):
         IMC_DIR,
         split="train",
         transform=None,
-        min_num_images=50,
-        img_size=224,
+        img_size=1024,
         eval_time=True,
         normalize_cameras=True,
         sort_by_filename=True,
@@ -105,8 +104,6 @@ class IMCDataset(Dataset):
 
         self.IMC_DIR = IMC_DIR
         self.crop_longest = True
-
-        self.min_num_images = min_num_images
 
         self.sequence_list = sorted(self.sequences.keys())
 

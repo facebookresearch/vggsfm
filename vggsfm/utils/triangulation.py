@@ -604,4 +604,4 @@ def iterative_global_BA(
     pycolmap.bundle_adjustment(reconstruction, ba_options)
     points3D_opt, extrinsics, intrinsics = pycolmap_to_batch_matrix(reconstruction, device=pred_tracks.device)
 
-    return points3D_opt, extrinsics, intrinsics, valid_tracks
+    return points3D_opt, extrinsics, intrinsics, valid_tracks, reconstruction
