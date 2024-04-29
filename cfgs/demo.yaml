@@ -1,9 +1,10 @@
 seed: 0
 debug: False
 use_bf16: False
-query_frame_num: 1
+query_frame_num: 3
 return_in_pt3d: True
 load_gt: False
+visualize: False
 
 SEQ_DIR: /PATH/TO/YOUR/IMAGE/FOLDER
 resume_ckpt:  /data/home/jianyuan/OpenSource/VGGSfM/tmp/vggsfm.bin

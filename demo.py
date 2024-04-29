@@ -13,9 +13,14 @@ import torch.nn.functional as F
 import numpy as np
 from torch.cuda.amp import autocast
 import hydra
+from visdom import Visdom
+
 from omegaconf import DictConfig, OmegaConf
 from hydra.utils import instantiate, get_original_cwd
 from pytorch3d.renderer.cameras import PerspectiveCameras
+from pytorch3d.implicitron.tools import model_io, vis_utils
+from pytorch3d.structures import Pointclouds
+from pytorch3d.vis.plotly_vis import plot_scene
 
 from gluefactory.models.extractors.superpoint_open import SuperPoint
 from gluefactory.models.extractors.sift import SIFT
@@ -63,7 +68,13 @@ def test_fn(cfg: DictConfig):
 
     error_dict = {"rError": [], "tError": []}
 
+    if cfg.visualize:
+        viz = Visdom()
+        
+
+
     sequence_list = test_dataset.sequence_list
+
 
     for seq_name in sequence_list:
         print("*" * 50 + f" Testing on Scene {seq_name} " + "*" * 50)
@@ -131,6 +142,17 @@ def test_fn(cfg: DictConfig):
 
         pred_cameras = predictions["pred_cameras"]
 
+        if cfg.visualize:
+            pcl = Pointclouds(points=predictions["points3D"][None])
+            visual_dict = {
+                "scenes": {
+                    "points": pcl,
+                    "cameras": pred_cameras,
+                }
+            }
+            fig = plot_scene(visual_dict, camera_scale=0.05)
+            viz.plotlyplot(fig, env=f"demo_visual", win="3D")
+        
 
         # For more details about error computation,
         # You can refer to IMC benchmark
