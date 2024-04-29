@@ -53,13 +53,12 @@ def generate_samples(N, target_num, sample_num, expand_ratio=2):
 
 
 def calculate_residual_indicator(residuals, max_residual, debug=False, check=False, nanvalue=1e6):
-    
     with autocast(dtype=torch.double):
         B, S, N = residuals.shape
         inlier_mask = residuals <= max_residual
 
         inlier_num = inlier_mask.sum(dim=-1)
-        
+
         # only consider the residuals of inliers, BxSxN
         residual_indicator = inlier_mask.float() * residuals
         # the average residual for inliers

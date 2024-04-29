@@ -540,7 +540,6 @@ def build_composite_image(image_path1, image_path2, axis=1, margin=0, background
     return (composite, (voff1, voff2), (hoff1, hoff2))
 
 
-
 def save_h5(dict_to_save, filename):
     """Saves dictionary to HDF5 file"""
 

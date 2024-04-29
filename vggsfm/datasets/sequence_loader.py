@@ -44,7 +44,7 @@ class SequenceLoader(Dataset):
         eval_time=True,
         normalize_cameras=True,
         sort_by_filename=True,
-        load_gt = False,
+        load_gt=False,
         cfg=None,
     ):
         self.cfg = cfg
@@ -58,26 +58,20 @@ class SequenceLoader(Dataset):
 
         bag_names = glob.glob(os.path.join(SEQ_DIR, "*"))
 
-
-
         self.SEQ_DIR = SEQ_DIR
         self.crop_longest = True
         self.load_gt = load_gt
         self.sort_by_filename = sort_by_filename
 
-
         for bag_name in bag_names:
-            
             img_filenames = glob.glob(os.path.join(bag_name, "images/*"))
-            
-            if self.sort_by_filename:                
+
+            if self.sort_by_filename:
                 img_filenames = sorted(img_filenames)
-            
-            
+
             filtered_data = []
-            
+
             if self.load_gt:
-                
                 """
                 We assume the ground truth cameras exist in the format of colmap
 
@@ -86,41 +80,30 @@ class SequenceLoader(Dataset):
 
                 calib_dict = {}
                 for image_id, image in reconstruction.images.items():
-
                     extrinsic = reconstruction.images[image_id].cam_from_world.matrix
                     camera_id = image.camera_id
                     intrinsic = reconstruction.cameras[camera_id].calibration_matrix()
-                    
-                    R = torch.from_numpy(extrinsic[:,:3])
-                    T = torch.from_numpy(extrinsic[:,3])
-                    fl = torch.from_numpy(intrinsic[[0,1],[0,1]])
-                    pp = torch.from_numpy(intrinsic[[0,1],[2,2]])
-                    
-                    calib_dict[image.name] = {
-                            "R": R,
-                            "T": T,
-                            "focal_length": fl,
-                            "principal_point": pp,
-                        }
-                    
 
-                
+                    R = torch.from_numpy(extrinsic[:, :3])
+                    T = torch.from_numpy(extrinsic[:, 3])
+                    fl = torch.from_numpy(intrinsic[[0, 1], [0, 1]])
+                    pp = torch.from_numpy(intrinsic[[0, 1], [2, 2]])
+
+                    calib_dict[image.name] = {"R": R, "T": T, "focal_length": fl, "principal_point": pp}
+
             for img_name in img_filenames:
                 frame_dict = {}
-                
+
                 frame_dict["filepath"] = img_name
-                
+
                 if self.load_gt:
-                    
                     anno_dict = calib_dict[os.path.basename(img_name)]
                     frame_dict.update(anno_dict)
-                    
+
                 filtered_data.append(frame_dict)
             self.sequences[bag_name] = filtered_data
 
-
         self.sequence_list = sorted(self.sequences.keys())
-
 
         if transform is None:
             self.transform = transforms.Compose([transforms.ToTensor(), transforms.Resize(img_size, antialias=True)])
@@ -173,7 +156,7 @@ class SequenceLoader(Dataset):
 
         images = []
         image_paths = []
-        
+
         if self.load_gt:
             rotations = []
             translations = []
@@ -188,7 +171,7 @@ class SequenceLoader(Dataset):
 
             images.append(image)
             image_paths.append(image_path)
-            
+
             if self.load_gt:
                 rotations.append(anno["R"])
                 translations.append(anno["T"])
@@ -209,7 +192,7 @@ class SequenceLoader(Dataset):
 
         crop_parameters = []
         images_transformed = []
-        
+
         if self.load_gt:
             new_fls = []
             new_pps = []
@@ -225,7 +208,6 @@ class SequenceLoader(Dataset):
             else:
                 bbox = np.array(anno["bbox"])
 
-
             crop_paras = calculate_crop_parameters(image, bbox, crop_dim, self.img_size)
             crop_parameters.append(crop_paras)
 
@@ -233,7 +215,6 @@ class SequenceLoader(Dataset):
             image = self._crop_image(image, bbox)
 
             images_transformed.append(self.transform(image))
-
 
             if self.load_gt:
                 bbox_xywh = torch.FloatTensor(bbox_xyxy_to_xywh(bbox))
@@ -253,7 +234,6 @@ class SequenceLoader(Dataset):
 
                 new_fls.append(new_focal_length)
                 new_pps.append(new_principal_point)
-
 
         images = images_transformed
 
@@ -277,7 +257,7 @@ class SequenceLoader(Dataset):
                 focal_length=new_fls.float(), principal_point=new_pps.float(), R=batchR.float(), T=batchT.float()
             )
 
-            if self.normalize_cameras:            
+            if self.normalize_cameras:
                 # Move the cameras so that they stay in a better coordinate
                 # This will not affect the evaluation result
                 normalized_cameras, points = normalize_cameras(cameras, points=None)

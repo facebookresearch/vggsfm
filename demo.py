@@ -37,16 +37,16 @@ from vggsfm.utils.utils import (
 from vggsfm.utils.metric import camera_to_rel_deg, calculate_auc, calculate_auc_np
 import pycolmap
 
+
 @hydra.main(config_path="cfgs/", config_name="demo")
 def test_fn(cfg: DictConfig):
     OmegaConf.set_struct(cfg, False)
 
-    # Print configuration 
+    # Print configuration
     print("Model Config:", OmegaConf.to_yaml(cfg))
 
     torch.backends.cudnn.benchmark = True
     torch.backends.cudnn.deterministic = True
-
 
     # Set seed
     seed_all_random_engines(cfg.seed)
@@ -58,7 +58,9 @@ def test_fn(cfg: DictConfig):
     model = model.to(device)
 
     # Prepare test dataset
-    test_dataset = SequenceLoader(SEQ_DIR=cfg.SEQ_DIR, img_size=1024, normalize_cameras=False, load_gt= cfg.load_gt, cfg=cfg)
+    test_dataset = SequenceLoader(
+        SEQ_DIR=cfg.SEQ_DIR, img_size=1024, normalize_cameras=False, load_gt=cfg.load_gt, cfg=cfg
+    )
 
     if cfg.resume_ckpt:
         # Reload model
@@ -70,11 +72,8 @@ def test_fn(cfg: DictConfig):
 
     if cfg.visualize:
         viz = Visdom()
-        
-
 
     sequence_list = test_dataset.sequence_list
-
 
     for seq_name in sequence_list:
         print("*" * 50 + f" Testing on Scene {seq_name} " + "*" * 50)
@@ -85,7 +84,7 @@ def test_fn(cfg: DictConfig):
         # Send to GPU
         images = batch["image"].to(device)
         crop_params = batch["crop_params"].to(device)
-        
+
         if cfg.load_gt:
             translation = batch["T"].to(device)
             rotation = batch["R"].to(device)
@@ -117,7 +116,7 @@ def test_fn(cfg: DictConfig):
                         crop_params=crop_params,
                         query_frame_num=cfg.query_frame_num,
                         return_in_pt3d=cfg.return_in_pt3d,
-                        cfg = cfg, 
+                        cfg=cfg,
                     )
             else:
                 predictions = run_one_scene(
@@ -126,9 +125,8 @@ def test_fn(cfg: DictConfig):
                     crop_params=crop_params,
                     query_frame_num=cfg.query_frame_num,
                     return_in_pt3d=cfg.return_in_pt3d,
-                    cfg = cfg, 
+                    cfg=cfg,
                 )
-
 
         # Export prediction as colmap format
         reconstruction_pycolmap = predictions["reconstruction"]
@@ -136,28 +134,22 @@ def test_fn(cfg: DictConfig):
         os.makedirs(output_path, exist_ok=True)
         reconstruction_pycolmap.write(output_path)
 
-        with open(os.path.join(output_path, "file_order.txt"), 'w') as file:
+        with open(os.path.join(output_path, "file_order.txt"), "w") as file:
             for s in image_paths:
-                file.write(s + '\n')  # Write each string with a newline
+                file.write(s + "\n")  # Write each string with a newline
 
         pred_cameras = predictions["pred_cameras"]
 
         if cfg.visualize:
             pcl = Pointclouds(points=predictions["points3D"][None])
-            visual_dict = {
-                "scenes": {
-                    "points": pcl,
-                    "cameras": pred_cameras,
-                }
-            }
+            visual_dict = {"scenes": {"points": pcl, "cameras": pred_cameras}}
             fig = plot_scene(visual_dict, camera_scale=0.05)
             viz.plotlyplot(fig, env=f"demo_visual", win="3D")
-        
 
         # For more details about error computation,
         # You can refer to IMC benchmark
         # https://github.com/ubc-vision/image-matching-benchmark/blob/master/utils/pack_helper.py
-        
+
         if cfg.load_gt:
             # Compute the error
             rel_rangle_deg, rel_tangle_deg = camera_to_rel_deg(pred_cameras, gt_cameras, device, batch_size)
@@ -167,7 +159,6 @@ def test_fn(cfg: DictConfig):
 
             error_dict["rError"].extend(rel_rangle_deg.cpu().numpy())
             error_dict["tError"].extend(rel_tangle_deg.cpu().numpy())
-
 
     if cfg.load_gt:
         rError = np.array(error_dict["rError"])
@@ -254,7 +245,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, return_in_
     pred_score = torch.cat(pred_score_list, dim=2)
 
     torch.cuda.empty_cache()
-    
+
     # If necessary, force all the predictions at the padding areas as non-visible
     if crop_params is not None:
         boundaries = crop_params[:, :, -4:-2].abs().to(device)
@@ -272,7 +263,13 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, return_in_
     # By default, we use fundamental matrix estimation with 7p/8p+LORANSAC
     # All the operations are batched and differentiable (if necessary)
     preliminary_cameras, preliminary_dict = estimate_preliminary_cameras(
-        pred_track, pred_vis, width, height, tracks_score=pred_score, loopresidual=True, max_ransac_iters=cfg.max_ransac_iters
+        pred_track,
+        pred_vis,
+        width,
+        height,
+        tracks_score=pred_score,
+        loopresidual=True,
+        max_ransac_iters=cfg.max_ransac_iters,
     )
 
     pose_predictions = camera_predictor(reshaped_image, batch_size=batch_num, preliminary_cameras=preliminary_cameras)
@@ -294,13 +291,12 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, return_in_
         pred_score=pred_score,
         return_in_pt3d=return_in_pt3d,
     )
-    
+
     predictions["pred_cameras"] = BA_cameras
     predictions["extrinsics_opencv"] = extrinsics_opencv
     predictions["intrinsics_opencv"] = intrinsics_opencv
     predictions["points3D"] = points3D
     predictions["reconstruction"] = reconstruction
-
 
     return predictions
 
@@ -355,10 +351,12 @@ def find_query_frame_indexes(reshaped_image, camera_predictor, query_frame_num, 
 
     return fps_idx
 
+
 def seed_all_random_engines(seed: int) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
     random.seed(seed)
+
 
 if __name__ == "__main__":
     with torch.no_grad():
