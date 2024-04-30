@@ -7,7 +7,7 @@ load_gt: False
 visualize: False
 
 SEQ_DIR: /PATH/TO/YOUR/IMAGE/FOLDER
-resume_ckpt:  /data/home/jianyuan/OpenSource/VGGSfM/tmp/vggsfm.bin
+resume_ckpt:  /data/home/jianyuan/OpenSource/VGGSfM/tmp/vggsfm102.bin
 
 
 max_ransac_iters: 4096
