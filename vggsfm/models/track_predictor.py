@@ -19,7 +19,7 @@ from .track_modules.refine_track import refine_track
 
 
 class TrackerPredictor(nn.Module):
-    def __init__(self, COARSE, FINE, stride=4, corr_levels=5, corr_radius=4, latent_dim=128, cfg=None):
+    def __init__(self, COARSE, FINE, stride=4, corr_levels=5, corr_radius=4, latent_dim=128, cfg=None, **extra_args):
         super(TrackerPredictor, self).__init__()
         """
         COARSE and FINE are the dicts to construct the modules

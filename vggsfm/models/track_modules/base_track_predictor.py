@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from einops import rearrange, repeat
 
-from .blocks import EfficientUpdateFormer, CorrBlock
+from .blocks import EfficientUpdateFormer, CorrBlock, EfficientCorrBlock
 from ..utils import sample_features4d, get_2d_embedding, get_2d_sincos_pos_embed
 
 
@@ -43,6 +43,8 @@ class BaseTrackerPredictor(nn.Module):
 
         self.flows_emb_dim = latent_dim // 2
         self.transformer_dim = self.corr_levels * (self.corr_radius * 2 + 1) ** 2 + self.latent_dim * 2
+
+        self.efficient_corr = cfg.MODEL.TRACK.efficient_corr
 
         if self.fine:
             # TODO this is the old dummy code, will remove this when we train next model
@@ -103,7 +105,10 @@ class BaseTrackerPredictor(nn.Module):
         coords_backup = coords.clone()
 
         # Construct the correlation block
-        fcorr_fn = CorrBlock(fmaps, num_levels=self.corr_levels, radius=self.corr_radius)
+        if self.efficient_corr:
+            fcorr_fn = EfficientCorrBlock(fmaps, num_levels=self.corr_levels, radius=self.corr_radius)
+        else:
+            fcorr_fn = CorrBlock(fmaps, num_levels=self.corr_levels, radius=self.corr_radius)
 
         coord_preds = []
 
@@ -114,8 +119,11 @@ class BaseTrackerPredictor(nn.Module):
             coords = coords.detach()
 
             # Compute the correlation (check the implementation of CorrBlock)
-            fcorr_fn.corr(track_feats)
-            fcorrs = fcorr_fn.sample(coords)  # B, S, N, corrdim
+            if self.efficient_corr:
+                fcorrs = fcorr_fn.sample(coords, track_feats)
+            else:
+                fcorr_fn.corr(track_feats)
+                fcorrs = fcorr_fn.sample(coords)  # B, S, N, corrdim
 
             corrdim = fcorrs.shape[3]
 

@@ -15,6 +15,8 @@ MODEL:
     TRACK:
         _target_: vggsfm.models.TrackerPredictor
 
+        efficient_corr: False
+        
         COARSE:
             stride: 4
             down_ratio: 2
