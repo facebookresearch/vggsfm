@@ -45,7 +45,7 @@ tar -xzvf imc-2021-test-gt-phototourism.tar.gz
 
 Once the dataset is downloaded and extracted, you'll need to specify its path in the ```IMC_DIR``` field in the ./cfgs/test.yaml configuration file or give it as an input such as ```python test.py IMC_DIR=YOUR/PATH```.
 
-Next, you'll need to download the model checkpoint of [v1.1](https://drive.google.com/file/d/1eSJDMj7tWsM2FzVZAiWYSpvm5bSUIZwq/view?usp=sharing) for testing or [v1.2](https://drive.google.com/file/d/1WEGN0RpDqynOnxI18hXlxzeQTqdX5lkA/view?usp=sharing) for demo.
+Next, you'll need to download the model checkpoint of [v1.1](https://drive.google.com/file/d/1eSJDMj7tWsM2FzVZAiWYSpvm5bSUIZwq/view?usp=sharing) for testing or [v1.2](https://drive.google.com/file/d/1WEGN0RpDqynOnxI18hXlxzeQTqdX5lkA/view?usp=sharing) for demo. If you are interested in comparing different methods following the standard setting (as in our paper), v1.1 should be the one for fair comparison. If you want to apply our method for demo/downstream applications, it is quite likely v1.2 should be the better choice.
 
 
 After downloading the model checkpoint, specify its path in the ```resume_ckpt``` field in ./cfgs/test.yaml.
