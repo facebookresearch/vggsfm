@@ -5,6 +5,8 @@ query_frame_num: 3
 return_in_pt3d: True
 load_gt: False
 visualize: False
+fmat_thres: 0.5
+init_max_reproj_error: 0.5
 
 SEQ_DIR: /PATH/TO/YOUR/IMAGE/FOLDER
 resume_ckpt:  /data/home/jianyuan/OpenSource/VGGSfM/tmp/vggsfm102.bin

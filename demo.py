@@ -290,6 +290,8 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, return_in_
         preliminary_dict,
         pred_score=pred_score,
         return_in_pt3d=return_in_pt3d,
+        fmat_thres=cfg.fmat_thres,
+        init_max_reproj_error=cfg.init_max_reproj_error,
     )
 
     predictions["pred_cameras"] = BA_cameras

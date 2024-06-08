@@ -61,6 +61,7 @@ class Triangulator(nn.Module):
         preliminary_dict,
         pred_score=None,
         fmat_thres=0.5,
+        init_max_reproj_error=0.5,
         BA_iters=3,
         max_reproj_error=4,
         init_tri_angle_thres=16,
@@ -159,7 +160,8 @@ class Triangulator(nn.Module):
 
             # Conduct BA on the init point cloud and init pair
             points3D_init, extrinsics, intrinsics, track_init_mask, reconstruction, init_idx = init_BA(
-                extrinsics, intrinsics, pred_tracks, points_3d_pair, inlier_total, image_size
+                extrinsics, intrinsics, pred_tracks, points_3d_pair, inlier_total, image_size, 
+                init_max_reproj_error=init_max_reproj_error
             )
 
             # Given we have a well-conditioned point cloud,

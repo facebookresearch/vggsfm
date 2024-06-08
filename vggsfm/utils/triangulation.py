@@ -115,7 +115,7 @@ def triangulate_by_pair(extrinsics, tracks_normalized, eps=1e-12):
     return points_3d_pair, cheirality_mask, triangles
 
 
-def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size):
+def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size, init_max_reproj_error=0.5):
     """
     This function first optimizes the init point cloud
     and the cameras of its corresponding frames by BA,
@@ -176,7 +176,7 @@ def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size):
 
     # Filter those invalid 3D points
     valid_poins3D_mask = filter_all_points3D(
-        points3D_opt, toBA_tracks, extrinsics_opt, intrinsics_opt, check_triangle=False, max_reproj_error=0.5
+        points3D_opt, toBA_tracks, extrinsics_opt, intrinsics_opt, check_triangle=False, max_reproj_error=init_max_reproj_error
     )
     points3D_opt = points3D_opt[valid_poins3D_mask]
 
