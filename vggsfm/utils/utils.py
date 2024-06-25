@@ -90,7 +90,6 @@ def farthest_point_sampling(distance_matrix, num_samples, most_common_frame_inde
     return selected_indices
 
 
-
 def visual_query_points(images, query_index, query_points):
     """
     Processes an image by converting it to BGR color space, drawing circles at specified points,
@@ -103,11 +102,13 @@ def visual_query_points(images, query_index, query_points):
     None
     """
     # Convert the image from RGB to BGR
-    image_cv2 = cv2.cvtColor((images[:, query_index].squeeze().permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8), cv2.COLOR_RGB2BGR)
-    
+    image_cv2 = cv2.cvtColor(
+        (images[:, query_index].squeeze().permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8), cv2.COLOR_RGB2BGR
+    )
+
     # Draw circles at the specified query points
     for x, y in query_points[0]:
         image_cv2 = cv2.circle(image_cv2, (int(x), int(y)), 4, (0, 255, 0), -1)
-    
+
     # Save the processed image to a file
     cv2.imwrite("image_cv2.png", image_cv2)

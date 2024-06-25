@@ -32,10 +32,11 @@ from vggsfm.two_view_geo.estimate_preliminary import estimate_preliminary_camera
 try:
     import poselib
     from vggsfm.two_view_geo.estimate_preliminary import estimate_preliminary_cameras_poselib
+
     print("Poselib is available")
 except:
     print("Poselib is not installed. Please disable use_poselib")
-    
+
 from vggsfm.utils.utils import (
     set_seed_and_print,
     farthest_point_sampling,
@@ -79,9 +80,8 @@ def demo_fn(cfg: DictConfig):
     if cfg.visualize:
         from pytorch3d.structures import Pointclouds
         from pytorch3d.vis.plotly_vis import plot_scene
-        
-        viz = Visdom()
 
+        viz = Visdom()
 
     sequence_list = test_dataset.sequence_list
 
@@ -115,7 +115,7 @@ def demo_fn(cfg: DictConfig):
         crop_params = crop_params.unsqueeze(0)
 
         batch_size = len(images)
-        
+
         with torch.no_grad():
             # Run the model
             assert cfg.mixed_precision in ("None", "bf16", "fp16")
@@ -127,21 +127,21 @@ def demo_fn(cfg: DictConfig):
                 dtype = torch.float16
             else:
                 raise NotImplementedError(f"dtype {cfg.mixed_precision} is not supported now")
-            
+
             predictions = run_one_scene(
                 model,
                 images,
                 crop_params=crop_params,
                 query_frame_num=cfg.query_frame_num,
                 image_paths=image_paths,
-                dtype = dtype,
+                dtype=dtype,
                 cfg=cfg,
             )
 
         # Export prediction as colmap format
         reconstruction_pycolmap = predictions["reconstruction"]
         output_path = os.path.join("output", seq_name)
-        print("-"*50)
+        print("-" * 50)
         print(f"The output has been saved in COLMAP style at: {output_path} ")
         os.makedirs(output_path, exist_ok=True)
         reconstruction_pycolmap.write(output_path)
@@ -153,24 +153,16 @@ def demo_fn(cfg: DictConfig):
                 pcl = Pointclouds(points=predictions["points3D"][None], features=predictions["points3D_rgb"][None])
             else:
                 pcl = Pointclouds(points=predictions["points3D"][None])
-                
+
             visual_dict = {"scenes": {"points": pcl, "cameras": pred_cameras_PT3D}}
 
             fig = plot_scene(visual_dict, camera_scale=0.05)
-            
+
             env_name = f"demo_visual_{seq_name}"
             print(f"Visualizing the scene by visdom at env: {env_name}")
             viz.plotlyplot(fig, env=env_name, win="3D")
 
-
     return True
-
-
-
-
-
-
-
 
 
 def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_paths=None, dtype=None, cfg=None):
@@ -193,12 +185,12 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     # i.e., the one has highest (average) cosine similarity to all others
     # Then use farthest_point_sampling to find the next ones
     # The number of query frames is determined by query_frame_num
-    
+
     with autocast(dtype=dtype):
         query_frame_indexes = find_query_frame_indexes(reshaped_image, camera_predictor, frame_num)
 
     image_paths = [os.path.basename(imgpath) for imgpath in image_paths]
-    
+
     if cfg.center_order:
         # The code below switchs the first frame (frame 0) to the most common frame
         center_frame_index = query_frame_indexes[0]
@@ -208,13 +200,12 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         reshaped_image = switch_tensor_order([reshaped_image], center_order, dim=0)[0]
 
         image_paths = [image_paths[i] for i in center_order.cpu().numpy().tolist()]
-        
+
         # Also update query_frame_indexes:
         query_frame_indexes = [center_frame_index if x == 0 else x for x in query_frame_indexes]
         query_frame_indexes[0] = 0
 
-
-    # only pick query_frame_num 
+    # only pick query_frame_num
     query_frame_indexes = query_frame_indexes[:query_frame_num]
 
     # Prepare image feature maps for tracker
@@ -222,19 +213,32 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
 
     # Predict tracks
     with autocast(dtype=dtype):
-        pred_track, pred_vis, pred_score = predict_tracks(cfg.query_method, cfg.max_query_pts,
-                                                          track_predictor, images, fmaps_for_tracker, 
-                                                      query_frame_indexes, frame_num, device, cfg)
-
-
+        pred_track, pred_vis, pred_score = predict_tracks(
+            cfg.query_method,
+            cfg.max_query_pts,
+            track_predictor,
+            images,
+            fmaps_for_tracker,
+            query_frame_indexes,
+            frame_num,
+            device,
+            cfg,
+        )
 
         if cfg.comple_nonvis:
-            pred_track, pred_vis, pred_score = comple_nonvis_frames(track_predictor, images, fmaps_for_tracker, 
-                                                                    frame_num, device, pred_track, pred_vis, 
-                                                                    pred_score, 500,cfg=cfg)
+            pred_track, pred_vis, pred_score = comple_nonvis_frames(
+                track_predictor,
+                images,
+                fmaps_for_tracker,
+                frame_num,
+                device,
+                pred_track,
+                pred_vis,
+                pred_score,
+                500,
+                cfg=cfg,
+            )
 
-
-                
     torch.cuda.empty_cache()
 
     # If necessary, force all the predictions at the padding areas as non-visible
@@ -255,8 +259,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         estimate_preliminary_cameras_fn = estimate_preliminary_cameras_poselib
     else:
         estimate_preliminary_cameras_fn = estimate_preliminary_cameras
-    
-    
+
     # Estimate preliminary_cameras by recovering fundamental/essential/homography matrix from 2D matches
     # By default, we use fundamental matrix estimation with 7p/8p+LORANSAC
     # All the operations are batched and differentiable (if necessary)
@@ -267,17 +270,25 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         width,
         height,
         tracks_score=pred_score,
-        max_error = cfg.fmat_thres,
+        max_error=cfg.fmat_thres,
         loopresidual=True,
         # max_ransac_iters=cfg.max_ransac_iters,
     )
-    
+
     pose_predictions = camera_predictor(reshaped_image, batch_size=batch_num)
 
     pred_cameras = pose_predictions["pred_cameras"]
 
     # Conduct Triangulation and Bundle Adjustment
-    BA_cameras_PT3D, extrinsics_opencv, intrinsics_opencv, points3D, points3D_rgb, reconstruction, valid_frame_mask= triangulator(
+    (
+        BA_cameras_PT3D,
+        extrinsics_opencv,
+        intrinsics_opencv,
+        points3D,
+        points3D_rgb,
+        reconstruction,
+        valid_frame_mask,
+    ) = triangulator(
         pred_cameras,
         pred_track,
         pred_vis,
@@ -289,16 +300,14 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         fmat_thres=cfg.fmat_thres,
         BA_iters=cfg.BA_iters,
         init_max_reproj_error=cfg.init_max_reproj_error,
-        cfg= cfg,
+        cfg=cfg,
     )
-    
-    
+
     if cfg.center_order:
-        # NOTE we changed the image order previously, now we need to switch it back    
+        # NOTE we changed the image order previously, now we need to switch it back
         BA_cameras_PT3D = BA_cameras_PT3D[center_order]
         extrinsics_opencv = extrinsics_opencv[center_order]
         intrinsics_opencv = intrinsics_opencv[center_order]
-
 
     predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
     predictions["extrinsics_opencv"] = extrinsics_opencv
@@ -309,15 +318,24 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     return predictions
 
 
-
-def predict_tracks(query_method, max_query_pts, track_predictor, images, fmaps_for_tracker, query_frame_indexes, frame_num, device, cfg=None):
+def predict_tracks(
+    query_method,
+    max_query_pts,
+    track_predictor,
+    images,
+    fmaps_for_tracker,
+    query_frame_indexes,
+    frame_num,
+    device,
+    cfg=None,
+):
     pred_track_list = []
     pred_vis_list = []
     pred_score_list = []
 
     for query_index in query_frame_indexes:
         print(f"Predicting tracks with query_index = {query_index}")
-        
+
         # Find query_points at the query frame
         query_points = get_query_points(images[:, query_index], query_method, max_query_pts)
 
@@ -325,7 +343,6 @@ def predict_tracks(query_method, max_query_pts, track_predictor, images, fmaps_f
         # This largely simplifies the code structure of tracker
         new_order = calculate_index_mappings(query_index, frame_num, device=device)
         images_feed, fmaps_feed = switch_tensor_order([images, fmaps_for_tracker], new_order)
-
 
         # Feed into track predictor
         fine_pred_track, _, pred_vis, pred_score = track_predictor(images_feed, query_points, fmaps=fmaps_feed)
@@ -338,7 +355,6 @@ def predict_tracks(query_method, max_query_pts, track_predictor, images, fmaps_f
         pred_vis_list.append(pred_vis)
         pred_score_list.append(pred_score)
 
-
     pred_track = torch.cat(pred_track_list, dim=2)
     pred_vis = torch.cat(pred_vis_list, dim=2)
     pred_score = torch.cat(pred_score_list, dim=2)
@@ -346,8 +362,19 @@ def predict_tracks(query_method, max_query_pts, track_predictor, images, fmaps_f
     return pred_track, pred_vis, pred_score
 
 
-def comple_nonvis_frames(track_predictor, images, fmaps_for_tracker, frame_num, device, pred_track, pred_vis, pred_score, min_vis=500,cfg=None):
-    # if a frame has too few visible inlier, use it as a query  
+def comple_nonvis_frames(
+    track_predictor,
+    images,
+    fmaps_for_tracker,
+    frame_num,
+    device,
+    pred_track,
+    pred_vis,
+    pred_score,
+    min_vis=500,
+    cfg=None,
+):
+    # if a frame has too few visible inlier, use it as a query
     non_vis_frames = torch.nonzero((pred_vis.squeeze(0) > 0.05).sum(-1) < min_vis).squeeze(-1).tolist()
     last_query = -1
     while len(non_vis_frames) > 0:
@@ -356,10 +383,16 @@ def comple_nonvis_frames(track_predictor, images, fmaps_for_tracker, frame_num, 
         if non_vis_frames[0] == last_query:
             print("The non vis frame still does not has enough 2D matches")
             pred_track_comple, pred_vis_comple, pred_score_comple = predict_tracks(
-                "sp+sift+aliked", cfg.max_query_pts // 2,
-                track_predictor, images,
-                fmaps_for_tracker, non_vis_frames,
-                frame_num, device, cfg)
+                "sp+sift+aliked",
+                cfg.max_query_pts // 2,
+                track_predictor,
+                images,
+                fmaps_for_tracker,
+                non_vis_frames,
+                frame_num,
+                device,
+                cfg,
+            )
             # concat predictions
             pred_track = torch.cat([pred_track, pred_track_comple], dim=2)
             pred_vis = torch.cat([pred_vis, pred_vis_comple], dim=2)
@@ -369,10 +402,16 @@ def comple_nonvis_frames(track_predictor, images, fmaps_for_tracker, frame_num, 
         non_vis_query_list = [non_vis_frames[0]]
         last_query = non_vis_frames[0]
         pred_track_comple, pred_vis_comple, pred_score_comple = predict_tracks(
-            cfg.query_method, cfg.max_query_pts,
-            track_predictor, images,
-            fmaps_for_tracker, non_vis_query_list,
-            frame_num, device, cfg)
+            cfg.query_method,
+            cfg.max_query_pts,
+            track_predictor,
+            images,
+            fmaps_for_tracker,
+            non_vis_query_list,
+            frame_num,
+            device,
+            cfg,
+        )
 
         # concat predictions
         pred_track = torch.cat([pred_track, pred_track_comple], dim=2)
@@ -380,7 +419,6 @@ def comple_nonvis_frames(track_predictor, images, fmaps_for_tracker, frame_num, 
         pred_score = torch.cat([pred_score, pred_score_comple], dim=2)
         non_vis_frames = torch.nonzero((pred_vis.squeeze(0) > 0.05).sum(-1) < min_vis).squeeze(-1).tolist()
     return pred_track, pred_vis, pred_score
-
 
 
 def find_query_frame_indexes(reshaped_image, camera_predictor, query_frame_num, image_size=336):
@@ -418,24 +456,23 @@ def find_query_frame_indexes(reshaped_image, camera_predictor, query_frame_num, 
     return fps_idx
 
 
-
 def get_query_points(query_image, query_method, max_query_num=4096, det_thres=0.005):
     # Run superpoint and sift on the target frame
     # Feel free to modify for your own
 
-    methods = query_method.split('+')
+    methods = query_method.split("+")
     pred_points = []
-    
+
     for method in methods:
         if "sp" in method:
             extractor = SuperPoint(max_num_keypoints=max_query_num, detection_threshold=det_thres).cuda().eval()
         elif "sift" in method:
-            extractor = SIFT(max_num_keypoints=max_query_num).cuda().eval()            
+            extractor = SIFT(max_num_keypoints=max_query_num).cuda().eval()
         elif "aliked" in method:
             extractor = ALIKED(max_num_keypoints=max_query_num, detection_threshold=det_thres).cuda().eval()
         else:
             raise NotImplementedError(f"query method {method} is not supprted now")
-        
+
         query_points = extractor.extract(query_image)["keypoints"]
         pred_points.append(query_points)
 

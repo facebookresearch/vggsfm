@@ -25,12 +25,14 @@ from ..utils.metric import closed_form_inverse
 
 try:
     import poselib
+
     print("Poselib is available")
 except:
     print("Poselib is not installed. Please disable use_poselib")
-    
 
-def estimate_preliminary_cameras_poselib(tracks,
+
+def estimate_preliminary_cameras_poselib(
+    tracks,
     tracks_vis,
     width,
     height,
@@ -44,7 +46,7 @@ def estimate_preliminary_cameras_poselib(tracks,
 ):
     B, S, N, _ = tracks.shape
 
-    query_points = tracks[:, 0:1].reshape(B, N , 2) 
+    query_points = tracks[:, 0:1].reshape(B, N, 2)
     reference_points = tracks[:, 1:].reshape(B * (S - 1), N, 2)
 
     valid_mask = (tracks_vis >= 0.05)[:, 1:].reshape(B * (S - 1), N)
@@ -54,32 +56,35 @@ def estimate_preliminary_cameras_poselib(tracks,
     for idx in range(len(reference_points)):
         kps_left = query_points[0].cpu().numpy()
         kps_right = reference_points[idx].cpu().numpy()
-        
+
         cur_inlier_mask = valid_mask[idx].cpu().numpy()
-        
+
         kps_left = kps_left[cur_inlier_mask]
         kps_right = kps_right[cur_inlier_mask]
-        
-        cur_fmat, info = poselib.estimate_fundamental(kps_left, kps_right, 
-                                                  {'max_epipolar_error': max_error, 
-                                                   "max_iterations": max_ransac_iters, "min_iterations": 1000, 
-                                                   "real_focal_check": True, "progressive_sampling": False})
-        
-        cur_inlier_mask[cur_inlier_mask] = np.array(info['inliers'])
-        
+
+        cur_fmat, info = poselib.estimate_fundamental(
+            kps_left,
+            kps_right,
+            {
+                "max_epipolar_error": max_error,
+                "max_iterations": max_ransac_iters,
+                "min_iterations": 1000,
+                "real_focal_check": True,
+                "progressive_sampling": False,
+            },
+        )
+
+        cur_inlier_mask[cur_inlier_mask] = np.array(info["inliers"])
+
         fmat.append(cur_fmat)
         inlier_mask.append(cur_inlier_mask)
-    
+
     fmat = torch.from_numpy(np.array(fmat)).to(query_points.device)
     inlier_mask = torch.from_numpy(np.array(inlier_mask)).to(query_points.device)
 
-    preliminary_dict = {
-        "fmat": fmat[None],
-        "fmat_inlier_mask": inlier_mask[None],
-    }
+    preliminary_dict = {"fmat": fmat[None], "fmat_inlier_mask": inlier_mask[None]}
 
     return None, preliminary_dict
-
 
 
 def estimate_preliminary_cameras(

@@ -56,19 +56,13 @@ class TensorAccessor(nn.Module):
 
         # Convert the attribute to a tensor if it is not a tensor.
         if not torch.is_tensor(value):
-            value = torch.tensor(
-                value, device=v.device, dtype=v.dtype, requires_grad=v.requires_grad
-            )
+            value = torch.tensor(value, device=v.device, dtype=v.dtype, requires_grad=v.requires_grad)
 
         # Check the shapes match the existing shape and the shape of the index.
         if v.dim() > 1 and value.dim() > 1 and value.shape[1:] != v.shape[1:]:
             msg = "Expected value to have shape %r; got %r"
             raise ValueError(msg % (v.shape, value.shape))
-        if (
-            v.dim() == 0
-            and isinstance(self.index, slice)
-            and len(value) != len(self.index)
-        ):
+        if v.dim() == 0 and isinstance(self.index, slice) and len(value) != len(self.index):
             msg = "Expected value to have len %r; got %r"
             raise ValueError(msg % (len(self.index), len(value)))
         self.class_object.__dict__[name][self.index] = value
@@ -96,12 +90,7 @@ class TensorProperties(nn.Module):
     A mix-in class for storing tensors as properties with helper methods.
     """
 
-    def __init__(
-        self,
-        dtype: torch.dtype = torch.float32,
-        device: Device = "cpu",
-        **kwargs,
-    ) -> None:
+    def __init__(self, dtype: torch.dtype = torch.float32, device: Device = "cpu", **kwargs) -> None:
         """
         Args:
             dtype: data type to set for the inputs
@@ -114,7 +103,6 @@ class TensorProperties(nn.Module):
         self.device = make_device(device)
         self._N = 0
         if kwargs is not None:
-
             # broadcast all inputs which are float/int/list/tuple/tensor/array
             # set as attributes anything else e.g. strings, bools
             args_to_broadcast = {}
@@ -132,9 +120,7 @@ class TensorProperties(nn.Module):
             values = tuple(v for v in args_to_broadcast.values())
 
             if len(values) > 0:
-                broadcasted_values = convert_to_tensors_and_broadcast(
-                    *values, device=device
-                )
+                broadcasted_values = convert_to_tensors_and_broadcast(*values, device=device)
 
                 # Set broadcasted values as attributes on self.
                 for i, n in enumerate(names):
@@ -279,11 +265,7 @@ class TensorProperties(nn.Module):
         return self
 
 
-def format_tensor(
-    input,
-    dtype: torch.dtype = torch.float32,
-    device: Device = "cpu",
-) -> torch.Tensor:
+def format_tensor(input, dtype: torch.dtype = torch.float32, device: Device = "cpu") -> torch.Tensor:
     """
     Helper function for converting a scalar value to a tensor.
 
@@ -309,11 +291,7 @@ def format_tensor(
     return input
 
 
-def convert_to_tensors_and_broadcast(
-    *args,
-    dtype: torch.dtype = torch.float32,
-    device: Device = "cpu",
-):
+def convert_to_tensors_and_broadcast(*args, dtype: torch.dtype = torch.float32, device: Device = "cpu"):
     """
     Helper function to handle parsing an arbitrary number of inputs (*args)
     which all need to have the same batch dimension.
@@ -355,11 +333,7 @@ def convert_to_tensors_and_broadcast(
 
 
 def ndc_grid_sample(
-    input: torch.Tensor,
-    grid_ndc: torch.Tensor,
-    *,
-    align_corners: bool = False,
-    **grid_sample_kwargs,
+    input: torch.Tensor, grid_ndc: torch.Tensor, *, align_corners: bool = False, **grid_sample_kwargs
 ) -> torch.Tensor:
     """
     Samples a tensor `input` of shape `(B, dim, H, W)` at 2D locations
@@ -408,10 +382,7 @@ def ndc_grid_sample(
     return sampled_input
 
 
-def ndc_to_grid_sample_coords(
-    xy_ndc: torch.Tensor,
-    image_size_hw: Tuple[int, int],
-) -> torch.Tensor:
+def ndc_to_grid_sample_coords(xy_ndc: torch.Tensor, image_size_hw: Tuple[int, int]) -> torch.Tensor:
     """
     Convert from the PyTorch3D's NDC coordinates to
     `torch.nn.functional.grid_sampler`'s coordinates.
@@ -436,9 +407,7 @@ def ndc_to_grid_sample_coords(
     return xy_grid_sample
 
 
-def parse_image_size(
-    image_size: Union[List[int], Tuple[int, int], int]
-) -> Tuple[int, int]:
+def parse_image_size(image_size: Union[List[int], Tuple[int, int], int]) -> Tuple[int, int]:
     """
     Args:
         image_size: A single int (for square images) or a tuple/list of two ints.

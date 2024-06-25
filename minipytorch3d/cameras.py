@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional as F
+
 # from pytorch3d.common.datatypes import Device
 
 from .device_utils import Device, get_device, make_device
@@ -28,9 +29,7 @@ _T = torch.zeros(1, 3)  # (1, 3)
 _BatchFloatType = Union[float, Sequence[float], torch.Tensor]
 
 # one or two floats per batch element
-_FocalLengthType = Union[
-    float, Sequence[Tuple[float]], Sequence[Tuple[float, float]], torch.Tensor
-]
+_FocalLengthType = Union[float, Sequence[Tuple[float]], Sequence[Tuple[float, float]], torch.Tensor]
 
 
 class CamerasBase(TensorProperties):
@@ -235,9 +234,7 @@ class CamerasBase(TensorProperties):
         view_to_proj_transform = self.get_projection_transform(**kwargs)
         return world_to_view_transform.compose(view_to_proj_transform)
 
-    def transform_points(
-        self, points, eps: Optional[float] = None, **kwargs
-    ) -> torch.Tensor:
+    def transform_points(self, points, eps: Optional[float] = None, **kwargs) -> torch.Tensor:
         """
         Transform input points from world to camera space.
         If camera is defined in NDC space, the projected points are in NDC space.
@@ -291,13 +288,9 @@ class CamerasBase(TensorProperties):
             # PyTorch3D coordinates, and thus conversion from screen to ndc
             # is a mere scaling from image to [-1, 1] scale.
             image_size = kwargs.get("image_size", self.get_image_size())
-            return get_screen_to_ndc_transform(
-                self, with_xyflip=False, image_size=image_size
-            )
+            return get_screen_to_ndc_transform(self, with_xyflip=False, image_size=image_size)
 
-    def transform_points_ndc(
-        self, points, eps: Optional[float] = None, **kwargs
-    ) -> torch.Tensor:
+    def transform_points_ndc(self, points, eps: Optional[float] = None, **kwargs) -> torch.Tensor:
         """
         Transforms points from PyTorch3D world/camera space to NDC space.
         Input points follow the PyTorch3D coordinate system conventions: +X left, +Y up.
@@ -355,9 +348,9 @@ class CamerasBase(TensorProperties):
         """
         points_ndc = self.transform_points_ndc(points, eps=eps, **kwargs)
         image_size = kwargs.get("image_size", self.get_image_size())
-        return get_ndc_to_screen_transform(
-            self, with_xyflip=with_xyflip, image_size=image_size
-        ).transform_points(points_ndc, eps=eps)
+        return get_ndc_to_screen_transform(self, with_xyflip=with_xyflip, image_size=image_size).transform_points(
+            points_ndc, eps=eps
+        )
 
     def clone(self):
         """
@@ -387,9 +380,7 @@ class CamerasBase(TensorProperties):
         """
         return getattr(self, "image_size", None)
 
-    def __getitem__(
-        self, index: Union[int, List[int], torch.BoolTensor, torch.LongTensor]
-    ) -> "CamerasBase":
+    def __getitem__(self, index: Union[int, List[int], torch.BoolTensor, torch.LongTensor]) -> "CamerasBase":
         """
         Override for the __getitem__ method in TensorProperties which needs to be
         refactored.
@@ -409,15 +400,10 @@ class CamerasBase(TensorProperties):
             # pyre-fixme[16]: Module `cuda` has no attribute `LongTensor`.
             "long": (torch.LongTensor, torch.cuda.LongTensor),
         }
-        if not isinstance(
-            index, (int, list, *tensor_types["bool"], *tensor_types["long"])
-        ) or (
-            isinstance(index, list)
-            and not all(isinstance(i, int) and not isinstance(i, bool) for i in index)
+        if not isinstance(index, (int, list, *tensor_types["bool"], *tensor_types["long"])) or (
+            isinstance(index, list) and not all(isinstance(i, int) and not isinstance(i, bool) for i in index)
         ):
-            msg = (
-                "Invalid index type, expected int, List[int] or Bool/LongTensor; got %r"
-            )
+            msg = "Invalid index type, expected int, List[int] or Bool/LongTensor; got %r"
             raise ValueError(msg % type(index))
 
         if isinstance(index, int):
@@ -488,14 +474,7 @@ def OpenGLPerspectiveCameras(
     )
 
     return FoVPerspectiveCameras(
-        znear=znear,
-        zfar=zfar,
-        aspect_ratio=aspect_ratio,
-        fov=fov,
-        degrees=degrees,
-        R=R,
-        T=T,
-        device=device,
+        znear=znear, zfar=zfar, aspect_ratio=aspect_ratio, fov=fov, degrees=degrees, R=R, T=T, device=device
     )
 
 
@@ -532,16 +511,7 @@ class FoVPerspectiveCameras(CamerasBase):
     """
 
     # For __getitem__
-    _FIELDS = (
-        "K",
-        "znear",
-        "zfar",
-        "aspect_ratio",
-        "fov",
-        "R",
-        "T",
-        "degrees",
-    )
+    _FIELDS = ("K", "znear", "zfar", "aspect_ratio", "fov", "R", "T", "degrees")
 
     _SHARED_FIELDS = ("degrees",)
 
@@ -574,23 +544,12 @@ class FoVPerspectiveCameras(CamerasBase):
         """
         # The initializer formats all inputs to torch tensors and broadcasts
         # all the inputs to have the same batch dimension where necessary.
-        super().__init__(
-            device=device,
-            znear=znear,
-            zfar=zfar,
-            aspect_ratio=aspect_ratio,
-            fov=fov,
-            R=R,
-            T=T,
-            K=K,
-        )
+        super().__init__(device=device, znear=znear, zfar=zfar, aspect_ratio=aspect_ratio, fov=fov, R=R, T=T, K=K)
 
         # No need to convert to tensor or broadcast.
         self.degrees = degrees
 
-    def compute_projection_matrix(
-        self, znear, zfar, fov, aspect_ratio, degrees: bool
-    ) -> torch.Tensor:
+    def compute_projection_matrix(self, znear, zfar, fov, aspect_ratio, degrees: bool) -> torch.Tensor:
         """
         Compute the calibration matrix K of shape (N, 4, 4)
 
@@ -693,17 +652,11 @@ class FoVPerspectiveCameras(CamerasBase):
             )
 
         # Transpose the projection matrix as PyTorch3D transforms use row vectors.
-        transform = Transform3d(
-            matrix=K.transpose(1, 2).contiguous(), device=self.device
-        )
+        transform = Transform3d(matrix=K.transpose(1, 2).contiguous(), device=self.device)
         return transform
 
     def unproject_points(
-        self,
-        xy_depth: torch.Tensor,
-        world_coordinates: bool = True,
-        scaled_depth_input: bool = False,
-        **kwargs,
+        self, xy_depth: torch.Tensor, world_coordinates: bool = True, scaled_depth_input: bool = False, **kwargs
     ) -> torch.Tensor:
         """>!
         FoV cameras further allow for passing depth in world units
@@ -795,18 +748,7 @@ class FoVOrthographicCameras(CamerasBase):
     """
 
     # For __getitem__
-    _FIELDS = (
-        "K",
-        "znear",
-        "zfar",
-        "R",
-        "T",
-        "max_y",
-        "min_y",
-        "max_x",
-        "min_x",
-        "scale_xyz",
-    )
+    _FIELDS = ("K", "znear", "zfar", "R", "T", "max_y", "min_y", "max_x", "min_x", "scale_xyz")
 
     def __init__(
         self,
@@ -857,9 +799,7 @@ class FoVOrthographicCameras(CamerasBase):
             K=K,
         )
 
-    def compute_projection_matrix(
-        self, znear, zfar, max_x, min_x, max_y, min_y, scale_xyz
-    ) -> torch.Tensor:
+    def compute_projection_matrix(self, znear, zfar, max_x, min_x, max_y, min_y, scale_xyz) -> torch.Tensor:
         """
         Compute the calibration matrix K of shape (N, 4, 4)
 
@@ -936,17 +876,11 @@ class FoVOrthographicCameras(CamerasBase):
                 kwargs.get("scale_xyz", self.scale_xyz),
             )
 
-        transform = Transform3d(
-            matrix=K.transpose(1, 2).contiguous(), device=self.device
-        )
+        transform = Transform3d(matrix=K.transpose(1, 2).contiguous(), device=self.device)
         return transform
 
     def unproject_points(
-        self,
-        xy_depth: torch.Tensor,
-        world_coordinates: bool = True,
-        scaled_depth_input: bool = False,
-        **kwargs,
+        self, xy_depth: torch.Tensor, world_coordinates: bool = True, scaled_depth_input: bool = False, **kwargs
     ) -> torch.Tensor:
         """>!
         FoV cameras further allow for passing depth in world units
@@ -1015,13 +949,7 @@ def SfMPerspectiveCameras(
         PendingDeprecationWarning,
     )
 
-    return PerspectiveCameras(
-        focal_length=focal_length,
-        principal_point=principal_point,
-        R=R,
-        T=T,
-        device=device,
-    )
+    return PerspectiveCameras(focal_length=focal_length, principal_point=principal_point, R=R, T=T, device=device)
 
 
 class PerspectiveCameras(CamerasBase):
@@ -1143,17 +1071,11 @@ class PerspectiveCameras(CamerasBase):
                 orthographic=False,
             )
 
-        transform = Transform3d(
-            matrix=K.transpose(1, 2).contiguous(), device=self.device
-        )
+        transform = Transform3d(matrix=K.transpose(1, 2).contiguous(), device=self.device)
         return transform
 
     def unproject_points(
-        self,
-        xy_depth: torch.Tensor,
-        world_coordinates: bool = True,
-        from_ndc: bool = False,
-        **kwargs,
+        self, xy_depth: torch.Tensor, world_coordinates: bool = True, from_ndc: bool = False, **kwargs
     ) -> torch.Tensor:
         """
         Args:
@@ -1167,14 +1089,10 @@ class PerspectiveCameras(CamerasBase):
         else:
             to_camera_transform = self.get_projection_transform(**kwargs)
         if from_ndc:
-            to_camera_transform = to_camera_transform.compose(
-                self.get_ndc_camera_transform()
-            )
+            to_camera_transform = to_camera_transform.compose(self.get_ndc_camera_transform())
 
         unprojection_transform = to_camera_transform.inverse()
-        xy_inv_depth = torch.cat(
-            (xy_depth[..., :2], 1.0 / xy_depth[..., 2:3]), dim=-1  # type: ignore
-        )
+        xy_inv_depth = torch.cat((xy_depth[..., :2], 1.0 / xy_depth[..., 2:3]), dim=-1)  # type: ignore
         return unprojection_transform.transform_points(xy_inv_depth)
 
     def get_principal_point(self, **kwargs) -> torch.Tensor:
@@ -1208,21 +1126,15 @@ class PerspectiveCameras(CamerasBase):
             # provided in the (+X right, +Y down), aka image, coordinate system.
             # Since input points are defined in the PyTorch3D system (+X left, +Y up),
             # we need to adjust for the principal point transform.
-            pr_point_fix = torch.zeros(
-                (self._N, 4, 4), device=self.device, dtype=torch.float32
-            )
+            pr_point_fix = torch.zeros((self._N, 4, 4), device=self.device, dtype=torch.float32)
             pr_point_fix[:, 0, 0] = 1.0
             pr_point_fix[:, 1, 1] = 1.0
             pr_point_fix[:, 2, 2] = 1.0
             pr_point_fix[:, 3, 3] = 1.0
             pr_point_fix[:, :2, 3] = -2.0 * self.get_principal_point(**kwargs)
-            pr_point_fix_transform = Transform3d(
-                matrix=pr_point_fix.transpose(1, 2).contiguous(), device=self.device
-            )
+            pr_point_fix_transform = Transform3d(matrix=pr_point_fix.transpose(1, 2).contiguous(), device=self.device)
             image_size = kwargs.get("image_size", self.get_image_size())
-            screen_to_ndc_transform = get_screen_to_ndc_transform(
-                self, with_xyflip=False, image_size=image_size
-            )
+            screen_to_ndc_transform = get_screen_to_ndc_transform(self, with_xyflip=False, image_size=image_size)
             ndc_transform = pr_point_fix_transform.compose(screen_to_ndc_transform)
 
         return ndc_transform
@@ -1253,13 +1165,7 @@ def SfMOrthographicCameras(
         PendingDeprecationWarning,
     )
 
-    return OrthographicCameras(
-        focal_length=focal_length,
-        principal_point=principal_point,
-        R=R,
-        T=T,
-        device=device,
-    )
+    return OrthographicCameras(focal_length=focal_length, principal_point=principal_point, R=R, T=T, device=device)
 
 
 class OrthographicCameras(CamerasBase):
@@ -1273,15 +1179,7 @@ class OrthographicCameras(CamerasBase):
     """
 
     # For __getitem__
-    _FIELDS = (
-        "K",
-        "R",
-        "T",
-        "focal_length",
-        "principal_point",
-        "_in_ndc",
-        "image_size",
-    )
+    _FIELDS = ("K", "R", "T", "focal_length", "principal_point", "_in_ndc", "image_size")
 
     _SHARED_FIELDS = ("_in_ndc",)
 
@@ -1380,17 +1278,11 @@ class OrthographicCameras(CamerasBase):
                 orthographic=True,
             )
 
-        transform = Transform3d(
-            matrix=K.transpose(1, 2).contiguous(), device=self.device
-        )
+        transform = Transform3d(matrix=K.transpose(1, 2).contiguous(), device=self.device)
         return transform
 
     def unproject_points(
-        self,
-        xy_depth: torch.Tensor,
-        world_coordinates: bool = True,
-        from_ndc: bool = False,
-        **kwargs,
+        self, xy_depth: torch.Tensor, world_coordinates: bool = True, from_ndc: bool = False, **kwargs
     ) -> torch.Tensor:
         """
         Args:
@@ -1404,9 +1296,7 @@ class OrthographicCameras(CamerasBase):
         else:
             to_camera_transform = self.get_projection_transform(**kwargs)
         if from_ndc:
-            to_camera_transform = to_camera_transform.compose(
-                self.get_ndc_camera_transform()
-            )
+            to_camera_transform = to_camera_transform.compose(self.get_ndc_camera_transform())
 
         unprojection_transform = to_camera_transform.inverse()
         return unprojection_transform.transform_points(xy_depth)
@@ -1440,21 +1330,15 @@ class OrthographicCameras(CamerasBase):
             # provided in the (+X right, +Y down), aka image, coordinate system.
             # Since input points are defined in the PyTorch3D system (+X left, +Y up),
             # we need to adjust for the principal point transform.
-            pr_point_fix = torch.zeros(
-                (self._N, 4, 4), device=self.device, dtype=torch.float32
-            )
+            pr_point_fix = torch.zeros((self._N, 4, 4), device=self.device, dtype=torch.float32)
             pr_point_fix[:, 0, 0] = 1.0
             pr_point_fix[:, 1, 1] = 1.0
             pr_point_fix[:, 2, 2] = 1.0
             pr_point_fix[:, 3, 3] = 1.0
             pr_point_fix[:, :2, 3] = -2.0 * self.get_principal_point(**kwargs)
-            pr_point_fix_transform = Transform3d(
-                matrix=pr_point_fix.transpose(1, 2).contiguous(), device=self.device
-            )
+            pr_point_fix_transform = Transform3d(matrix=pr_point_fix.transpose(1, 2).contiguous(), device=self.device)
             image_size = kwargs.get("image_size", self.get_image_size())
-            screen_to_ndc_transform = get_screen_to_ndc_transform(
-                self, with_xyflip=False, image_size=image_size
-            )
+            screen_to_ndc_transform = get_screen_to_ndc_transform(self, with_xyflip=False, image_size=image_size)
             ndc_transform = pr_point_fix_transform.compose(screen_to_ndc_transform)
 
         return ndc_transform
@@ -1472,11 +1356,7 @@ class OrthographicCameras(CamerasBase):
 
 
 def _get_sfm_calibration_matrix(
-    N: int,
-    device: Device,
-    focal_length,
-    principal_point,
-    orthographic: bool = False,
+    N: int, device: Device, focal_length, principal_point, orthographic: bool = False
 ) -> torch.Tensor:
     """
     Returns a calibration matrix of a perspective/orthographic camera.
@@ -1552,9 +1432,7 @@ def _get_sfm_calibration_matrix(
 ################################################
 
 
-def get_world_to_view_transform(
-    R: torch.Tensor = _R, T: torch.Tensor = _T
-) -> Transform3d:
+def get_world_to_view_transform(R: torch.Tensor = _R, T: torch.Tensor = _T) -> Transform3d:
     """
     This function returns a Transform3d representing the transformation
     matrix to go from world space to view space by applying a rotation and
@@ -1594,11 +1472,7 @@ def get_world_to_view_transform(
 
 
 def camera_position_from_spherical_angles(
-    distance: float,
-    elevation: float,
-    azimuth: float,
-    degrees: bool = True,
-    device: Device = "cpu",
+    distance: float, elevation: float, azimuth: float, degrees: bool = True, device: Device = "cpu"
 ) -> torch.Tensor:
     """
     Calculate the location of the camera based on the distance away from
@@ -1619,9 +1493,7 @@ def camera_position_from_spherical_angles(
     Returns:
         camera_position: (N, 3) xyz location of the camera.
     """
-    broadcasted_args = convert_to_tensors_and_broadcast(
-        distance, elevation, azimuth, device=device
-    )
+    broadcasted_args = convert_to_tensors_and_broadcast(distance, elevation, azimuth, device=device)
     dist, elev, azim = broadcasted_args
     if degrees:
         elev = math.pi / 180.0 * elev
@@ -1635,9 +1507,7 @@ def camera_position_from_spherical_angles(
     return camera_position.view(-1, 3)
 
 
-def look_at_rotation(
-    camera_position, at=((0, 0, 0),), up=((0, 1, 0),), device: Device = "cpu"
-) -> torch.Tensor:
+def look_at_rotation(camera_position, at=((0, 0, 0),), up=((0, 1, 0),), device: Device = "cpu") -> torch.Tensor:
     """
     This function takes a vector 'camera_position' which specifies the location
     of the camera in world coordinates and two vectors `at` and `up` which
@@ -1664,9 +1534,7 @@ def look_at_rotation(
         R: (N, 3, 3) batched rotation matrices
     """
     # Format input and broadcast
-    broadcasted_args = convert_to_tensors_and_broadcast(
-        camera_position, at, up, device=device
-    )
+    broadcasted_args = convert_to_tensors_and_broadcast(camera_position, at, up, device=device)
     camera_position, at, up = broadcasted_args
     for t, n in zip([camera_position, at, up], ["camera_position", "at", "up"]):
         if t.shape[-1] != 3:
@@ -1675,9 +1543,7 @@ def look_at_rotation(
     z_axis = F.normalize(at - camera_position, eps=1e-5)
     x_axis = F.normalize(torch.cross(up, z_axis, dim=1), eps=1e-5)
     y_axis = F.normalize(torch.cross(z_axis, x_axis, dim=1), eps=1e-5)
-    is_close = torch.isclose(x_axis, torch.tensor(0.0), atol=5e-3).all(
-        dim=1, keepdim=True
-    )
+    is_close = torch.isclose(x_axis, torch.tensor(0.0), atol=5e-3).all(dim=1, keepdim=True)
     if is_close.any():
         replacement = F.normalize(torch.cross(y_axis, z_axis, dim=1), eps=1e-5)
         x_axis = torch.where(is_close, replacement, x_axis)
@@ -1731,16 +1597,9 @@ def look_at_view_transform(
         eye, at, up = broadcasted_args
         C = eye
     else:
-        broadcasted_args = convert_to_tensors_and_broadcast(
-            dist, elev, azim, at, up, device=device
-        )
+        broadcasted_args = convert_to_tensors_and_broadcast(dist, elev, azim, at, up, device=device)
         dist, elev, azim, at, up = broadcasted_args
-        C = (
-            camera_position_from_spherical_angles(
-                dist, elev, azim, degrees=degrees, device=device
-            )
-            + at
-        )
+        C = camera_position_from_spherical_angles(dist, elev, azim, degrees=degrees, device=device) + at
 
     R = look_at_rotation(C, at, up, device=device)
     T = -torch.bmm(R.transpose(1, 2), C[:, :, None])[:, :, 0]
@@ -1748,9 +1607,7 @@ def look_at_view_transform(
 
 
 def get_ndc_to_screen_transform(
-    cameras,
-    with_xyflip: bool = False,
-    image_size: Optional[Union[List, Tuple, torch.Tensor]] = None,
+    cameras, with_xyflip: bool = False, image_size: Optional[Union[List, Tuple, torch.Tensor]] = None
 ) -> Transform3d:
     """
     PyTorch3D NDC to screen conversion.
@@ -1801,9 +1658,7 @@ def get_ndc_to_screen_transform(
     K[:, 3, 3] = 1.0
 
     # Transpose the projection matrix as PyTorch3D transforms use row vectors.
-    transform = Transform3d(
-        matrix=K.transpose(1, 2).contiguous(), device=cameras.device
-    )
+    transform = Transform3d(matrix=K.transpose(1, 2).contiguous(), device=cameras.device)
 
     if with_xyflip:
         # flip x, y axis
@@ -1811,17 +1666,13 @@ def get_ndc_to_screen_transform(
         xyflip[0, 0] = -1.0
         xyflip[1, 1] = -1.0
         xyflip = xyflip.view(1, 4, 4).expand(cameras._N, -1, -1)
-        xyflip_transform = Transform3d(
-            matrix=xyflip.transpose(1, 2).contiguous(), device=cameras.device
-        )
+        xyflip_transform = Transform3d(matrix=xyflip.transpose(1, 2).contiguous(), device=cameras.device)
         transform = transform.compose(xyflip_transform)
     return transform
 
 
 def get_screen_to_ndc_transform(
-    cameras,
-    with_xyflip: bool = False,
-    image_size: Optional[Union[List, Tuple, torch.Tensor]] = None,
+    cameras, with_xyflip: bool = False, image_size: Optional[Union[List, Tuple, torch.Tensor]] = None
 ) -> Transform3d:
     """
     Screen to PyTorch3D NDC conversion.
@@ -1846,17 +1697,11 @@ def get_screen_to_ndc_transform(
     ]
 
     """
-    transform = get_ndc_to_screen_transform(
-        cameras,
-        with_xyflip=with_xyflip,
-        image_size=image_size,
-    ).inverse()
+    transform = get_ndc_to_screen_transform(cameras, with_xyflip=with_xyflip, image_size=image_size).inverse()
     return transform
 
 
-def try_get_projection_transform(
-    cameras: CamerasBase, cameras_kwargs: Dict[str, Any]
-) -> Optional[Transform3d]:
+def try_get_projection_transform(cameras: CamerasBase, cameras_kwargs: Dict[str, Any]) -> Optional[Transform3d]:
     """
     Try block to get projection transform from cameras and cameras_kwargs.
 

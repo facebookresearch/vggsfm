@@ -153,7 +153,9 @@ class CameraPredictor(nn.Module):
             rgb_feat = (rgb_feat + rgb_feat_init) / 2
 
         # Pose encoding to Cameras
-        pred_cameras = pose_encoding_to_camera(pred_pose_enc, pose_encoding_type=self.pose_encoding_type, to_OpenCV=True)
+        pred_cameras = pose_encoding_to_camera(
+            pred_pose_enc, pose_encoding_type=self.pose_encoding_type, to_OpenCV=True
+        )
         pose_predictions = {
             "pred_pose_enc": pred_pose_enc,
             "pred_cameras": pred_cameras,

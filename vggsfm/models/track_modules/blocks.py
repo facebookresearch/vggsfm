@@ -329,14 +329,8 @@ class CorrBlock:
             self.corrs_pyramid.append(corrs)
 
 
-
 class EfficientCorrBlock:
-    def __init__(
-        self,
-        fmaps,
-        num_levels=4,
-        radius=4,
-    ):
+    def __init__(self, fmaps, num_levels=4, radius=4):
         B, S, C, H, W = fmaps.shape
         self.num_levels = num_levels
         self.radius = radius
@@ -348,34 +342,37 @@ class EfficientCorrBlock:
             _, _, H, W = fmaps_.shape
             fmaps = fmaps_.reshape(B, S, C, H, W)
             self.fmaps_pyramid.append(fmaps)
-            
+
     def sample(self, coords, target):
         r = self.radius
         device = coords.device
         B, S, N, D = coords.shape
         assert D == 2
-        target = target.permute(0,1,3,2).unsqueeze(-1)
-        
+        target = target.permute(0, 1, 3, 2).unsqueeze(-1)
+
         out_pyramid = []
 
         for i in range(self.num_levels):
             pyramid = self.fmaps_pyramid[i]
             C, H, W = pyramid.shape[2:]
-            centroid_lvl = torch.cat([torch.zeros_like(coords[...,:1], device=device), coords],dim=-1).reshape(B * S, N, 1, 1, 3) / 2**i
-            
+            centroid_lvl = (
+                torch.cat([torch.zeros_like(coords[..., :1], device=device), coords], dim=-1).reshape(B * S, N, 1, 1, 3)
+                / 2**i
+            )
+
             dx = torch.linspace(-r, r, 2 * r + 1, device=device)
             dy = torch.linspace(-r, r, 2 * r + 1, device=device)
             xgrid, ygrid = torch.meshgrid(dy, dx, indexing="ij")
             zgrid = torch.zeros_like(xgrid, device=device)
-            delta = torch.stack([zgrid, xgrid, ygrid] , axis=-1)
+            delta = torch.stack([zgrid, xgrid, ygrid], axis=-1)
             delta_lvl = delta.view(1, 1, 2 * r + 1, 2 * r + 1, 3)
             coords_lvl = centroid_lvl + delta_lvl
             pyramid_sample = bilinear_sampler(pyramid.reshape(B * S, C, 1, H, W), coords_lvl)
-            
+
             corr = torch.sum(target * pyramid_sample.reshape(B, S, C, N, -1), dim=2)
             corr = corr / torch.sqrt(torch.tensor(C).float())
             out_pyramid.append(corr)
-            
+
         out = torch.cat(out_pyramid, dim=-1)  # B, S, N, LRR*2
         return out
 

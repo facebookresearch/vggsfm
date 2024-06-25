@@ -13,7 +13,9 @@ import numpy as np
 import pycolmap
 
 
-def batch_matrix_to_pycolmap(points3d, extrinsics, intrinsics, tracks, masks, image_size, max_points3D_val=300, camera_type="simple_pinhole"):
+def batch_matrix_to_pycolmap(
+    points3d, extrinsics, intrinsics, tracks, masks, image_size, max_points3D_val=300, camera_type="simple_pinhole"
+):
     """
     Convert Batched Pytorch Tensors to PyCOLMAP
 
@@ -94,7 +96,7 @@ def batch_matrix_to_pycolmap(points3d, extrinsics, intrinsics, tracks, masks, im
         for point3D_id in range(1, num_points3D + 1):
             original_track_idx = valid_idx[point3D_id - 1]
 
-            if (reconstruction.points3D[point3D_id].xyz<max_points3D_val).all():
+            if (reconstruction.points3D[point3D_id].xyz < max_points3D_val).all():
                 if masks[fidx][original_track_idx]:
                     # It seems we don't need +0.5 for BA
                     point2D_xy = tracks[fidx][original_track_idx]
@@ -122,17 +124,18 @@ def pycolmap_to_batch_matrix(reconstruction, device="cuda"):
     """
     Inversion to batch_matrix_to_pycolmap, nothing but picking them back
     """
-    
+
     num_images = len(reconstruction.images)
     max_points3D_id = max(reconstruction.point3D_ids())
     points3D = np.zeros((max_points3D_id, 3))
-    
-    for point3D_id in reconstruction.points3D: 
-        points3D[point3D_id-1] = reconstruction.points3D[point3D_id].xyz
-    points3D = torch.from_numpy(points3D).to(device)
-    
 
-    extrinsics = torch.from_numpy(np.stack([reconstruction.images[i].cam_from_world.matrix() for i in range(num_images)]))
+    for point3D_id in reconstruction.points3D:
+        points3D[point3D_id - 1] = reconstruction.points3D[point3D_id].xyz
+    points3D = torch.from_numpy(points3D).to(device)
+
+    extrinsics = torch.from_numpy(
+        np.stack([reconstruction.images[i].cam_from_world.matrix() for i in range(num_images)])
+    )
     extrinsics = extrinsics.to(device)
 
     intrinsics = torch.from_numpy(np.stack([reconstruction.cameras[i].calibration_matrix() for i in range(num_images)]))

@@ -52,8 +52,7 @@ def triangulate_multi_view_point_batched(
         print("SWITCH TO torch.linalg.eig()")
         _, eigenvectors = torch.linalg.eig(A)
         eigenvectors = torch.real(eigenvectors)
-        
-        
+
     # Select the first eigenvector
     first_eigenvector = eigenvectors[:, :, 0]
 
@@ -98,7 +97,7 @@ def filter_all_points3D(
     min_tri_angle=1.5,
     check_triangle=True,
     return_detail=False,
-    hard_max = 100,
+    hard_max=100,
 ):
     """
     Filter 3D points based on reprojection error and triangulation angle error.
@@ -124,9 +123,9 @@ def filter_all_points3D(
     valid_track_length = inlier.sum(dim=0)
 
     valid_track_mask = valid_track_length >= 2  # at least two frames to form a track
-    
-    if hard_max>0:
-        valid_value_mask = (points3D.abs()<=hard_max).all(-1)
+
+    if hard_max > 0:
+        valid_value_mask = (points3D.abs() <= hard_max).all(-1)
         valid_track_mask = torch.logical_and(valid_track_mask, valid_value_mask)
 
     if check_triangle:

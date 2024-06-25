@@ -13,11 +13,7 @@ import torch
 
 class HarmonicEmbedding(torch.nn.Module):
     def __init__(
-        self,
-        n_harmonic_functions: int = 6,
-        omega_0: float = 1.0,
-        logspace: bool = True,
-        append_input: bool = True,
+        self, n_harmonic_functions: int = 6, omega_0: float = 1.0, logspace: bool = True, append_input: bool = True
     ) -> None:
         """
         The harmonic embedding layer supports the classical
@@ -103,27 +99,17 @@ class HarmonicEmbedding(torch.nn.Module):
         super().__init__()
 
         if logspace:
-            frequencies = 2.0 ** torch.arange(
-                n_harmonic_functions,
-                dtype=torch.float32,
-            )
+            frequencies = 2.0 ** torch.arange(n_harmonic_functions, dtype=torch.float32)
         else:
             frequencies = torch.linspace(
-                1.0,
-                2.0 ** (n_harmonic_functions - 1),
-                n_harmonic_functions,
-                dtype=torch.float32,
+                1.0, 2.0 ** (n_harmonic_functions - 1), n_harmonic_functions, dtype=torch.float32
             )
 
         self.register_buffer("_frequencies", frequencies * omega_0, persistent=False)
-        self.register_buffer(
-            "_zero_half_pi", torch.tensor([0.0, 0.5 * torch.pi]), persistent=False
-        )
+        self.register_buffer("_zero_half_pi", torch.tensor([0.0, 0.5 * torch.pi]), persistent=False)
         self.append_input = append_input
 
-    def forward(
-        self, x: torch.Tensor, diag_cov: Optional[torch.Tensor] = None, **kwargs
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, diag_cov: Optional[torch.Tensor] = None, **kwargs) -> torch.Tensor:
         """
         Args:
             x: tensor of shape [..., dim]
@@ -155,11 +141,7 @@ class HarmonicEmbedding(torch.nn.Module):
         return embed
 
     @staticmethod
-    def get_output_dim_static(
-        input_dims: int,
-        n_harmonic_functions: int,
-        append_input: bool,
-    ) -> int:
+    def get_output_dim_static(input_dims: int, n_harmonic_functions: int, append_input: bool) -> int:
         """
         Utility to help predict the shape of the output of `forward`.
 
@@ -179,6 +161,4 @@ class HarmonicEmbedding(torch.nn.Module):
         which use harmonic embedding for positional encoding,
         so the input might be xyz.
         """
-        return self.get_output_dim_static(
-            input_dims, len(self._frequencies), self.append_input
-        )
+        return self.get_output_dim_static(input_dims, len(self._frequencies), self.append_input)
