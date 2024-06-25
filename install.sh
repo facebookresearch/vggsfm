@@ -45,5 +45,5 @@ pip install pycolmap==0.6.1
 
 # (Optional) Install poselib 
 cd wheels
-pip install poselib-2.0.2-cp310-cp310-linux_x86_64.whl.zip
+pip install poselib-2.0.2-cp310-cp310-linux_x86_64.whl
 cd ..
