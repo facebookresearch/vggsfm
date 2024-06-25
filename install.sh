@@ -35,10 +35,14 @@ cd dependency/LightGlue/
 python -m pip install -e .  # editable mode
 cd ../../
 
+# Force numpy <2
+pip install numpy==1.26.3
+
 # Ensure the version of pycolmap is 0.6.1
 pip install pycolmap==0.6.1
 
 # (Optional) Install poselib 
-cd wheels
+cd pywheels
 pip install poselib-2.0.2-cp310-cp310-linux_x86_64.whl
 cd ..
+

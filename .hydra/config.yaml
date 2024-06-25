@@ -1,0 +1,48 @@
+seed: 0
+img_size: 1024
+viz_ip: 127.0.0.1
+debug: false
+center_order: true
+mixed_precision: fp16
+extract_color: true
+comple_nonvis: true
+query_frame_num: 3
+robust_refine: 2
+BA_iters: 2
+load_gt: false
+visualize: false
+fmat_thres: 4.0
+init_max_reproj_error: 4.0
+max_query_pts: 4096
+SCENE_DIR: examples/apple
+resume_ckpt: /data/home/jianyuan/OpenSource/VGGSfM/tmp/vggsfm_v103.bin
+query_method: sp+sift
+use_poselib: true
+MODEL:
+  _target_: vggsfm.models.VGGSfM
+  TRACK:
+    _target_: vggsfm.models.TrackerPredictor
+    efficient_corr: false
+    COARSE:
+      stride: 4
+      down_ratio: 2
+      FEATURENET:
+        _target_: vggsfm.models.BasicEncoder
+      PREDICTOR:
+        _target_: vggsfm.models.BaseTrackerPredictor
+    FINE:
+      FEATURENET:
+        _target_: vggsfm.models.ShallowEncoder
+      PREDICTOR:
+        _target_: vggsfm.models.BaseTrackerPredictor
+        depth: 4
+        corr_levels: 3
+        corr_radius: 3
+        latent_dim: 32
+        hidden_size: 256
+        fine: true
+        use_spaceatt: false
+  CAMERA:
+    _target_: vggsfm.models.CameraPredictor
+  TRIANGULAE:
+    _target_: vggsfm.models.Triangulator
