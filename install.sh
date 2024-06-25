@@ -9,7 +9,7 @@
 conda deactivate
 
 # Set environment variables
-export ENV_NAME=vggsfm
+export ENV_NAME=vggsfmdebug
 export PYTHON_VERSION=3.10
 export PYTORCH_VERSION=2.1.0
 export CUDA_VERSION=12.1
@@ -27,11 +27,6 @@ conda install pytorch3d -c pytorch3d
 pip install hydra-core --upgrade
 pip install omegaconf opencv-python einops visdom 
 pip install accelerate==0.24.0
-
-
-# Clone VGGSfM
-git clone git@github.com:facebookresearch/vggsfm.git
-cd vggsfm
 
 # Install LightGlue
 git clone https://github.com/cvg/LightGlue.git dependency/LightGlue
