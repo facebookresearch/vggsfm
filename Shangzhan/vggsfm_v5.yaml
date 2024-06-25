@@ -1,0 +1,430 @@
+# TODO :
+# Iteration Number for tracker
+# stable_scale
+
+
+
+seed: 0
+
+visualize: False
+
+viz_ip: "10.200.160.58"
+
+dynamix: False
+
+
+
+testimc2024: False
+shallow_dim: 64
+shallower: False
+shallowshallow: False
+sssingle: False
+
+pre_ransac: 2048
+pre_max_error: 0.5
+pre_good_fl: False
+
+
+close_valid: False
+mega_clean: False
+inference: False
+noisy_track: -1
+noisy_pre: False
+trackl: -1
+force_eval: False
+fine_depth: 3
+sample_ffeat: False
+still_pose: False
+use_dit: True
+scale_tcorr: False
+max_normT: False
+rays: False
+rays_ours: True
+warmup_ratio: 0.1
+warmup_lr_init: 0.0000001
+clip_trackL: -1
+prelimi_cam: True
+
+adapad: False
+pre_factor: 1
+inside_shuffle: False
+fine_hid: 128
+rot_aug: False
+rot_aug_range: 30
+pers_aug: False
+
+
+new_kub: True
+
+# downfneatr: 1
+downfneat: False
+ckpt_updatef: False
+
+linear_att: False
+also_trunk: False
+se3loss: False
+refinev2: True
+refinel2l: False
+onet_norm: False
+
+inverse_RT: False
+jitter_scale: [0.5, 1.05]
+jitter_trans: [-0.1, 0.1]
+
+
+
+loose_co3d: False
+track_downr: 2
+mega_persceneD: False
+cam_selfpatch: True
+camera_iter: 4
+camera_conv: False
+camera_pool: "max"
+concat_pose: False
+camera_dot: False
+repeat_mix: 3
+reverse_soft: False
+refine_with_f: False
+fine_tracker: False
+clamp_fine: False
+fine_normalize: False
+
+trunk_init: False
+# fine_softmax: True
+
+
+relax_load: False
+freeze_ctrack: False
+freeze_track: False
+
+softmax_refine: False
+
+
+
+supervise_patch: False
+all_pred_p: False
+track_trainit: 4
+track_teseit: 6
+
+mixed_precision: "bf16"
+
+uformerdim: 384
+resi_uformer: True
+
+rope: False
+llamamlp: False
+more_kubric: False
+
+
+space_att: True
+
+fine_stable_scale: 1.0 
+stable_scale: 1.0
+
+
+xformerhead: 8
+xformeratt: "scaled_dot_product"
+use_xformer: False
+dummy: False
+
+crop_longest: True
+fre_tracker: False
+
+pradius: 10
+resumeTrack: False
+
+more_view: False
+
+
+imcstartidx: -1
+
+forceresume: False
+usetrackF: True
+
+comeon: False
+
+confsig: False
+
+pointrgb: False
+averaging: False
+
+correct_softm: True
+
+masking: False
+epiasconf: False
+
+ransac_iter: 10
+per_iter_num: 20
+
+avgglobalT: False
+
+z_see_track: -1
+# z_see_track_fix: False
+
+paired_pose: False
+
+init_pose_5p: True
+
+colmapbytrack: False
+evalcolmap: False
+evalransac: False
+
+compare_to_spsg: False
+
+antialias: False
+enable_track: True
+enable_pose: False
+enable_point: False
+
+z_posenc: True
+eval_on_mega: False
+overlap_thres: 0.1
+
+seqlen: 16
+batch_size: 3
+
+
+# kubric_seqlen: 16
+# kubric_bs: 4
+kubric_rand: False
+use_laf: False
+all_see_pivot: False
+all_see_pivot_res: False
+
+pose_upon_track: False
+track_conf: False
+refine_track: False
+
+
+smallimg: -1
+t_refine_r: 0.5
+track_withKP: False
+track_withOF: False
+# track_roPE: False
+
+pose_by_epi: False
+epiloss_w: 1.0
+var_lr: False
+
+fpn_cross: 3
+fpn_self: 3
+uptoc4: False
+
+# test_imc: False
+test_by_GGS: False
+
+loftr_pose: False
+
+force_test: False
+unwrap: False
+unwrap_iter: True
+
+skip_geo: False
+
+track_onlya1: False
+weightT: 1.0 
+
+track_by_grid: False
+track_by_spsg: False
+
+repeat_kub: 5
+gt_track: False
+track_kp_res: 0.0
+
+hdimg: False
+trackhdimg: False
+
+
+
+colvisthr: 0.8
+cossimthr: 0.8
+
+tmp:
+    # really in debugging, can be deleted anytime
+    posemb_inside_loop: False
+    deeppred: False
+    delta_enlarge: False
+    freeze_resnet: False
+
+
+GGS:
+    splits: -1
+    enable: True
+    start_step: 10
+    learning_rate: 0.01
+    iter_num: 100
+    sampson_max: 10
+    min_matches: 10
+    alpha: 0.0001
+    sptype: "superpoint_max"
+
+
+
+test:
+    CO3D_DIR: "/fsx-repligen/shared/datasets/co3d/"
+    CO3D_ANNOTATION_DIR: "/data/home/jianyuan/regenerated_co3d"
+    
+    random_order: True
+    num_frames: 10
+
+    test_interval: 500
+    ##########################
+
+    img_size: 512
+    category: seen
+
+    normalize_cameras: True
+    normalize_T: True
+    persistent_workers: False
+
+    preload_image: False
+    cudnnbenchmark: False
+    first_camera_transform: True
+    min_num_images: 50
+    compute_optical: True
+
+    load_point: False
+    max_3dpoints: 20480
+    load_track: True
+
+
+train:
+    #####################################################################
+    # debugging
+
+    mixset: "km"
+    dataset: "mix"
+    reproj_loss: False
+    reproj_loss_thres: -1
+    reprojC_loss_w: -1
+    reproj_epoch: -1
+    ###
+    fix_first_cor: True
+    ndc_track: False
+    huber: False
+    track_weight: 0.1
+    diffuser: False
+    sort_by_filename: False
+    vis_aware: True
+    vis_aware_w: 0.1
+    #####################################################################
+    img_size: 512
+    category: seen
+    restart_num: 80
+    lr: 0.0005      # The base lr is 0.0001, and please times it with your number of accelerator processes (GPU)
+    resume_ckpt: False
+    epochs: 500
+    ckpt_interval: 5
+    # mixed_precision: None
+    num_workers: 8
+
+    eval_interval: 5
+
+    print_interval: 10
+
+    len_train: 16384
+    len_eval: 256
+
+    max_images: 32
+    normalize_cameras: True
+    normalize_T: True
+    dynamic_batch: True
+    pt3d_co3d: False
+
+    persistent_workers: False
+
+    pin_memory: False
+    clip_grad: 1.0
+    preload_image: False
+    cudnnbenchmark: False
+    first_camera_transform: True
+    min_num_images: 25
+    images_per_seq: [3, 25]
+    compute_optical: True
+    color_aug: True
+    erase_aug: False
+    batch_repeat: -1
+    warmup_sche: True
+    CO3D_DIR: "/fsx-repligen/shared/datasets/co3d/"
+    CO3D_ANNOTATION_DIR: "/data/home/jianyuan/regenerated_co3d"
+    auto_resume: True   
+    load_point: False 
+    load_track: True
+    load_camera: False
+    max_3dpoints: 20480
+    close_box_aug: False
+    track_num: 512
+    # track_num: 4096
+
+
+
+debug: False
+debugeval: True
+profile: False
+
+MODEL:
+    _target_: models.VGGSfMV5
+
+    pose_encoding_type: absT_quaR_OneFL
+
+    CAMERAPRED:
+        _target_: models.CameraPredictor
+        backbone: "dinov2b"
+        down_size: 280
+        z_dim: 768
+        att_depth: 8
+        hidden_size: 768
+    # IMAGE_FEATURE_EXTRACTOR: 
+    #     _target_: models.FORGE2D
+    #     modelname: "dino_vits16"
+    #     freeze: False
+    #     scale_factors: [1, 0.5, 0.33333]
+
+    ENCODER:
+        _target_: models.BasicEncoder
+        output_dim: 128
+        stride: 8
+        # norm_fn: instance
+
+    # POINT:
+    #     _target_: models.PointV2
+
+    TRACKER:
+        _target_: models.TrackerV3
+        corr_radius: 4
+        corr_levels: 5
+        latent_dim: 128
+
+    TRIANGULATOR:
+        _target_: models.Triangulator
+    
+    # DENOISER: 
+    #     _target_: models.PoseV4
+    #     z_dim: 384
+
+    #     enable_time: True
+    #     enable_time_by_add: False
+
+        
+    #     TRANSFORMER:
+    #         # _target_:               models.TransformerEncoderWrapper
+    #         d_model:                512
+    #         nhead:                  4
+    #         dim_feedforward:        2048
+    #         num_encoder_layers:     8
+    #         dropout:                0.1
+    #         batch_first:            True
+    #         norm_first:             True
+
+    #     CROSS:
+    #         flag: False
+
+    # DIFFUSER:
+    #     _target_: models.GaussianDiffusion
+    #     beta_schedule: custom
+    #     loss_type: "l1"
+    #     p2_loss_weight_gamma: 0.1
+    #     zero_snr: False
+    #     timesteps: 100
+
+    #     loss_by_alpha: False
