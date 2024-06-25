@@ -23,12 +23,13 @@ BA_iters: 2
 load_gt: False
 visualize: False
 fmat_thres: 4.0
+max_reproj_error: 4.0
 init_max_reproj_error: 4.0
 max_query_pts: 4096
 
 
 
-SCENE_DIR: examples/apple
+SCENE_DIR: examples/cake
 
 resume_ckpt:  ckpt/vggsfm_v2_0_0.bin
 

@@ -18,7 +18,11 @@ from typing import NamedTuple, Optional
 
 import torch
 import torch.nn.functional as F
-from pytorch3d.ops import points_alignment, utils as oputil
+
+try:
+    from pytorch3d.ops import points_alignment, utils as oputil
+except:
+    print("pytorch3d pnp not available")
 
 
 class EpnpSolution(NamedTuple):

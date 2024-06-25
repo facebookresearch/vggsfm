@@ -24,7 +24,8 @@ import kornia
 import pycolmap
 from torch.cuda.amp import autocast
 
-from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
+# from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
+from minipytorch3d.cameras import CamerasBase, PerspectiveCameras
 
 
 # #####################
@@ -180,7 +181,7 @@ class Triangulator(nn.Module):
             )
 
             points3D, extrinsics, intrinsics, valid_tracks, reconstruction = self.triangulate_tracks_and_BA(
-                pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length
+                pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length,max_reproj_error
             )
 
             if cfg.robust_refine > 0:
@@ -210,6 +211,7 @@ class Triangulator(nn.Module):
                         image_size,
                         device,
                         min_valid_track_length,
+                        max_reproj_error,
                     )
 
             # try:
@@ -302,7 +304,7 @@ class Triangulator(nn.Module):
             return BA_cameras_PT3D, extrinsics, intrinsics, points3D, points3D_rgb, reconstruction, valid_frame_mask
 
     def triangulate_tracks_and_BA(
-        self, pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length
+        self, pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length, max_reproj_error=4
     ):
         """ """
         # Normalize the tracks
@@ -329,7 +331,7 @@ class Triangulator(nn.Module):
         )
 
         valid_poins3D_mask = filter_all_points3D(
-            points3D, pred_tracks[:, valid_tracks], extrinsics, intrinsics, check_triangle=False, max_reproj_error=4
+            points3D, pred_tracks[:, valid_tracks], extrinsics, intrinsics, check_triangle=False, max_reproj_error=max_reproj_error
         )
         points3D = points3D[valid_poins3D_mask]
 

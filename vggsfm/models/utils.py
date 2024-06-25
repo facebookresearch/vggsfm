@@ -15,9 +15,16 @@ import torch.nn.functional as F
 from typing import Optional, Tuple, Union
 from einops import rearrange, repeat
 
-from pytorch3d.renderer import HarmonicEmbedding
-from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
-from pytorch3d.transforms.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
+
+from minipytorch3d.harmonic_embedding import HarmonicEmbedding
+
+from minipytorch3d.cameras import CamerasBase, PerspectiveCameras
+from minipytorch3d.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
+
+
+# from pytorch3d.renderer import HarmonicEmbedding
+# from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
+# from pytorch3d.transforms.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
 
 from ..utils.metric import closed_form_inverse_OpenCV
 from ..utils.triangulation import create_intri_matrix

@@ -1,0 +1,2 @@
+- resume_ckpt=/data/home/jianyuan/OpenSource/VGGSfM/tmp/vggsfm_v103.bin
+- visualize=True

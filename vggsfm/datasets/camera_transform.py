@@ -11,10 +11,15 @@ import torch
 import numpy as np
 import math
 
-from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
 
-from pytorch3d.transforms import Rotate, Translate
-from pytorch3d.transforms.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
+
+from minipytorch3d.cameras import PerspectiveCameras
+from minipytorch3d.transform3d import Rotate, Translate
+from minipytorch3d.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
+
+# from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
+# from pytorch3d.transforms import Rotate, Translate
+# from pytorch3d.transforms.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
 
 
 def bbox_xyxy_to_xywh(xyxy):

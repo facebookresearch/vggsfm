@@ -23,8 +23,6 @@ import pycolmap
 
 from visdom import Visdom
 
-from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
-
 
 from vggsfm.datasets.demo_loader import DemoLoader
 from vggsfm.two_view_geo.estimate_preliminary import estimate_preliminary_cameras
@@ -80,8 +78,10 @@ def demo_fn(cfg: DictConfig):
     if cfg.visualize:
         from pytorch3d.structures import Pointclouds
         from pytorch3d.vis.plotly_vis import plot_scene
+        from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
 
         viz = Visdom()
+        
 
     sequence_list = test_dataset.sequence_list
 
@@ -95,20 +95,6 @@ def demo_fn(cfg: DictConfig):
         images = batch["image"].to(device)
         crop_params = batch["crop_params"].to(device)
 
-        if cfg.load_gt:
-            translation = batch["T"].to(device)
-            rotation = batch["R"].to(device)
-            fl = batch["fl"].to(device)
-            pp = batch["pp"].to(device)
-
-            # Prepare gt cameras
-            gt_cameras = PerspectiveCameras(
-                focal_length=fl.reshape(-1, 2),
-                principal_point=pp.reshape(-1, 2),
-                R=rotation.reshape(-1, 3, 3),
-                T=translation.reshape(-1, 3),
-                device=device,
-            )
 
         # Unsqueeze to have batch size = 1
         images = images.unsqueeze(0)
@@ -154,7 +140,13 @@ def demo_fn(cfg: DictConfig):
             else:
                 pcl = Pointclouds(points=predictions["points3D"][None])
 
-            visual_dict = {"scenes": {"points": pcl, "cameras": pred_cameras_PT3D}}
+            visual_cameras = PerspectiveCamerasVisual(
+                R=pred_cameras_PT3D.R,
+                T=pred_cameras_PT3D.T,
+                device=pred_cameras_PT3D.device,
+            )
+
+            visual_dict = {"scenes": {"points": pcl, "cameras": visual_cameras}}
 
             fig = plot_scene(visual_dict, camera_scale=0.05)
 
@@ -299,6 +291,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         pred_score=pred_score,
         fmat_thres=cfg.fmat_thres,
         BA_iters=cfg.BA_iters,
+        max_reproj_error = cfg.max_reproj_error,
         init_max_reproj_error=cfg.init_max_reproj_error,
         cfg=cfg,
     )

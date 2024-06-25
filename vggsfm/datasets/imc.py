@@ -16,7 +16,8 @@ import numpy as np
 from PIL import Image, ImageFile
 from torchvision import transforms
 from torch.utils.data import Dataset
-from pytorch3d.renderer import PerspectiveCameras
+
+from minipytorch3d.cameras import PerspectiveCameras
 
 from .camera_transform import (
     normalize_cameras,

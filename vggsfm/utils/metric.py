@@ -8,8 +8,7 @@ import random
 import numpy as np
 import torch
 
-from pytorch3d.transforms import so3_relative_angle
-from pytorch3d.transforms.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
+from minipytorch3d.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
 
 
 def quaternion_from_matrix(matrix, isprecise=False):
