@@ -80,13 +80,8 @@ def demo_fn(cfg: DictConfig):
         from pytorch3d.structures import Pointclouds
         from pytorch3d.vis.plotly_vis import plot_scene
         
-        # viz = Visdom()
+        viz = Visdom()
 
-
-        from pytorch3d.implicitron.tools import model_io, vis_utils
-        viz = vis_utils.get_visdom_connection(
-            server=f"http://{cfg.viz_ip}", port=int(os.environ.get("VISDOM_PORT", 10088))
-        )
 
     sequence_list = test_dataset.sequence_list
 
