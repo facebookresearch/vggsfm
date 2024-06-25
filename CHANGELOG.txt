@@ -1,0 +1,19 @@
+VGGSfM 2.0
+
+* More powerful camera and track predictor
+* Save the GPU memory usage by around 50%
+* Add Poselib as an option for Fundamental Matrix Estimation
+* Support COLMAP-tyle output
+* Provide focal length in pixel 
+* Normalize the scene after each BA
+* Remove preliminary_cameras for simplicity 
+* Switch to lightglue instead of gluefactory
+* Upgrade pycolmap from 0.5.0 to 0.6.1
+
+
+
+TODO:
+1. Make precision consistent 
+2. Provide a step-by-step instruction for using VGGSfM for 3D Gaussian
+3. Support shared cameras
+

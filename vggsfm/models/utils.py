@@ -14,11 +14,51 @@ import torch.nn.functional as F
 
 from typing import Optional, Tuple, Union
 from einops import rearrange, repeat
+
 from pytorch3d.renderer import HarmonicEmbedding
 from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
 from pytorch3d.transforms.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
 
+from ..utils.metric import closed_form_inverse_OpenCV
+from ..utils.triangulation import create_intri_matrix
+
 EPS = 1e-9
+
+
+def get_EFP(pred_cameras, image_size, B, S, default_focal=False):
+    """
+    Converting PyTorch3D cameras to extrinsics, intrinsics matrix
+
+    Return extrinsics, intrinsics, focal_length, principal_point
+    """
+    scale = image_size.min()
+
+    focal_length = pred_cameras.focal_length
+
+    principal_point = torch.zeros_like(focal_length)
+
+    focal_length = focal_length * scale / 2
+    principal_point = (image_size[None] - principal_point * scale) / 2
+
+    Rots = pred_cameras.R.clone()
+    Trans = pred_cameras.T.clone()
+
+    extrinsics = torch.cat([Rots, Trans[..., None]], dim=-1)
+
+    # reshape
+    extrinsics = extrinsics.reshape(B, S, 3, 4)
+    focal_length = focal_length.reshape(B, S, 2)
+    principal_point = principal_point.reshape(B, S, 2)
+
+    # only one dof focal length
+    if default_focal:
+        focal_length[:] = scale
+    else:
+        focal_length = focal_length.mean(dim=-1, keepdim=True).expand(-1, -1, 2)
+        focal_length = focal_length.clamp(0.2 * scale, 5 * scale)
+
+    intrinsics = create_intri_matrix(focal_length, principal_point)
+    return extrinsics, intrinsics, focal_length, principal_point
 
 
 def pose_encoding_to_camera(
@@ -28,6 +68,7 @@ def pose_encoding_to_camera(
     min_focal_length=0.1,
     max_focal_length=30,
     return_dict=False,
+    to_OpenCV = True
 ):
     """
     Args:
@@ -59,6 +100,34 @@ def pose_encoding_to_camera(
         focal_length = torch.clamp(focal_length, min=min_focal_length, max=max_focal_length)
     else:
         raise ValueError(f"Unknown pose encoding {pose_encoding_type}")
+
+
+    if to_OpenCV:
+        ### From Pytorch3D coordinate to OpenCV coordinate:
+        # I hate coordinate conversion
+        R = R.clone()
+        abs_T = abs_T.clone()
+        R[:, :, :2] *= -1
+        abs_T[:, :2] *= -1
+        R = R.permute(0, 2, 1)
+
+        extrinsics_4x4 = torch.eye(4, 4).to(R.dtype).to(R.device)
+        extrinsics_4x4 = extrinsics_4x4[None].repeat(len(R), 1, 1)
+        
+        extrinsics_4x4[:,:3,:3] = R.clone()
+        extrinsics_4x4[:,:3,3] = abs_T.clone()
+
+        rel_transform = closed_form_inverse_OpenCV(extrinsics_4x4[0:1])
+        rel_transform = rel_transform.expand(len(extrinsics_4x4), -1, -1)
+        
+        # relative to the first camera
+        # NOTE it is extrinsics_4x4 x rel_transform instead of rel_transform x extrinsics_4x4
+        # this is different in opencv / pytorch3d convention
+        extrinsics_4x4 = torch.bmm(extrinsics_4x4, rel_transform)
+
+        R = extrinsics_4x4[:,:3,:3].clone()
+        abs_T = extrinsics_4x4[:,:3,3].clone()
+
 
     if return_dict:
         return {"focal_length": focal_length, "R": R, "T": abs_T}

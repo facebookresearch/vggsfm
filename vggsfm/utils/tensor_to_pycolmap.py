@@ -13,7 +13,7 @@ import numpy as np
 import pycolmap
 
 
-def batch_matrix_to_pycolmap(points3d, extrinsics, intrinsics, tracks, masks, image_size, camera_type="simple_pinhole"):
+def batch_matrix_to_pycolmap(points3d, extrinsics, intrinsics, tracks, masks, image_size, max_points3D_val=300, camera_type="simple_pinhole"):
     """
     Convert Batched Pytorch Tensors to PyCOLMAP
 
@@ -94,17 +94,18 @@ def batch_matrix_to_pycolmap(points3d, extrinsics, intrinsics, tracks, masks, im
         for point3D_id in range(1, num_points3D + 1):
             original_track_idx = valid_idx[point3D_id - 1]
 
-            if masks[fidx][original_track_idx]:
-                # It seems we don't need +0.5 for BA
-                point2D_xy = tracks[fidx][original_track_idx]
-                # Please note when adding the Point2D object
-                # It not only requires the 2D xy location, but also the id to 3D point
-                points2D_list.append(pycolmap.Point2D(point2D_xy, point3D_id))
+            if (reconstruction.points3D[point3D_id].xyz<max_points3D_val).all():
+                if masks[fidx][original_track_idx]:
+                    # It seems we don't need +0.5 for BA
+                    point2D_xy = tracks[fidx][original_track_idx]
+                    # Please note when adding the Point2D object
+                    # It not only requires the 2D xy location, but also the id to 3D point
+                    points2D_list.append(pycolmap.Point2D(point2D_xy, point3D_id))
 
-                # add element
-                track = reconstruction.points3D[point3D_id].track
-                point2D_idx = point3D_id - 1
-                track.add_element(fidx, point2D_idx)
+                    # add element
+                    track = reconstruction.points3D[point3D_id].track
+                    point2D_idx = point3D_id - 1
+                    track.add_element(fidx, point2D_idx)
 
         try:
             image.points2D = pycolmap.ListPoint2D(points2D_list)
@@ -121,15 +122,17 @@ def pycolmap_to_batch_matrix(reconstruction, device="cuda"):
     """
     Inversion to batch_matrix_to_pycolmap, nothing but picking them back
     """
-    num_points3D = len(reconstruction.points3D)
+    
     num_images = len(reconstruction.images)
+    max_points3D_id = max(reconstruction.point3D_ids())
+    points3D = np.zeros((max_points3D_id, 3))
+    
+    for point3D_id in reconstruction.points3D: 
+        points3D[point3D_id-1] = reconstruction.points3D[point3D_id].xyz
+    points3D = torch.from_numpy(points3D).to(device)
+    
 
-    points3D = torch.from_numpy(
-        np.array([reconstruction.points3D[point3D_id].xyz for point3D_id in range(1, num_points3D + 1)])
-    )
-    points3D = points3D.to(device)
-
-    extrinsics = torch.from_numpy(np.stack([reconstruction.images[i].cam_from_world.matrix for i in range(num_images)]))
+    extrinsics = torch.from_numpy(np.stack([reconstruction.images[i].cam_from_world.matrix() for i in range(num_images)]))
     extrinsics = extrinsics.to(device)
 
     intrinsics = torch.from_numpy(np.stack([reconstruction.cameras[i].calibration_matrix() for i in range(num_images)]))

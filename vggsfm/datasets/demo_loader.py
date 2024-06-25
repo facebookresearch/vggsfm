@@ -35,10 +35,10 @@ Image.MAX_IMAGE_PIXELS = None
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
-class SequenceLoader(Dataset):
+class DemoLoader(Dataset):
     def __init__(
         self,
-        SEQ_DIR,
+        SCENE_DIR,
         transform=None,
         img_size=1024,
         eval_time=True,
@@ -51,57 +51,53 @@ class SequenceLoader(Dataset):
 
         self.sequences = {}
 
-        if SEQ_DIR == None:
+        if SCENE_DIR == None:
             raise NotImplementedError
 
-        print(f"SEQ_DIR is {SEQ_DIR}")
+        print(f"SCENE_DIR is {SCENE_DIR}")
 
-        bag_names = glob.glob(os.path.join(SEQ_DIR, "*"))
-
-        self.SEQ_DIR = SEQ_DIR
+        self.SCENE_DIR = SCENE_DIR
         self.crop_longest = True
         self.load_gt = load_gt
         self.sort_by_filename = sort_by_filename
 
-        for bag_name in bag_names:
-            img_filenames = glob.glob(os.path.join(bag_name, "images/*"))
+        bag_name = os.path.basename(SCENE_DIR)
+        img_filenames = glob.glob(os.path.join(SCENE_DIR, "images/*"))
 
-            if self.sort_by_filename:
-                img_filenames = sorted(img_filenames)
+        if self.sort_by_filename:
+            img_filenames = sorted(img_filenames)
 
-            filtered_data = []
+        filtered_data = []
+
+        if self.load_gt:
+            """
+            We assume the ground truth cameras exist in the format of colmap
+            """
+            reconstruction = pycolmap.Reconstruction(os.path.join(SCENE_DIR, "sparse", "0"))
+
+            calib_dict = {}
+            for image_id, image in reconstruction.images.items():
+                extrinsic = reconstruction.images[image_id].cam_from_world.matrix
+                camera_id = image.camera_id
+                intrinsic = reconstruction.cameras[camera_id].calibration_matrix()
+
+                R = torch.from_numpy(extrinsic[:, :3])
+                T = torch.from_numpy(extrinsic[:, 3])
+                fl = torch.from_numpy(intrinsic[[0, 1], [0, 1]])
+                pp = torch.from_numpy(intrinsic[[0, 1], [2, 2]])
+
+                calib_dict[image.name] = {"R": R, "T": T, "focal_length": fl, "principal_point": pp}
+
+        for img_name in img_filenames:
+            frame_dict = {}
+            frame_dict["filepath"] = img_name
 
             if self.load_gt:
-                """
-                We assume the ground truth cameras exist in the format of colmap
+                anno_dict = calib_dict[os.path.basename(img_name)]
+                frame_dict.update(anno_dict)
 
-                """
-                reconstruction = pycolmap.Reconstruction(os.path.join(bag_name, "sparse", "0"))
-
-                calib_dict = {}
-                for image_id, image in reconstruction.images.items():
-                    extrinsic = reconstruction.images[image_id].cam_from_world.matrix
-                    camera_id = image.camera_id
-                    intrinsic = reconstruction.cameras[camera_id].calibration_matrix()
-
-                    R = torch.from_numpy(extrinsic[:, :3])
-                    T = torch.from_numpy(extrinsic[:, 3])
-                    fl = torch.from_numpy(intrinsic[[0, 1], [0, 1]])
-                    pp = torch.from_numpy(intrinsic[[0, 1], [2, 2]])
-
-                    calib_dict[image.name] = {"R": R, "T": T, "focal_length": fl, "principal_point": pp}
-
-            for img_name in img_filenames:
-                frame_dict = {}
-
-                frame_dict["filepath"] = img_name
-
-                if self.load_gt:
-                    anno_dict = calib_dict[os.path.basename(img_name)]
-                    frame_dict.update(anno_dict)
-
-                filtered_data.append(frame_dict)
-            self.sequences[bag_name] = filtered_data
+            filtered_data.append(frame_dict)
+        self.sequences[bag_name] = filtered_data
 
         self.sequence_list = sorted(self.sequences.keys())
 
@@ -164,9 +160,8 @@ class SequenceLoader(Dataset):
             principal_points = []
 
         for anno in annos:
-            filepath = anno["filepath"]
+            image_path = anno["filepath"]
 
-            image_path = os.path.join(self.SEQ_DIR, filepath)
             image = Image.open(image_path).convert("RGB")
 
             images.append(image)
@@ -312,6 +307,6 @@ def calculate_crop_parameters(image, bbox, crop_dim, img_size):
     crop_width = 2 * s * (bbox[2] - bbox[0]) / length
     bbox_after = bbox / crop_dim * img_size
     crop_parameters = torch.tensor(
-        [-cc[0], -cc[1], crop_width, s, bbox_after[0], bbox_after[1], bbox_after[2], bbox_after[3]]
+        [width, height, crop_width, s, bbox_after[0], bbox_after[1], bbox_after[2], bbox_after[3]]
     ).float()
     return crop_parameters

@@ -209,9 +209,49 @@ def batched_all_pairs(B, N):
     return i1, i2
 
 
+def closed_form_inverse_OpenCV(se3, R=None, T=None):
+    """
+    Computes the inverse of each 4x4 SE3 matrix in the batch.
+
+    Args:
+    - se3 (Tensor): Nx4x4 tensor of SE3 matrices.
+
+    Returns:
+    - Tensor: Nx4x4 tensor of inverted SE3 matrices.
+    
+    
+    | R t |
+    | 0 1 |
+    -->
+    | R^T  -R^T t|
+    | 0       1  |
+    """
+    if R is None:
+        R = se3[:, :3, :3]
+
+    if T is None:
+        T = se3[:, :3, 3:]
+
+    # Compute the transpose of the rotation
+    R_transposed = R.transpose(1, 2)
+
+    # -R^T t
+    top_right = - R_transposed.bmm(T)
+    
+    inverted_matrix = torch.eye(4,4)[None].repeat(len(se3), 1, 1)
+    inverted_matrix = inverted_matrix.to(R.dtype).to(R.device)
+    
+    inverted_matrix[:, :3,:3] = R_transposed
+    inverted_matrix[:, :3, 3:] = top_right
+
+    return inverted_matrix
+
+
 def closed_form_inverse(se3, R=None, T=None):
     """
     Computes the inverse of each 4x4 SE3 matrix in the batch.
+    This function assumes PyTorch3D coordinate.
+    
 
     Args:
     - se3 (Tensor): Nx4x4 tensor of SE3 matrices.
@@ -225,6 +265,8 @@ def closed_form_inverse(se3, R=None, T=None):
     if T is None:
         T = se3[:, 3:, :3]
 
+    # NOTE THIS ASSUMES PYTORCH3D CAMERA COORDINATE
+    
     # Compute the transpose of the rotation
     R_transposed = R.transpose(1, 2)
 

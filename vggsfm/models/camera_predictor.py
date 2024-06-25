@@ -107,9 +107,7 @@ class CameraPredictor(nn.Module):
     def forward(self, reshaped_image, preliminary_cameras=None, iters=4, batch_size=None, rgb_feat_init=None):
         """
         reshaped_image: Bx3xHxW. The values of reshaped_image are within [0, 1]
-        preliminary_cameras: PyTorch3D cameras.
-
-        TODO: dropping the usage of PyTorch3D cameras.
+        preliminary_cameras: cameras in opencv coordinate.
         """
 
         if rgb_feat_init is None:
@@ -155,7 +153,7 @@ class CameraPredictor(nn.Module):
             rgb_feat = (rgb_feat + rgb_feat_init) / 2
 
         # Pose encoding to Cameras
-        pred_cameras = pose_encoding_to_camera(pred_pose_enc, pose_encoding_type=self.pose_encoding_type)
+        pred_cameras = pose_encoding_to_camera(pred_pose_enc, pose_encoding_type=self.pose_encoding_type, to_OpenCV=True)
         pose_predictions = {
             "pred_pose_enc": pred_pose_enc,
             "pred_cameras": pred_cameras,
