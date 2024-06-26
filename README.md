@@ -85,7 +85,7 @@ Have fun and feel free to create an issue if you meet any problem. SfM is always
 
 * What should I do if I encounter an out-of-memory error?
 
-To resolve an out-of-memory error, you can start by reducing the number of ```max_query_pts``` from the default ```4096``` to  lower value. Additionally, consider decreasing the ```query_frame_num``` if needed. Be aware that these adjustments may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction.
+To resolve an out-of-memory error, you can start by reducing the number of ```max_query_pts``` from the default ```4096``` to  a lower value. If necessary, consider decreasing the ```query_frame_num```. Be aware that these adjustments may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction.
 
 
 
