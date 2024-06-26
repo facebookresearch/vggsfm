@@ -429,10 +429,10 @@ def find_query_frame_indexes(reshaped_image, camera_predictor, query_frame_num, 
     frame_feat_norm = frame_feat_norm.permute(1, 0, 2)
     similarity_matrix = torch.bmm(frame_feat_norm, frame_feat_norm.transpose(-1, -2))
     similarity_matrix = similarity_matrix.mean(dim=0)
-    distance_matrix = 1 - similarity_matrix.clone()
+    distance_matrix = 100 - similarity_matrix.clone()
 
     # Ignore self-pairing
-    similarity_matrix.fill_diagonal_(0)
+    similarity_matrix.fill_diagonal_(-100)
 
     similarity_sum = similarity_matrix.sum(dim=1)
 
