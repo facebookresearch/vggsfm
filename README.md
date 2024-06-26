@@ -12,14 +12,14 @@
 
 <p 
 dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper</a>]
-[<a href="https://vggsfm.github.io/" rel="nofollow">Project Page</a>] 
+[<a href="https://vggsfm.github.io/" rel="nofollow">Project Page</a>] [🤗 Demo]
 [Version 2.0]
 </p> 
 
 
 **Updates:**
 
-- [Jun 26, 2024] Excited to release our demo on Hugging Face Space 🤗. Try it out [here](https://huggingface.co/spaces/facebook/vggsfm)!
+- [Jun 26, 2024] Excited to release our demo on Hugging Face Space🤗. Try it out [here](https://huggingface.co/spaces/facebook/vggsfm)!
 
 - [Jun 25, 2024] Upgrade to VGGSfM 2.0! More memory efficient, more robust, more powerful, and easier to start!
 
