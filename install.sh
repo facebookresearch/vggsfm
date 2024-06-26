@@ -42,7 +42,6 @@ pip install numpy==1.26.3
 pip install pycolmap==0.6.1
 
 # (Optional) Install poselib 
-cd pywheels
-pip install poselib-2.0.2-cp310-cp310-linux_x86_64.whl
-cd ..
+pip install https://huggingface.co/facebook/VGGSfM/resolve/main/poselib-2.0.2-cp310-cp310-linux_x86_64.whl
+
 
