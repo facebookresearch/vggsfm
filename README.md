@@ -19,7 +19,7 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 **Updates:**
 
-- [Jun 26, 2024] Excited to release our Hugging Face demo. Try it out [here](https://huggingface.co/spaces/facebook/vggsfm)!
+- [Jun 26, 2024] Excited to release our demo on Hugging Face Space 🤗. Try it out [here](https://huggingface.co/spaces/facebook/vggsfm)!
 
 - [Jun 25, 2024] Upgrade to VGGSfM 2.0! More memory efficient, more robust, more powerful, and easier to start!
 
