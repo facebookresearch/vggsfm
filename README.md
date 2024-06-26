@@ -12,7 +12,9 @@
 
 <p 
 dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper</a>]
-[<a href="https://vggsfm.github.io/" rel="nofollow">Project Page</a>] [🤗 Demo](https://huggingface.co/spaces/facebook/vggsfm) [Version 2.0]
+[<a href="https://vggsfm.github.io/" rel="nofollow">Project Page</a>]   
+[<a href="https://huggingface.co/spaces/facebook/vggsfm" rel="nofollow">🤗 Demo</a>] 
+[Version 2.0]
 </p> 
 
 
