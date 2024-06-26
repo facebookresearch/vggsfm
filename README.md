@@ -49,7 +49,7 @@ python demo.py SCENE_DIR=examples/cake resume_ckpt=/PATH/YOUR/CKPT
 
 python demo.py SCENE_DIR=examples/british_museum query_frame_num=2 resume_ckpt=/PATH/YOUR/CKPT 
 
-python demo.py SCENE_DIR=examples/apple query_frame_num=5 max_query_pts=2048 resume_ckpt=/PATH/YOUR/CKPT 
+python demo.py SCENE_DIR=examples/apple query_frame_num=5 max_query_pts=1600 resume_ckpt=/PATH/YOUR/CKPT 
 ```
 
 All the flags are defaulted in ```cfgs/demo.yaml```. 
@@ -80,6 +80,12 @@ Please ensure that the images are stored in ```YOUR_FOLDER/images```. This folde
 
 
 Have fun and feel free to create an issue if you meet any problem. SfM is always about corner/hard cases. I am happy to help. If you prefer not to share your images publicly, please send them to me by email.
+
+### FAQ
+
+* What should I do if I encounter an out-of-memory error?
+
+To resolve an out-of-memory error, you can start by reducing the number of ```max_query_pts``` from the default ```4096``` to  lower value. Additionally, consider decreasing the ```query_frame_num``` if needed. Be aware that these adjustments may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction.
 
 
 
