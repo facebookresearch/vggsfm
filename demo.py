@@ -296,12 +296,13 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         cfg=cfg,
     )
 
-    if cfg.center_order:
-        # NOTE we changed the image order previously, now we need to switch it back
-        BA_cameras_PT3D = BA_cameras_PT3D[center_order]
-        extrinsics_opencv = extrinsics_opencv[center_order]
-        intrinsics_opencv = intrinsics_opencv[center_order]
-
+    # if cfg.center_order:
+    #     # NOTE we changed the image order previously, now we need to scwitch it back
+    #     BA_cameras_PT3D = BA_cameras_PT3D[center_order]
+    #     extrinsics_opencv = extrinsics_opencv[center_order]
+    #     intrinsics_opencv = intrinsics_opencv[center_order]
+    # DO WE NEED TO SWITCH BACK?
+    
     predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
     predictions["extrinsics_opencv"] = extrinsics_opencv
     predictions["intrinsics_opencv"] = intrinsics_opencv
