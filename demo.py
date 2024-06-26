@@ -82,6 +82,7 @@ def demo_fn(cfg: DictConfig):
 
         viz = Visdom()
 
+
     sequence_list = test_dataset.sequence_list
 
     for seq_name in sequence_list:

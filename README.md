@@ -52,7 +52,8 @@ python demo.py SCENE_DIR=examples/british_museum query_frame_num=2 resume_ckpt=/
 python demo.py SCENE_DIR=examples/apple query_frame_num=5 max_query_pts=1600 resume_ckpt=/PATH/YOUR/CKPT 
 ```
 
-All the flags are defaulted in ```cfgs/demo.yaml```. 
+All default settings for the flags are specified in `cfgs/demo.yaml`. For example, we have modified the values of `query_frame_num` and `max_query_pts` from the default settings of `3` and `4096` to `5` and `1600`, respectively, to ensure a 32 GB GPU can work there. 
+
 
 The reconstruction result (camera parameters and 3D points) will be automatically saved in the COLMAP format at ```output/seq_name```. You can use the [COLMAP GUI](https://colmap.github.io/gui.html) to view them. 
 
