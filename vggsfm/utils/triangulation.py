@@ -729,7 +729,15 @@ def global_BA(
 
     reconstruction.normalize(5.0, 0.1, 0.9, True)
 
+    extrinsics_tmp = extrinsics.clone()
+    intrinsics_tmp = intrinsics.clone()
+
     points3D_opt, extrinsics, intrinsics = pycolmap_to_batch_matrix(reconstruction, device=device)
+
+    if (intrinsics[:, 0, 0]<0).any():
+        invalid_mask = intrinsics[:, 0, 0]<0
+        extrinsics[invalid_mask] = extrinsics_tmp[invalid_mask]
+        intrinsics[invalid_mask] = intrinsics_tmp[invalid_mask]
 
     return points3D_opt, extrinsics, intrinsics, reconstruction
 
@@ -785,7 +793,17 @@ def iterative_global_BA(
 
     reconstruction.normalize(5.0, 0.1, 0.9, True)
 
+    extrinsics_tmp = extrinsics.clone()
+    intrinsics_tmp = intrinsics.clone()
+
     points3D_opt, extrinsics, intrinsics = pycolmap_to_batch_matrix(reconstruction, device=pred_tracks.device)
+
+    if (intrinsics[:, 0, 0]<0).any():
+        invalid_mask = intrinsics[:, 0, 0]<0
+        extrinsics[invalid_mask] = extrinsics_tmp[invalid_mask]
+        intrinsics[invalid_mask] = intrinsics_tmp[invalid_mask]
+
+
 
     valid_poins3D_mask, filtered_inlier_mask = filter_all_points3D(
         points3D_opt,
