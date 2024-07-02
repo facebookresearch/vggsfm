@@ -149,7 +149,13 @@ def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size, 
     # Prepare for the Bundle Adjustment Optimization
     # NOTE although we use pycolmap for BA here, but any BA library should be able to achieve the same result
     reconstruction = batch_matrix_to_pycolmap(
-        toBA_points3D, toBA_extrinsics, toBA_intrinsics, toBA_tracks, toBA_masks, image_size, camera_type=cfg.camera_type,
+        toBA_points3D,
+        toBA_extrinsics,
+        toBA_intrinsics,
+        toBA_tracks,
+        toBA_masks,
+        image_size,
+        camera_type=cfg.camera_type,
     )
 
     # Prepare BA options
@@ -159,7 +165,7 @@ def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size, 
     pycolmap.bundle_adjustment(reconstruction, ba_options)
 
     reconstruction = filter_reconstruction(reconstruction)
-    
+
     # Get the optimized 3D points, extrinsics, and intrinsics
     points3D_opt, extrinsics_opt, intrinsics_opt = pycolmap_to_batch_matrix(
         reconstruction, device=toBA_extrinsics.device
@@ -262,18 +268,18 @@ def refine_pose(
 
     for ridx in range(S):
         if camera_type == "SIMPLE_RADIAL":
-            pycolmap_intri = np.array( [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu(), 0] )
+            pycolmap_intri = np.array(
+                [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu(), 0]
+            )
         elif camera_type == "SIMPLE_PINHOLE":
-            pycolmap_intri = np.array( [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu()] )
+            pycolmap_intri = np.array(
+                [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu()]
+            )
         else:
             raise ValueError(f"Camera type {camera_type} is not supported yet")
-        
+
         pycamera = pycolmap.Camera(
-            model=camera_type,
-            width=image_size[0],
-            height=image_size[1],
-            params=pycolmap_intri,
-            camera_id=ridx,
+            model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=ridx
         )
 
         cam_from_world = pycolmap.Rigid3d(
@@ -396,20 +402,19 @@ def init_refine_pose(
     refined_intrinsics = []
 
     for ridx in range(S):
-        
         if camera_type == "SIMPLE_RADIAL":
-            pycolmap_intri = np.array( [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu(), 0] )
+            pycolmap_intri = np.array(
+                [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu(), 0]
+            )
         elif camera_type == "SIMPLE_PINHOLE":
-            pycolmap_intri = np.array( [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu()] )
+            pycolmap_intri = np.array(
+                [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu()]
+            )
         else:
             raise ValueError(f"Camera type {camera_type} is not supported yet")
-        
+
         pycamera = pycolmap.Camera(
-            model=camera_type,
-            width=image_size[0],
-            height=image_size[1],
-            params=pycolmap_intri,
-            camera_id=ridx,
+            model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=ridx
         )
 
         cam_from_world = pycolmap.Rigid3d(
@@ -712,17 +717,15 @@ def global_BA(
     )
     pycolmap.bundle_adjustment(reconstruction, ba_options)
 
-
     reconstruction = filter_reconstruction(reconstruction)
-
 
     extrinsics_tmp = extrinsics.clone()
     intrinsics_tmp = intrinsics.clone()
 
     points3D_opt, extrinsics, intrinsics = pycolmap_to_batch_matrix(reconstruction, device=device)
 
-    if (intrinsics[:, 0, 0]<0).any():
-        invalid_mask = intrinsics[:, 0, 0]<0
+    if (intrinsics[:, 0, 0] < 0).any():
+        invalid_mask = intrinsics[:, 0, 0] < 0
         extrinsics[invalid_mask] = extrinsics_tmp[invalid_mask]
         intrinsics[invalid_mask] = intrinsics_tmp[invalid_mask]
 
@@ -777,7 +780,7 @@ def iterative_global_BA(
         BA_points, extrinsics, intrinsics, BA_tracks, BA_inlier_masks, image_size, camera_type=camera_type
     )
     pycolmap.bundle_adjustment(reconstruction, ba_options)
-    
+
     reconstruction = filter_reconstruction(reconstruction)
 
     extrinsics_tmp = extrinsics.clone()
@@ -785,9 +788,8 @@ def iterative_global_BA(
 
     points3D_opt, extrinsics, intrinsics = pycolmap_to_batch_matrix(reconstruction, device=pred_tracks.device)
 
-
-    if (intrinsics[:, 0, 0]<0).any():
-        invalid_mask = intrinsics[:, 0, 0]<0
+    if (intrinsics[:, 0, 0] < 0).any():
+        invalid_mask = intrinsics[:, 0, 0] < 0
         extrinsics[invalid_mask] = extrinsics_tmp[invalid_mask]
         intrinsics[invalid_mask] = intrinsics_tmp[invalid_mask]
 
@@ -807,15 +809,10 @@ def iterative_global_BA(
     points3D_opt = points3D_opt[valid_tracks_afterBA]
     BA_inlier_masks = filtered_inlier_mask[:, valid_tracks_afterBA]
 
-
     return points3D_opt, extrinsics, intrinsics, valid_tracks, BA_inlier_masks, reconstruction
 
 
-
-
-
-
-def filter_reconstruction(reconstruction):    
+def filter_reconstruction(reconstruction):
     reconstruction.filter_all_points3D(4.0, 1.5)
     reconstruction.filter_observations_with_negative_depth()
     reconstruction.normalize(5.0, 0.1, 0.9, True)

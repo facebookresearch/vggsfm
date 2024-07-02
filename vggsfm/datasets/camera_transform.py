@@ -12,7 +12,6 @@ import numpy as np
 import math
 
 
-
 from minipytorch3d.cameras import PerspectiveCameras
 from minipytorch3d.transform3d import Rotate, Translate
 from minipytorch3d.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix

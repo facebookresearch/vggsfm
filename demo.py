@@ -75,15 +75,12 @@ def demo_fn(cfg: DictConfig):
         model.load_state_dict(checkpoint, strict=True)
         print(f"Successfully resumed from {cfg.resume_ckpt}")
 
-
     if cfg.visualize:
         from pytorch3d.structures import Pointclouds
         from pytorch3d.vis.plotly_vis import plot_scene
         from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
 
         viz = Visdom()
-
-
 
     sequence_list = test_dataset.sequence_list
 
@@ -96,7 +93,6 @@ def demo_fn(cfg: DictConfig):
         # Send to GPU
         images = batch["image"].to(device)
         crop_params = batch["crop_params"].to(device)
-
 
         # Unsqueeze to have batch size = 1
         images = images.unsqueeze(0)
@@ -143,9 +139,7 @@ def demo_fn(cfg: DictConfig):
                 pcl = Pointclouds(points=predictions["points3D"][None])
 
             visual_cameras = PerspectiveCamerasVisual(
-                R=pred_cameras_PT3D.R,
-                T=pred_cameras_PT3D.T,
-                device=pred_cameras_PT3D.device,
+                R=pred_cameras_PT3D.R, T=pred_cameras_PT3D.T, device=pred_cameras_PT3D.device
             )
 
             visual_dict = {"scenes": {"points": pcl, "cameras": visual_cameras}}
@@ -293,7 +287,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         pred_score=pred_score,
         fmat_thres=cfg.fmat_thres,
         BA_iters=cfg.BA_iters,
-        max_reproj_error = cfg.max_reproj_error,
+        max_reproj_error=cfg.max_reproj_error,
         init_max_reproj_error=cfg.init_max_reproj_error,
         cfg=cfg,
     )
@@ -304,7 +298,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     #     extrinsics_opencv = extrinsics_opencv[center_order]
     #     intrinsics_opencv = intrinsics_opencv[center_order]
     # DO WE NEED TO SWITCH BACK?
-    
+
     predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
     predictions["extrinsics_opencv"] = extrinsics_opencv
     predictions["intrinsics_opencv"] = intrinsics_opencv

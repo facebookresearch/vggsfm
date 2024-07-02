@@ -1,9 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
-# 
+#
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-
 
 
 import os
@@ -180,11 +179,20 @@ class Triangulator(nn.Module):
                 track_init_mask,
                 image_size,
                 init_idx,
-                camera_type = cfg.camera_type,
+                camera_type=cfg.camera_type,
             )
 
             points3D, extrinsics, intrinsics, valid_tracks, reconstruction = self.triangulate_tracks_and_BA(
-                pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length,max_reproj_error, cfg=cfg
+                pred_tracks,
+                intrinsics,
+                extrinsics,
+                pred_vis,
+                pred_score,
+                image_size,
+                device,
+                min_valid_track_length,
+                max_reproj_error,
+                cfg=cfg,
             )
 
             if cfg.robust_refine > 0:
@@ -203,7 +211,7 @@ class Triangulator(nn.Module):
                         valid_tracks,
                         image_size,
                         force_estimate=force_estimate,
-                        camera_type = cfg.camera_type, 
+                        camera_type=cfg.camera_type,
                     )
 
                     points3D, extrinsics, intrinsics, valid_tracks, reconstruction = self.triangulate_tracks_and_BA(
@@ -216,7 +224,7 @@ class Triangulator(nn.Module):
                         device,
                         min_valid_track_length,
                         max_reproj_error,
-                        cfg=cfg
+                        cfg=cfg,
                     )
 
             # try:
@@ -251,7 +259,7 @@ class Triangulator(nn.Module):
                         min_valid_track_length=min_valid_track_length,
                         max_reproj_error=max_reproj_error,
                         ba_options=ba_options,
-                        camera_type = cfg.camera_type,
+                        camera_type=cfg.camera_type,
                     )
                     max_reproj_error = max_reproj_error // 2
                     if max_reproj_error <= 1:
@@ -312,15 +320,24 @@ class Triangulator(nn.Module):
                 intrinsics = intrinsics[valid_frame_mask]
                 invalid_ids = torch.nonzero(~valid_frame_mask).squeeze(1)
                 invalid_ids = invalid_ids.cpu().numpy().tolist()
-                if len(invalid_ids)>0:
+                if len(invalid_ids) > 0:
                     for invalid_id in invalid_ids:
                         reconstruction.deregister_image(invalid_id)
-            
+
             return BA_cameras_PT3D, extrinsics, intrinsics, points3D, points3D_rgb, reconstruction, valid_frame_mask
 
-
     def triangulate_tracks_and_BA(
-        self, pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length, max_reproj_error=4, cfg=None
+        self,
+        pred_tracks,
+        intrinsics,
+        extrinsics,
+        pred_vis,
+        pred_score,
+        image_size,
+        device,
+        min_valid_track_length,
+        max_reproj_error=4,
+        cfg=None,
     ):
         """ """
         # Normalize the tracks
@@ -344,11 +361,16 @@ class Triangulator(nn.Module):
             intrinsics,
             image_size,
             device,
-            camera_type = cfg.camera_type,
+            camera_type=cfg.camera_type,
         )
 
         valid_poins3D_mask = filter_all_points3D(
-            points3D, pred_tracks[:, valid_tracks], extrinsics, intrinsics, check_triangle=False, max_reproj_error=max_reproj_error
+            points3D,
+            pred_tracks[:, valid_tracks],
+            extrinsics,
+            intrinsics,
+            check_triangle=False,
+            max_reproj_error=max_reproj_error,
         )
         points3D = points3D[valid_poins3D_mask]
 

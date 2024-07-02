@@ -60,18 +60,14 @@ def batch_matrix_to_pycolmap(
     for fidx in range(N):
         # set camera
         if camera_type == "SIMPLE_RADIAL":
-            pycolmap_intri = np.array( [intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], 0] )
+            pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], 0])
         elif camera_type == "SIMPLE_PINHOLE":
             pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]])
         else:
             raise ValueError(f"Camera type {camera_type} is not supported yet")
 
         camera = pycolmap.Camera(
-            model=camera_type,
-            width=image_size[0],
-            height=image_size[1],
-            params=pycolmap_intri,
-            camera_id=fidx,
+            model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=fidx
         )
 
         # add camera
@@ -101,8 +97,8 @@ def batch_matrix_to_pycolmap(
                     # add element
                     track = reconstruction.points3D[point3D_id].track
                     track.add_element(fidx, point2D_idx)
-                    point2D_idx+=1
-                    
+                    point2D_idx += 1
+
         assert point2D_idx == len(points2D_list)
 
         try:

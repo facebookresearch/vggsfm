@@ -54,24 +54,23 @@ def triangulate_multi_view_point_batched(
     #     _, eigenvectors = torch.linalg.eig(A)
     #     eigenvectors = torch.real(eigenvectors)
 
-
     # Compute eigenvalues and eigenvectors
     num_A_batch = len(A)
     MAX_CUSOLVER_STATUS_INVALID_VALUE = 1024000
-    if num_A_batch>MAX_CUSOLVER_STATUS_INVALID_VALUE:
-        print("A too big matrix for torch.linalg.eigh(); It will meet CUSOLVER_STATUS_INVALID_VALUE ERROR; Make it happy by spliting the matrix to several ones")
-        num_runs = math.ceil(num_A_batch/MAX_CUSOLVER_STATUS_INVALID_VALUE)
+    if num_A_batch > MAX_CUSOLVER_STATUS_INVALID_VALUE:
+        print(
+            "A too big matrix for torch.linalg.eigh(); It will meet CUSOLVER_STATUS_INVALID_VALUE ERROR; Make it happy by spliting the matrix to several ones"
+        )
+        num_runs = math.ceil(num_A_batch / MAX_CUSOLVER_STATUS_INVALID_VALUE)
         eigenvectors_list = []
         for run_idx in range(num_runs):
             start_idx = run_idx * MAX_CUSOLVER_STATUS_INVALID_VALUE
-            end_idx = (run_idx+1) * MAX_CUSOLVER_STATUS_INVALID_VALUE
+            end_idx = (run_idx + 1) * MAX_CUSOLVER_STATUS_INVALID_VALUE
             _, eigenvectors = torch.linalg.eigh(A[start_idx:end_idx])
             eigenvectors_list.append(eigenvectors)
         eigenvectors = torch.cat(eigenvectors_list)
     else:
         _, eigenvectors = torch.linalg.eigh(A)
-        
-        
 
     # Select the first eigenvector
     first_eigenvector = eigenvectors[:, :, 0]
@@ -404,7 +403,6 @@ def generate_combinations(N):
     return comb_array
 
 
-
 def local_refinement_tri(points1, extrinsics, inlier_mask, sorted_indices, lo_num=50, low_mem=True):
     """
     Local Refinement for triangulation
@@ -422,8 +420,6 @@ def local_refinement_tri(points1, extrinsics, inlier_mask, sorted_indices, lo_nu
     lo_points1 = torch.zeros_like(points1_expand)
     lo_points1[lo_mask] = points1_expand[lo_mask]
 
-
-
     if low_mem:
         all_triangulated_points = []
         all_tri_angles = []
@@ -431,12 +427,12 @@ def local_refinement_tri(points1, extrinsics, inlier_mask, sorted_indices, lo_nu
 
         for loidx in range(lo_num):
             triangulated_points, tri_angles, invalid_che_mask = triangulate_multi_view_point_batched(
-                    extrinsics, lo_points1[:, loidx], mask=lo_mask[:, loidx], compute_tri_angle=True, check_cheirality=True
-                )
+                extrinsics, lo_points1[:, loidx], mask=lo_mask[:, loidx], compute_tri_angle=True, check_cheirality=True
+            )
             # Append the outputs to the respective lists
             all_triangulated_points.append(triangulated_points[:, None])
             all_tri_angles.append(tri_angles[:, None])
-            all_invalid_che_mask.append(invalid_che_mask[:,None])
+            all_invalid_che_mask.append(invalid_che_mask[:, None])
 
         triangulated_points = torch.cat(all_triangulated_points, dim=1)
         tri_angles = torch.cat(all_tri_angles, dim=1)
@@ -446,7 +442,7 @@ def local_refinement_tri(points1, extrinsics, inlier_mask, sorted_indices, lo_nu
         lo_points1 = lo_points1.reshape(B * lo_num, N, -1)
         lo_mask = lo_mask.reshape(B * lo_num, N)
         lo_extrinsics = extrinsics_expand.reshape(B * lo_num, N, 3, 4)
-        
+
         # triangulate the inliers
         triangulated_points, tri_angles, invalid_che_mask = triangulate_multi_view_point_batched(
             lo_extrinsics, lo_points1, mask=lo_mask, compute_tri_angle=True, check_cheirality=True
