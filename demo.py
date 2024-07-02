@@ -75,6 +75,7 @@ def demo_fn(cfg: DictConfig):
         model.load_state_dict(checkpoint, strict=True)
         print(f"Successfully resumed from {cfg.resume_ckpt}")
 
+
     if cfg.visualize:
         from pytorch3d.structures import Pointclouds
         from pytorch3d.vis.plotly_vis import plot_scene

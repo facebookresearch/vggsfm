@@ -82,10 +82,10 @@ def batch_matrix_to_pycolmap(
             pycolmap.Rotation3d(extrinsics[fidx][:3, :3]), extrinsics[fidx][:3, 3]
         )  # Rot and Trans
         image = pycolmap.Image(id=fidx, name=f"image_{fidx}", camera_id=camera.camera_id, cam_from_world=cam_from_world)
-        image.registered = True
 
         points2D_list = []
 
+        point2D_idx = 0
         # NOTE point3D_id start by 1
         for point3D_id in range(1, num_points3D + 1):
             original_track_idx = valid_idx[point3D_id - 1]
@@ -100,13 +100,17 @@ def batch_matrix_to_pycolmap(
 
                     # add element
                     track = reconstruction.points3D[point3D_id].track
-                    point2D_idx = point3D_id - 1
                     track.add_element(fidx, point2D_idx)
+                    point2D_idx+=1
+                    
+        assert point2D_idx == len(points2D_list)
 
         try:
             image.points2D = pycolmap.ListPoint2D(points2D_list)
+            image.registered = True
         except:
             print(f"frame {fidx} is out of BA")
+            image.registered = False
 
         # add image
         reconstruction.add_image(image)

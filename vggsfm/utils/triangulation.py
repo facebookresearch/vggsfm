@@ -158,8 +158,8 @@ def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size, 
     # Conduct BA
     pycolmap.bundle_adjustment(reconstruction, ba_options)
 
-    reconstruction.normalize(5.0, 0.1, 0.9, True)
-
+    reconstruction = filter_reconstruction(reconstruction)
+    
     # Get the optimized 3D points, extrinsics, and intrinsics
     points3D_opt, extrinsics_opt, intrinsics_opt = pycolmap_to_batch_matrix(
         reconstruction, device=toBA_extrinsics.device
@@ -712,7 +712,9 @@ def global_BA(
     )
     pycolmap.bundle_adjustment(reconstruction, ba_options)
 
-    reconstruction.normalize(5.0, 0.1, 0.9, True)
+
+    reconstruction = filter_reconstruction(reconstruction)
+
 
     extrinsics_tmp = extrinsics.clone()
     intrinsics_tmp = intrinsics.clone()
@@ -736,7 +738,6 @@ def iterative_global_BA(
     valid_tracks,
     points3D_opt,
     image_size,
-    lastBA=False,
     min_valid_track_length=2,
     max_reproj_error=1,
     ba_options=None,
@@ -776,20 +777,19 @@ def iterative_global_BA(
         BA_points, extrinsics, intrinsics, BA_tracks, BA_inlier_masks, image_size, camera_type=camera_type
     )
     pycolmap.bundle_adjustment(reconstruction, ba_options)
-
-    reconstruction.normalize(5.0, 0.1, 0.9, True)
+    
+    reconstruction = filter_reconstruction(reconstruction)
 
     extrinsics_tmp = extrinsics.clone()
     intrinsics_tmp = intrinsics.clone()
 
     points3D_opt, extrinsics, intrinsics = pycolmap_to_batch_matrix(reconstruction, device=pred_tracks.device)
 
+
     if (intrinsics[:, 0, 0]<0).any():
         invalid_mask = intrinsics[:, 0, 0]<0
         extrinsics[invalid_mask] = extrinsics_tmp[invalid_mask]
         intrinsics[invalid_mask] = intrinsics_tmp[invalid_mask]
-
-
 
     valid_poins3D_mask, filtered_inlier_mask = filter_all_points3D(
         points3D_opt,
@@ -807,11 +807,16 @@ def iterative_global_BA(
     points3D_opt = points3D_opt[valid_tracks_afterBA]
     BA_inlier_masks = filtered_inlier_mask[:, valid_tracks_afterBA]
 
-    if lastBA:
-        print("Saving in a colmap format")
-        BA_tracks = pred_tracks[:, valid_tracks]
-        reconstruction = batch_matrix_to_pycolmap(
-            points3D_opt, extrinsics, intrinsics, BA_tracks, BA_inlier_masks, image_size, camera_type=camera_type
-        )
 
     return points3D_opt, extrinsics, intrinsics, valid_tracks, BA_inlier_masks, reconstruction
+
+
+
+
+
+
+def filter_reconstruction(reconstruction):    
+    reconstruction.filter_all_points3D(4.0, 1.5)
+    reconstruction.filter_observations_with_negative_depth()
+    reconstruction.normalize(5.0, 0.1, 0.9, True)
+    return reconstruction

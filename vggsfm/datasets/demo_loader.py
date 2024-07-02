@@ -62,7 +62,9 @@ class DemoLoader(Dataset):
         self.load_gt = load_gt
         self.sort_by_filename = sort_by_filename
 
-        bag_name = os.path.basename(SCENE_DIR)
+        # bag_name = os.path.basename(SCENE_DIR)
+        bag_name = os.path.basename(os.path.normpath(SCENE_DIR))
+
         img_filenames = glob.glob(os.path.join(SCENE_DIR, "images/*"))
 
         if self.sort_by_filename:

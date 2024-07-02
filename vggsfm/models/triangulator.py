@@ -97,7 +97,7 @@ class Triangulator(nn.Module):
             # intrinsics: B x S x 3 x 3
             # focal_length, principal_point : B x S x 2
 
-            extrinsics, intrinsics, _, _ = get_EFP(pred_cameras, image_size, B, S)
+            extrinsics, intrinsics = get_EFP(pred_cameras, image_size, B, S)
 
             extrinsics = extrinsics.double()
             inlier_fmat = preliminary_dict["fmat_inlier_mask"]
@@ -248,7 +248,6 @@ class Triangulator(nn.Module):
                         valid_tracks,
                         points3D,
                         image_size,
-                        lastBA=lastBA,
                         min_valid_track_length=min_valid_track_length,
                         max_reproj_error=max_reproj_error,
                         ba_options=ba_options,
@@ -313,10 +312,12 @@ class Triangulator(nn.Module):
                 intrinsics = intrinsics[valid_frame_mask]
                 invalid_ids = torch.nonzero(~valid_frame_mask).squeeze(1)
                 invalid_ids = invalid_ids.cpu().numpy().tolist()
-                for invalid_id in invalid_ids:
-                    reconstruction.deregister_image(invalid_id)
+                if len(invalid_ids)>0:
+                    for invalid_id in invalid_ids:
+                        reconstruction.deregister_image(invalid_id)
             
             return BA_cameras_PT3D, extrinsics, intrinsics, points3D, points3D_rgb, reconstruction, valid_frame_mask
+
 
     def triangulate_tracks_and_BA(
         self, pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length, max_reproj_error=4, cfg=None
