@@ -17,7 +17,9 @@ filter_invalid_frame: True
 comple_nonvis: True
 query_frame_num: 3
 robust_refine: 2
-BA_iters: 2
+BA_iters: 1
+
+camera_type: "SIMPLE_PINHOLE"
 
 
 load_gt: False
@@ -29,7 +31,7 @@ max_query_pts: 4096
 
 
 
-SCENE_DIR: examples/cake
+SCENE_DIR: examples/kitchen
 
 resume_ckpt:  ckpt/vggsfm_v2_0_0.bin
 

@@ -14,7 +14,7 @@ import pycolmap
 
 
 def batch_matrix_to_pycolmap(
-    points3d, extrinsics, intrinsics, tracks, masks, image_size, max_points3D_val=300, camera_type="simple_pinhole"
+    points3d, extrinsics, intrinsics, tracks, masks, image_size, max_points3D_val=300, camera_type="SIMPLE_PINHOLE"
 ):
     """
     Convert Batched Pytorch Tensors to PyCOLMAP
@@ -59,26 +59,20 @@ def batch_matrix_to_pycolmap(
     # frame idx
     for fidx in range(N):
         # set camera
-        if camera_type == "simple_radial":
-            pycolmap_intri_radial = np.array(
-                [intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], 0]
-            )
-            camera = pycolmap.Camera(
-                model="SIMPLE_RADIAL",
-                width=image_size[0],
-                height=image_size[1],
-                params=pycolmap_intri_radial,
-                camera_id=fidx,
-            )
+        if camera_type == "SIMPLE_RADIAL":
+            pycolmap_intri = np.array( [intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], 0] )
+        elif camera_type == "SIMPLE_PINHOLE":
+            pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]])
         else:
-            pycolmap_intri_pinhole = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]])
-            camera = pycolmap.Camera(
-                model="SIMPLE_PINHOLE",
-                width=image_size[0],
-                height=image_size[1],
-                params=pycolmap_intri_pinhole,
-                camera_id=fidx,
-            )
+            raise ValueError(f"Camera type {camera_type} is not supported yet")
+
+        camera = pycolmap.Camera(
+            model=camera_type,
+            width=image_size[0],
+            height=image_size[1],
+            params=pycolmap_intri,
+            camera_id=fidx,
+        )
 
         # add camera
         reconstruction.add_camera(camera)

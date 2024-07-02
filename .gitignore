@@ -1,5 +1,6 @@
 .hydra/
 output/
+ckpt/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -162,6 +162,7 @@ class Triangulator(nn.Module):
                 inlier_total,
                 image_size,
                 init_max_reproj_error=init_max_reproj_error,
+                cfg=cfg,
             )
 
             # Given we have a well-conditioned point cloud,
@@ -179,10 +180,11 @@ class Triangulator(nn.Module):
                 track_init_mask,
                 image_size,
                 init_idx,
+                camera_type = cfg.camera_type,
             )
 
             points3D, extrinsics, intrinsics, valid_tracks, reconstruction = self.triangulate_tracks_and_BA(
-                pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length,max_reproj_error
+                pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length,max_reproj_error, cfg=cfg
             )
 
             if cfg.robust_refine > 0:
@@ -201,6 +203,7 @@ class Triangulator(nn.Module):
                         valid_tracks,
                         image_size,
                         force_estimate=force_estimate,
+                        camera_type = cfg.camera_type, 
                     )
 
                     points3D, extrinsics, intrinsics, valid_tracks, reconstruction = self.triangulate_tracks_and_BA(
@@ -213,6 +216,7 @@ class Triangulator(nn.Module):
                         device,
                         min_valid_track_length,
                         max_reproj_error,
+                        cfg=cfg
                     )
 
             # try:
@@ -248,6 +252,7 @@ class Triangulator(nn.Module):
                         min_valid_track_length=min_valid_track_length,
                         max_reproj_error=max_reproj_error,
                         ba_options=ba_options,
+                        camera_type = cfg.camera_type,
                     )
                     max_reproj_error = max_reproj_error // 2
                     if max_reproj_error <= 1:
@@ -314,7 +319,7 @@ class Triangulator(nn.Module):
             return BA_cameras_PT3D, extrinsics, intrinsics, points3D, points3D_rgb, reconstruction, valid_frame_mask
 
     def triangulate_tracks_and_BA(
-        self, pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length, max_reproj_error=4
+        self, pred_tracks, intrinsics, extrinsics, pred_vis, pred_score, image_size, device, min_valid_track_length, max_reproj_error=4, cfg=None
     ):
         """ """
         # Normalize the tracks
@@ -338,6 +343,7 @@ class Triangulator(nn.Module):
             intrinsics,
             image_size,
             device,
+            camera_type = cfg.camera_type,
         )
 
         valid_poins3D_mask = filter_all_points3D(

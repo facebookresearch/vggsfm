@@ -50,11 +50,11 @@ To get started, you need to first download the checkpoint. We provide the checkp
 Now time to enjoy your 3D reconstruction! You can start by our provided examples, such as:
 
 ```bash
-python demo.py SCENE_DIR=examples/cake resume_ckpt=/PATH/YOUR/CKPT 
+python demo.py SCENE_DIR=examples/kitchen resume_ckpt=/PATH/YOUR/CKPT 
+
+python demo.py SCENE_DIR=examples/statue resume_ckpt=/PATH/YOUR/CKPT 
 
 python demo.py SCENE_DIR=examples/british_museum query_frame_num=2 resume_ckpt=/PATH/YOUR/CKPT 
-
-python demo.py SCENE_DIR=examples/apple query_frame_num=5 max_query_pts=1600 resume_ckpt=/PATH/YOUR/CKPT 
 ```
 
 All default settings for the flags are specified in `cfgs/demo.yaml`. For example, we have modified the values of `query_frame_num` and `max_query_pts` from the default settings of `3` and `4096` to `5` and `1600`, respectively, to ensure a 32 GB GPU can work for ```examples/apple```. 
