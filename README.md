@@ -37,7 +37,8 @@ We provide a simple installation script that, by default, sets up a conda enviro
 source install.sh
 ```
 
-This script installs official pytorch3d, accelerate, lightglue, pycolmap, and visdom. Besides, it will also (optionally) install [poselib](https://github.com/PoseLib/PoseLib) using the python wheel under the folder ```wheels```, which is compiled by us instead of the official poselib team. 
+This script installs official pytorch3d, accelerate, lightglue, pycolmap, and visdom. Besides, it will also (optionally) install [poselib](https://github.com/PoseLib/PoseLib) using the python wheel under the folder ```wheels```, which is compiled by us instead of the official poselib team. If you cannot install ```pytorch3d``` on your machine, feel free to comment the line, because now we only use it during visualization (i.e., ```cfg.visualize=True```). 
+
 
 ## Demo 
 
