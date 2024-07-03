@@ -744,6 +744,7 @@ def iterative_global_BA(
     min_valid_track_length=2,
     max_reproj_error=1,
     ba_options=None,
+    lastBA=False,
     camera_type="SIMPLE_PINHOLE",
 ):
     # normalize points from pixel
@@ -809,11 +810,15 @@ def iterative_global_BA(
     points3D_opt = points3D_opt[valid_tracks_afterBA]
     BA_inlier_masks = filtered_inlier_mask[:, valid_tracks_afterBA]
 
+    if lastBA:
+        reconstruction = filter_reconstruction(reconstruction, filter_points=True)
+
     return points3D_opt, extrinsics, intrinsics, valid_tracks, BA_inlier_masks, reconstruction
 
 
-def filter_reconstruction(reconstruction):
-    reconstruction.filter_all_points3D(4.0, 1.5)
-    reconstruction.filter_observations_with_negative_depth()
+def filter_reconstruction(reconstruction, filter_points=False):
+    if filter_points:
+        reconstruction.filter_all_points3D(4.0, 1.5)
+        reconstruction.filter_observations_with_negative_depth()
     reconstruction.normalize(5.0, 0.1, 0.9, True)
     return reconstruction

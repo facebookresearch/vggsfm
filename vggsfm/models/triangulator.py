@@ -256,6 +256,7 @@ class Triangulator(nn.Module):
                         valid_tracks,
                         points3D,
                         image_size,
+                        lastBA=lastBA,
                         min_valid_track_length=min_valid_track_length,
                         max_reproj_error=max_reproj_error,
                         ba_options=ba_options,
