@@ -58,9 +58,9 @@ def triangulate_multi_view_point_batched(
     num_A_batch = len(A)
     MAX_CUSOLVER_STATUS_INVALID_VALUE = 1024000
     if num_A_batch > MAX_CUSOLVER_STATUS_INVALID_VALUE:
-        print(
-            "A too big matrix for torch.linalg.eigh(); It will meet CUSOLVER_STATUS_INVALID_VALUE ERROR; Make it happy by spliting the matrix to several ones"
-        )
+        # print(
+        #     "A too big matrix for torch.linalg.eigh(); It will meet CUSOLVER_STATUS_INVALID_VALUE ERROR; Make it happy by spliting the matrix to several ones"
+        # )
         num_runs = math.ceil(num_A_batch / MAX_CUSOLVER_STATUS_INVALID_VALUE)
         eigenvectors_list = []
         for run_idx in range(num_runs):

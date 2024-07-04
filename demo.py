@@ -21,11 +21,22 @@ from lightglue import LightGlue, SuperPoint, SIFT, ALIKED
 
 import pycolmap
 
+import glob
+import copy
+import cv2
+import scipy
 from visdom import Visdom
-
-
+from collections import defaultdict
 from vggsfm.datasets.demo_loader import DemoLoader
 from vggsfm.two_view_geo.estimate_preliminary import estimate_preliminary_cameras
+
+from vggsfm.utils.utils import (
+    set_seed_and_print,
+    farthest_point_sampling,
+    calculate_index_mappings,
+    switch_tensor_order,
+)
+
 
 try:
     import poselib
@@ -35,12 +46,16 @@ try:
 except:
     print("Poselib is not installed. Please disable use_poselib")
 
-from vggsfm.utils.utils import (
-    set_seed_and_print,
-    farthest_point_sampling,
-    calculate_index_mappings,
-    switch_tensor_order,
-)
+try:
+    from dependency.depth_any_v2.depth_anything_v2.dpt import DepthAnythingV2
+    print("DepthAnythingV2 is available")
+except:
+    print("DepthAnythingV2 is not installed. Please disable dense_depth")
+
+# For dense depth estimation
+from sklearn.linear_model import RANSACRegressor
+from sklearn.linear_model import LinearRegression
+from vggsfm.utils.read_write_dense import write_array, read_array
 
 
 @hydra.main(config_path="cfgs/", config_name="demo")
@@ -64,11 +79,12 @@ def demo_fn(cfg: DictConfig):
 
     model = model.to(device)
 
+
     # Prepare test dataset
     test_dataset = DemoLoader(
         SCENE_DIR=cfg.SCENE_DIR, img_size=cfg.img_size, normalize_cameras=False, load_gt=cfg.load_gt, cfg=cfg
     )
-
+    
     if cfg.resume_ckpt:
         # Reload model
         checkpoint = torch.load(cfg.resume_ckpt)
@@ -157,10 +173,58 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     """
     images have been normalized to the range [0, 1] instead of [0, 255]
     """
+    
     batch_num, frame_num, image_dim, height, width = images.shape
     device = images.device
     reshaped_image = images.reshape(batch_num * frame_num, image_dim, height, width)
 
+
+    if cfg.dense_depth:
+        print("Extracting dense depth maps")
+        depth_dir = os.path.join(cfg.SCENE_DIR, "depths")
+        os.makedirs(depth_dir, exist_ok=True)
+        
+        model_config =  {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]}
+
+        depth_model = DepthAnythingV2(**model_config)
+        
+        _DEPTH_ANYTHING_V2_URL = "https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth"
+
+        checkpoint = torch.hub.load_state_dict_from_url(_DEPTH_ANYTHING_V2_URL)
+
+        depth_model.load_state_dict(checkpoint)
+        depth_model = depth_model.to(device).eval()
+
+        top_left_corners = {}
+        resize_scales = {}
+        for idx in range(len(image_paths)): 
+            img_fname = image_paths[idx]
+            raw_img = cv2.imread(img_fname)
+            # raw resolution
+            depth_map = depth_model.infer_image(raw_img, max(raw_img.shape[:2])) # HxW raw depth_map map in numpy
+
+            visual_depth = False
+            if visual_depth:
+                create_depth_map_visual(depth_map, raw_img, img_fname)
+
+
+            # from disp to depth
+            depth_map = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min())
+            nonzero_mask = depth_map != 0
+            depth_map[nonzero_mask] = 1/depth_map[nonzero_mask]
+
+
+            image_base_name = os.path.basename(img_fname)
+            raw_img_size = crop_params[0, idx, :2].abs().cpu().numpy()
+        
+            resize_scales[image_base_name] = raw_img_size.max()/cfg.img_size
+            top_left_corners[image_base_name] = crop_params[0, idx, -4:-2].abs().cpu().numpy()
+
+            write_array(depth_map, img_fname.replace("images", "depths") + ".bin")
+        
+        print("Dense depth maps complete")
+    
+    
     predictions = {}
     extra_dict = {}
 
@@ -282,8 +346,6 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         pred_vis,
         images,
         preliminary_dict,
-        image_paths=image_paths,
-        crop_params=crop_params,
         pred_score=pred_score,
         fmat_thres=cfg.fmat_thres,
         BA_iters=cfg.BA_iters,
@@ -292,12 +354,108 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         cfg=cfg,
     )
 
-    # if cfg.center_order:
-    #     # NOTE we changed the image order previously, now we need to scwitch it back
-    #     BA_cameras_PT3D = BA_cameras_PT3D[center_order]
-    #     extrinsics_opencv = extrinsics_opencv[center_order]
-    #     intrinsics_opencv = intrinsics_opencv[center_order]
-    # DO WE NEED TO SWITCH BACK?
+    for pyimageid in reconstruction.images:
+        # scale from resized image size to the real size
+        # rename the images to the original names
+        pyimage = reconstruction.images[pyimageid]
+        pycamera = reconstruction.cameras[pyimage.camera_id]
+
+        pyimage.name = image_paths[pyimageid]
+
+        pred_params = copy.deepcopy(pycamera.params)
+        real_image_size = crop_params[0, pyimageid][:2]
+        real_focal = real_image_size.max() / cfg.img_size * pred_params[0]
+
+        real_pp = real_image_size.cpu().numpy() // 2
+
+        pred_params[0] = real_focal
+        pred_params[1:3] = real_pp
+        pycamera.params = pred_params
+        pycamera.width = real_image_size[0]
+        pycamera.height = real_image_size[1]
+
+
+    
+    if cfg.dense_depth:
+        sparse_depth = defaultdict(list)
+        for point3D_idx in reconstruction.points3D: 
+            pt3D = reconstruction.points3D[point3D_idx]
+            for track_element in pt3D.track.elements: 
+                pyimg = reconstruction.images[track_element.image_id]
+                pycam = reconstruction.cameras[pyimg.camera_id]
+                img_name = pyimg.name
+                projection = pyimg.cam_from_world * pt3D.xyz
+                depth = projection[-1]
+                # NOTE: uv here cooresponds to the (x, y) 
+                # at the original image coordinate
+                # instead of the cropped one
+                uv = pycam.img_from_cam(projection)
+                sparse_depth[img_name].append(np.append(uv, depth))
+                
+        for img_name in sparse_depth: 
+            
+            sparse_uvd = np.array(sparse_depth[img_name])
+            depth_map = read_array(os.path.join(depth_dir, img_name+".bin"))
+
+            ww, hh = depth_map.shape
+            # filter out the projections outside the image 
+            int_uv = np.round(sparse_uvd[:,:2]).astype(int)
+            maskhh = (int_uv[:, 0] >= 0) & (int_uv[:, 0] < hh)
+            maskww = (int_uv[:, 1] >= 0) & (int_uv[:, 1] < ww)
+            mask = maskhh & maskww
+            sparse_uvd = sparse_uvd[mask]
+            int_uv = int_uv[mask]
+            # nearest neighbour sampling
+            sampled_depths = depth_map[int_uv[:,1], int_uv[:, 0]]
+            
+            # Note that dense depth maps may have some invalid values such as sky
+            # they are marked as 0 
+            # hence filter out 0 from the sampled depths
+            positive_mask = sampled_depths > 0
+            sampled_depths = sampled_depths[positive_mask]
+            sfm_depths = sparse_uvd[:, -1][positive_mask]
+            
+            # RANSAC
+            X = sampled_depths.reshape(-1, 1)
+            y = sfm_depths
+            ransac_thres = np.median(sfm_depths) / 20
+            # Create a RANSAC regressor with a linear model as the base estimator
+            ransac = RANSACRegressor(LinearRegression(), min_samples=2, residual_threshold=ransac_thres, max_trials=20000, loss="squared_error")
+            ransac.fit(X, y)
+            scale = ransac.estimator_.coef_[0]
+            shift = ransac.estimator_.intercept_
+            inlier_mask = ransac.inlier_mask_
+
+            nonzero_mask = depth_map!=0
+            depth_map[nonzero_mask] = depth_map[nonzero_mask] * scale + shift
+            
+            max_depth_value = 1024
+            valid_depth_mask = (depth_map>0) & (depth_map<=max_depth_value)
+            
+            depth_map[~valid_depth_mask] = 0
+            
+            write_array(depth_map, os.path.join(depth_dir, img_name) + ".bin")
+            
+            
+            if False:
+                # visual inliers
+                int_uv = int_uv[positive_mask]
+                sampled_depths_visual = sampled_depths/sampled_depths.max()
+                radius = 5  # Radius of the circle (marker)
+                # color = (0, 255, 0)  # Color of the marker in BGR (Green in this case)
+                thickness = -1  # Thickness of the circle border (-1 for filled circle)
+                assert len(int_uv) == len(sampled_depths_visual)
+                rawimg = cv2.imread(os.path.dirname(img_fname)+"/"+img_name)
+                for iii in range(len(int_uv)):  
+                    if inlier_mask[iii]:
+                        cv2.circle(rawimg, (int_uv[iii, 0], int_uv[iii, 1]), radius, (0, 255, 0), thickness)
+                    else:
+                        cv2.circle(rawimg, (int_uv[iii, 0], int_uv[iii, 1]), radius, (0, 0, 255), thickness)
+                        
+                cv2.imwrite("test.png", rawimg)
+                
+                import pdb;pdb.set_trace()
+
 
     predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
     predictions["extrinsics_opencv"] = extrinsics_opencv
@@ -305,7 +463,32 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     predictions["points3D"] = points3D
     predictions["points3D_rgb"] = points3D_rgb
     predictions["reconstruction"] = reconstruction
+    
     return predictions
+
+def create_depth_map_visual(depth_map, raw_img, img_fname):
+    import matplotlib
+    # Normalize the depth map to the range 0-255
+    depth_map_visual = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min()) * 255.0
+    depth_map_visual = depth_map_visual.astype(np.uint8)
+    
+    # Get the colormap
+    cmap = matplotlib.colormaps.get_cmap('Spectral_r')
+    
+    # Apply the colormap and convert to uint8
+    depth_map_visual = (cmap(depth_map_visual)[:, :, :3] * 255)[:, :, ::-1].astype(np.uint8)
+    
+    # Create a white split region
+    split_region = np.ones((raw_img.shape[0], 50, 3), dtype=np.uint8) * 255
+    
+    # Combine the raw image, split region, and depth map visual
+    combined_result = cv2.hconcat([raw_img, split_region, depth_map_visual])
+    
+    # Save the result to a file
+    output_filename = f"test_{os.path.basename(img_fname)}.png"
+    cv2.imwrite(output_filename, combined_result)
+    
+    return output_filename
 
 
 def predict_tracks(
