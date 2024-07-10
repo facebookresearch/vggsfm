@@ -69,8 +69,6 @@ class Triangulator(nn.Module):
         max_reproj_error=4,
         init_tri_angle_thres=16,
         min_valid_track_length=3,
-        image_paths=None,
-        crop_params=None,
         cfg=None,
     ):
         """
@@ -276,26 +274,6 @@ class Triangulator(nn.Module):
             valid_intri_mask = torch.logical_and(intrinsics[:, 0, 0] >= 0.1 * scale, intrinsics[:, 0, 0] <= 30 * scale)
             valid_trans_mask = (trans_BA.abs() <= 30).all(-1)
             valid_frame_mask = torch.logical_and(valid_intri_mask, valid_trans_mask)
-
-            for pyimageid in reconstruction.images:
-                # scale from resized image size to the real size
-                # rename the images to the original names
-                pyimage = reconstruction.images[pyimageid]
-                pycamera = reconstruction.cameras[pyimage.camera_id]
-
-                pyimage.name = image_paths[pyimageid]
-
-                pred_params = copy.deepcopy(pycamera.params)
-                real_image_size = crop_params[0, pyimageid][:2]
-                real_focal = real_image_size.max() / cfg.img_size * pred_params[0]
-
-                real_pp = real_image_size.cpu().numpy() // 2
-
-                pred_params[0] = real_focal
-                pred_params[1:3] = real_pp
-                pycamera.params = pred_params
-                pycamera.width = real_image_size[0]
-                pycamera.height = real_image_size[1]
 
             if cfg.extract_color:
                 from vggsfm.models.utils import sample_features4d

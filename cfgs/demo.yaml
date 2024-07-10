@@ -28,6 +28,8 @@ max_reproj_error: 4.0
 init_max_reproj_error: 4.0
 max_query_pts: 4096
 
+dense_depth: False
+
 # shared_camera: True
 
 SCENE_DIR: examples/kitchen
