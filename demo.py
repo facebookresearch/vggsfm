@@ -35,6 +35,8 @@ from vggsfm.utils.utils import (
     farthest_point_sampling,
     calculate_index_mappings,
     switch_tensor_order,
+    write_array,
+    read_array,
 )
 
 
@@ -48,6 +50,7 @@ except:
 
 try:
     from dependency.depth_any_v2.depth_anything_v2.dpt import DepthAnythingV2
+
     print("DepthAnythingV2 is available")
 except:
     print("DepthAnythingV2 is not installed. Please disable dense_depth")
@@ -55,7 +58,6 @@ except:
 # For dense depth estimation
 from sklearn.linear_model import RANSACRegressor
 from sklearn.linear_model import LinearRegression
-from vggsfm.utils.read_write_dense import write_array, read_array
 
 
 @hydra.main(config_path="cfgs/", config_name="demo")
@@ -79,12 +81,11 @@ def demo_fn(cfg: DictConfig):
 
     model = model.to(device)
 
-
     # Prepare test dataset
     test_dataset = DemoLoader(
         SCENE_DIR=cfg.SCENE_DIR, img_size=cfg.img_size, normalize_cameras=False, load_gt=cfg.load_gt, cfg=cfg
     )
-    
+
     if cfg.resume_ckpt:
         # Reload model
         checkpoint = torch.load(cfg.resume_ckpt)
@@ -96,12 +97,8 @@ def demo_fn(cfg: DictConfig):
         from pytorch3d.vis.plotly_vis import plot_scene
         from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
 
-        from pytorch3d.implicitron.tools import model_io, vis_utils
+        viz = Visdom()
 
-        viz = vis_utils.get_visdom_connection(server=f"http://10.200.188.27", port=10088)
-        # viz = Visdom()
-        
-        
     sequence_list = test_dataset.sequence_list
 
     for seq_name in sequence_list:
@@ -153,7 +150,6 @@ def demo_fn(cfg: DictConfig):
         pred_cameras_PT3D = predictions["pred_cameras_PT3D"]
 
         if cfg.visualize:
-                        
             if "points3D_rgb" in predictions:
                 pcl = Pointclouds(points=predictions["points3D"][None], features=predictions["points3D_rgb"][None])
             else:
@@ -178,59 +174,41 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     """
     images have been normalized to the range [0, 1] instead of [0, 255]
     """
-    
+
     batch_num, frame_num, image_dim, height, width = images.shape
     device = images.device
     reshaped_image = images.reshape(batch_num * frame_num, image_dim, height, width)
 
-
     if cfg.dense_depth:
         print("Extracting dense depth maps")
         depth_dir = os.path.join(cfg.SCENE_DIR, "depths")
-        # if not os.path.exists(depth_dir):
         os.makedirs(depth_dir, exist_ok=True)
-        
-        model_config =  {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]}
-
+        # Build DepthAnythingV2 model
+        model_config = {"encoder": "vitl", "features": 256, "out_channels": [256, 512, 1024, 1024]}
         depth_model = DepthAnythingV2(**model_config)
-        
-        _DEPTH_ANYTHING_V2_URL = "https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth"
-
+        _DEPTH_ANYTHING_V2_URL = (
+            "https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth"
+        )
         checkpoint = torch.hub.load_state_dict_from_url(_DEPTH_ANYTHING_V2_URL)
-
         depth_model.load_state_dict(checkpoint)
         depth_model = depth_model.to(device).eval()
 
-        top_left_corners = {}
-        resize_scales = {}
-        for idx in range(len(image_paths)): 
+        for idx in range(len(image_paths)):
             img_fname = image_paths[idx]
             raw_img = cv2.imread(img_fname)
             # raw resolution
-            disp_map = depth_model.infer_image(raw_img, max(1024, max(raw_img.shape[:2]))) # HxW raw depth_map map in numpy
+            disp_map = depth_model.infer_image(
+                raw_img, max(1024, max(raw_img.shape[:2]))
+            )  # HxW raw depth_map map in numpy
 
             visual_depth = True
             if visual_depth:
                 create_depth_map_visual(disp_map, raw_img, img_fname, depth_dir)
 
-
-            # from disp to depth
-            # depth_map = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min())
-            # nonzero_mask = depth_map != 0
-            # depth_map[nonzero_mask] = 1/depth_map[nonzero_mask]
-
-
-            image_base_name = os.path.basename(img_fname)
-            raw_img_size = crop_params[0, idx, :2].abs().cpu().numpy()
-        
-            resize_scales[image_base_name] = raw_img_size.max()/cfg.img_size
-            top_left_corners[image_base_name] = crop_params[0, idx, -4:-2].abs().cpu().numpy()
-
             write_array(disp_map, img_fname.replace("images", "depths") + ".bin")
-        
+
         print("Dense depth maps complete")
-    
-    
+
     predictions = {}
     extra_dict = {}
 
@@ -323,14 +301,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     # All the operations are batched and differentiable (if necessary)
     # except when you enable use_poselib to save GPU memory
     _, preliminary_dict = estimate_preliminary_cameras_fn(
-        pred_track,
-        pred_vis,
-        width,
-        height,
-        tracks_score=pred_score,
-        max_error=cfg.fmat_thres,
-        loopresidual=True,
-        # max_ransac_iters=cfg.max_ransac_iters,
+        pred_track, pred_vis, width, height, tracks_score=pred_score, max_error=cfg.fmat_thres, loopresidual=True
     )
 
     pose_predictions = camera_predictor(reshaped_image, batch_size=batch_num)
@@ -380,241 +351,94 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         pycamera.width = real_image_size[0]
         pycamera.height = real_image_size[1]
 
-
-    
     if cfg.dense_depth:
+        # Align dense depth maps with Sparse SfM points
+        
         sparse_depth = defaultdict(list)
-        for point3D_idx in reconstruction.points3D: 
+        # Extract sparse depths from SfM points
+        for point3D_idx in reconstruction.points3D:
             pt3D = reconstruction.points3D[point3D_idx]
-            for track_element in pt3D.track.elements: 
+            for track_element in pt3D.track.elements:
                 pyimg = reconstruction.images[track_element.image_id]
                 pycam = reconstruction.cameras[pyimg.camera_id]
                 img_name = pyimg.name
                 projection = pyimg.cam_from_world * pt3D.xyz
                 depth = projection[-1]
-                # NOTE: uv here cooresponds to the (x, y) 
+                # NOTE: uv here cooresponds to the (x, y)
                 # at the original image coordinate
                 # instead of the cropped one
                 uv = pycam.img_from_cam(projection)
-                # ###############################################################
-                # debug back
-                if False:
-                    uv_norm = pycam.cam_from_img(uv)
-                    unproject_points_homo = np.hstack((uv_norm,  np.ones((uv_norm.shape[0], 1))))
-                    unproject_points_withz = unproject_points_homo * depth
-                    unproject_points_world = pyimg.cam_from_world.inverse() * unproject_points_withz
-
-                # ###############################################################
                 sparse_depth[img_name].append(np.append(uv, depth))
-        
+
         fname_to_id = {}
-        for imgid in reconstruction.images: fname_to_id[reconstruction.images[imgid].name] = imgid
-        
-        unproject3ds = []
-        rgbs = []
-        
-        # 
+        for imgid in reconstruction.images:
+            fname_to_id[reconstruction.images[imgid].name] = imgid
+
         disparity_max = 10000
         disparity_min = 0.0001
         depth_max = 1 / disparity_min
         depth_min = 1 / disparity_max
 
-
-        from pytorch3d.structures import Pointclouds
-        from pytorch3d.vis.plotly_vis import plot_scene
-        from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
-
-        from pytorch3d.implicitron.tools import model_io, vis_utils
-        viz = vis_utils.get_visdom_connection(server=f"http://10.200.188.27", port=10088)
-
-
-        for img_name in sparse_depth: 
-            
+        for img_name in sparse_depth:
             sparse_uvd = np.array(sparse_depth[img_name])
-            disp_map = read_array(os.path.join(depth_dir, img_name+".bin"))
+            disp_map = read_array(os.path.join(depth_dir, img_name + ".bin"))
 
             ww, hh = disp_map.shape
-            # filter out the projections outside the image 
-            int_uv = np.round(sparse_uvd[:,:2]).astype(int)
+            # filter out the projections outside the image
+            int_uv = np.round(sparse_uvd[:, :2]).astype(int)
             maskhh = (int_uv[:, 0] >= 0) & (int_uv[:, 0] < hh)
             maskww = (int_uv[:, 1] >= 0) & (int_uv[:, 1] < ww)
             mask = maskhh & maskww
             sparse_uvd = sparse_uvd[mask]
             int_uv = int_uv[mask]
             # nearest neighbour sampling
-            sampled_disps = disp_map[int_uv[:,1], int_uv[:, 0]]
-            
-            
-            
+            sampled_disps = disp_map[int_uv[:, 1], int_uv[:, 0]]
+
             # Note that dense depth maps may have some invalid values such as sky
-            # they are marked as 0 
+            # they are marked as 0
             # hence filter out 0 from the sampled depths
             positive_mask = sampled_disps > 0
             sampled_disps = sampled_disps[positive_mask]
             sfm_depths = sparse_uvd[:, -1][positive_mask]
-            
+
             sfm_depths = np.clip(sfm_depths, depth_min, depth_max)
-            
-            align_disp = True
-            
-            use_ransac = True
-            thres_ratio= 30
-            
-            if align_disp:
-                print("align disp")
-                target_disps = 1 / sfm_depths
-                
-                if use_ransac:
-                    # RANSAC
-                    X = sampled_disps.reshape(-1, 1)
-                    y = target_disps
-                    ransac_thres = np.median(y) / thres_ratio
-                    # Create a RANSAC regressor with a linear model as the base estimator
-                    ransac = RANSACRegressor(LinearRegression(), min_samples=2, residual_threshold=ransac_thres, max_trials=20000, loss="squared_error")
-                    ransac.fit(X, y)
-                    scale = ransac.estimator_.coef_[0]
-                    shift = ransac.estimator_.intercept_
-                    inlier_mask = ransac.inlier_mask_
-                    print("outlier ", (~inlier_mask).sum())
-                    print("inlier ", inlier_mask.sum())
-                else:
-                    # Create the design matrix X by appending a column of ones to pred_depth
-                    X = np.vstack([sampled_disps, np.ones_like(sampled_disps)]).T
 
-                    # Compute the least squares solution
-                    theta = np.linalg.inv(X.T @ X) @ X.T @ target_disps
+            thres_ratio = 30
+            target_disps = 1 / sfm_depths
 
-                    # Extract scale and shift from the solution
-                    scale, shift = theta
+            # RANSAC
+            X = sampled_disps.reshape(-1, 1)
+            y = target_disps
+            ransac_thres = np.median(y) / thres_ratio
+            ransac = RANSACRegressor(
+                LinearRegression(),
+                min_samples=2,
+                residual_threshold=ransac_thres,
+                max_trials=20000,
+                loss="squared_error",
+            )
+            ransac.fit(X, y)
+            scale = ransac.estimator_.coef_[0]
+            shift = ransac.estimator_.intercept_
+            inlier_mask = ransac.inlier_mask_
 
-                nonzero_mask = disp_map!=0
-                disp_map[nonzero_mask] = disp_map[nonzero_mask] * scale + shift
-                
-                valid_depth_mask = (disp_map>0) & (disp_map<=disparity_max)
-                
-                disp_map[~valid_depth_mask] = 0
-                depth_map = np.full(disp_map.shape, np.inf)
-                depth_map[disp_map!=0] = 1/disp_map[disp_map!=0]
-                
-                
-                depth_map[depth_map == np.inf] = 0
-                depth_map = depth_map.astype(np.float32)
-            else:
-                print("align depth")
-                sampled_depths = 1/sampled_disps
+            nonzero_mask = disp_map != 0
 
-                # RANSAC
-                X = sampled_depths.reshape(-1, 1)
-                y = sfm_depths
-                ransac_thres = np.median(y) / thres_ratio
-                # Create a RANSAC regressor with a linear model as the base estimator
-                ransac = RANSACRegressor(LinearRegression(), min_samples=2, residual_threshold=ransac_thres, max_trials=20000, loss="squared_error")
-                ransac.fit(X, y)
-                scale = ransac.estimator_.coef_[0]
-                shift = ransac.estimator_.intercept_
-                inlier_mask = ransac.inlier_mask_
+            # Rescale the disparity map
+            disp_map[nonzero_mask] = disp_map[nonzero_mask] * scale + shift
 
-                nonzero_mask = disp_map!=0
-                
-                depth_map = np.full(disp_map.shape, np.inf)
-                depth_map[nonzero_mask] = (1 / disp_map[nonzero_mask]) * scale + shift
-                # depth_map[]
-                # disp_map[nonzero_mask] = disp_map[nonzero_mask] * scale + shift
-                
-                valid_depth_mask = (disp_map>0) & (disp_map<=disparity_max)
-                depth_map[~valid_depth_mask] = 0
-                # disp_map[~valid_depth_mask] = 0
-                # depth_map = np.full(disp_map.shape, np.inf)
-                # depth_map[disp_map!=0] = 1/disp_map[disp_map!=0]
-                depth_map[depth_map == np.inf] = 0
-                depth_map = depth_map.astype(np.float32)
+            valid_depth_mask = (disp_map > 0) & (disp_map <= disparity_max)
 
+            disp_map[~valid_depth_mask] = 0
+
+            # Convert the disparity map to depth map
+            depth_map = np.full(disp_map.shape, np.inf)
+            depth_map[disp_map != 0] = 1 / disp_map[disp_map != 0]
+
+            depth_map[depth_map == np.inf] = 0
+            depth_map = depth_map.astype(np.float32)
 
             write_array(depth_map, os.path.join(depth_dir, img_name) + ".bin")
-
-            
-            
-            # unproject for visual
-            pyimg = reconstruction.images[fname_to_id[img_name]]
-            pycam = reconstruction.cameras[pyimg.camera_id]
-            
-            if True:
-                # Generate the x and y coordinates
-                x_coords = np.arange(hh)  
-                y_coords = np.arange(ww)  
-                xx, yy = np.meshgrid(x_coords, y_coords)
-
-                sampled_points2d = np.column_stack(( xx.ravel(), yy.ravel()))
-            else:
-                xx, yy = np.meshgrid(np.arange(ww), np.arange(hh))
-                sampled_points2d = np.vstack((yy.flatten(), xx.flatten())).T
-
-            depth_values = depth_map.reshape(-1)
-            valid_depth_mask = valid_depth_mask.reshape(-1)
-            
-            sampled_points2d = sampled_points2d[valid_depth_mask] 
-            depth_values = depth_values[valid_depth_mask]
-            unproject_points = pycam.cam_from_img(sampled_points2d)
-
-            unproject_points_homo = np.hstack((unproject_points,  np.ones((unproject_points.shape[0], 1))))
-            unproject_points_withz = unproject_points_homo * depth_values.reshape(-1, 1)
-            unproject_points_world = pyimg.cam_from_world.inverse() * unproject_points_withz
-            unproject3ds.append(unproject_points_world)
-            
-
-            bgr = cv2.imread(cfg.SCENE_DIR+f"/images/{img_name}")
-            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            rgb = rgb.reshape(-1, 3)
-            rgb = rgb/255
-            rgb = rgb[valid_depth_mask]
-            
-
-            rgbs.append(rgb)
-
-
-
-            pcl = Pointclouds(points=torch.from_numpy(unproject_points_world[None]), features = torch.from_numpy(rgb[None]))
-            
-            visual_dict = {"scenes": {"points": pcl, }}
-            fig = plot_scene(visual_dict, camera_scale=0.05)
-            env_name = f"{os.path.basename(cfg.SCENE_DIR)}/visual_{img_name}"
-            viz.plotlyplot(fig, env=env_name, win="3D")
-
-        
-
-            if False:
-                # visual inliers
-                int_uv = int_uv[positive_mask]
-                sampled_depths_visual = sampled_depths/sampled_depths.max()
-                radius = 5  # Radius of the circle (marker)
-                # color = (0, 255, 0)  # Color of the marker in BGR (Green in this case)
-                thickness = -1  # Thickness of the circle border (-1 for filled circle)
-                assert len(int_uv) == len(sampled_depths_visual)
-                rawimg = cv2.imread(os.path.dirname(img_fname)+"/"+img_name)
-                for iii in range(len(int_uv)):  
-                    if inlier_mask[iii]:
-                        cv2.circle(rawimg, (int_uv[iii, 0], int_uv[iii, 1]), radius, (0, 255, 0), thickness)
-                    else:
-                        cv2.circle(rawimg, (int_uv[iii, 0], int_uv[iii, 1]), radius, (0, 0, 255), thickness)
-                        
-                cv2.imwrite("test.png", rawimg)
-                
-                import pdb;pdb.set_trace()
-                
-        unproject3ds_all = np.concatenate(unproject3ds)
-        rgbs_all = np.concatenate(rgbs)                
-        
-        pcl = Pointclouds(points=torch.from_numpy(unproject3ds_all[None]), features = torch.from_numpy(rgbs_all[None]))
-
-        
-        visual_dict = {"scenes": {"points": pcl, }}
-        fig = plot_scene(visual_dict, camera_scale=0.05)
-        env_name = f"{os.path.basename(cfg.SCENE_DIR)}/visual_all"
-        viz.plotlyplot(fig, env=env_name, win="3D")
-
-        
-        
-
 
     predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
     predictions["extrinsics_opencv"] = extrinsics_opencv
@@ -622,32 +446,8 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     predictions["points3D"] = points3D
     predictions["points3D_rgb"] = points3D_rgb
     predictions["reconstruction"] = reconstruction
-    
-    return predictions
 
-def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
-    import matplotlib
-    # Normalize the depth map to the range 0-255
-    depth_map_visual = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min()) * 255.0
-    depth_map_visual = depth_map_visual.astype(np.uint8)
-    
-    # Get the colormap
-    cmap = matplotlib.colormaps.get_cmap('Spectral_r')
-    
-    # Apply the colormap and convert to uint8
-    depth_map_visual = (cmap(depth_map_visual)[:, :, :3] * 255)[:, :, ::-1].astype(np.uint8)
-    
-    # Create a white split region
-    split_region = np.ones((raw_img.shape[0], 50, 3), dtype=np.uint8) * 255
-    
-    # Combine the raw image, split region, and depth map visual
-    combined_result = cv2.hconcat([raw_img, split_region, depth_map_visual])
-    
-    # Save the result to a file
-    output_filename = outdir+f"/depth_{os.path.basename(img_fname)}.png"
-    cv2.imwrite(output_filename, combined_result)
-    
-    return output_filename
+    return predictions
 
 
 def predict_tracks(
@@ -815,6 +615,32 @@ def get_query_points(query_image, query_method, max_query_num=4096, det_thres=0.
         query_points = query_points[:, random_point_indices, :]
 
     return query_points
+
+
+def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
+    import matplotlib
+
+    # Normalize the depth map to the range 0-255
+    depth_map_visual = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min()) * 255.0
+    depth_map_visual = depth_map_visual.astype(np.uint8)
+
+    # Get the colormap
+    cmap = matplotlib.colormaps.get_cmap("Spectral_r")
+
+    # Apply the colormap and convert to uint8
+    depth_map_visual = (cmap(depth_map_visual)[:, :, :3] * 255)[:, :, ::-1].astype(np.uint8)
+
+    # Create a white split region
+    split_region = np.ones((raw_img.shape[0], 50, 3), dtype=np.uint8) * 255
+
+    # Combine the raw image, split region, and depth map visual
+    combined_result = cv2.hconcat([raw_img, split_region, depth_map_visual])
+
+    # Save the result to a file
+    output_filename = outdir + f"/depth_{os.path.basename(img_fname)}.png"
+    cv2.imwrite(output_filename, combined_result)
+
+    return output_filename
 
 
 def seed_all_random_engines(seed: int) -> None:

@@ -277,6 +277,7 @@ class Triangulator(nn.Module):
 
             if cfg.extract_color:
                 from vggsfm.models.utils import sample_features4d
+
                 pred_track_rgb = sample_features4d(images.squeeze(0), pred_tracks)
                 valid_track_rgb = pred_track_rgb[:, valid_tracks]
 

@@ -19,6 +19,7 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 
 **Updates:**
+- [Jul 10, 2024] Now we support exporting dense depth maps!
 
 - [Jun 26, 2024] Excited to release our demo on Hugging Face Space🤗. Try it out [here](https://huggingface.co/spaces/facebook/vggsfm)!
 
@@ -37,7 +38,7 @@ We provide a simple installation script that, by default, sets up a conda enviro
 source install.sh
 ```
 
-This script installs official ```pytorch3d```, ```accelerate```, ```lightglue```, ```pycolmap```, and ```visdom```. Besides, it will also (optionally) install [poselib](https://github.com/PoseLib/PoseLib) using the python wheel under the folder ```wheels```, which is compiled by us instead of the official poselib team. If you cannot install ```pytorch3d``` on your machine, feel free to comment the line, because now we only use it during visualization (i.e., ```cfg.visualize=True```). 
+This script installs official ```pytorch3d```, ```accelerate```, ```lightglue```, ```pycolmap```, ```poselib```, and ```visdom```. If you cannot install ```pytorch3d``` on your machine, feel free to comment the line, because now we only use it during visualization (i.e., ```cfg.visualize=True```). 
 
 
 ## Demo 
@@ -87,12 +88,23 @@ Please ensure that the images are stored in ```YOUR_FOLDER/images```. This folde
 
 Have fun and feel free to create an issue if you meet any problem. SfM is always about corner/hard cases. I am happy to help. If you prefer not to share your images publicly, please send them to me by email.
 
+
+### 4. Dense depth maps (Beta)
+
+We support extracting dense depth maps with the help of [Depth-Anything-V2](https://github.com/DepthAnything/Depth-Anything-V2). Bascially, we align the dense depth prediction from Depth-Anything-V2 using the sparse SfM point cloud predicted by VGGSfM. To enable this, please first download Depth-Anything-V2 and install scikit-learn:
+
+```bash
+pip install scikit-learn
+git clone git@github.com:DepthAnything/Depth-Anything-V2.git dependency/depth_any_v2
+```
+
+Then, you just need to set ```dense_depth=True``` when running demo.py. The depth maps will be saved to a folder called depths under cfg.SCENE_DIR, in the format of COLMAP.  
+
 ### FAQ
 
 * What should I do if I encounter an out-of-memory error?
 
 To resolve an out-of-memory error, you can start by reducing the number of ```max_query_pts``` from the default ```4096``` to  a lower value. If necessary, consider decreasing the ```query_frame_num```. Be aware that these adjustments may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction.
-
 
 
 ## Testing 
