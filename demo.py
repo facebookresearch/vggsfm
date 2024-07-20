@@ -198,7 +198,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
             raw_img = cv2.imread(img_fname)
             # raw resolution
             disp_map = depth_model.infer_image(
-                raw_img, max(1024, max(raw_img.shape[:2]))
+                raw_img, min(1024, max(raw_img.shape[:2]))
             )  # HxW raw depth_map map in numpy
 
             visual_depth = True
