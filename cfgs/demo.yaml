@@ -26,7 +26,7 @@ visualize: False
 fmat_thres: 4.0
 max_reproj_error: 4.0
 init_max_reproj_error: 4.0
-max_query_pts: 4096
+max_query_pts: 2048
 
 dense_depth: False
 
