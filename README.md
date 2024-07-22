@@ -51,14 +51,17 @@ To get started, you need to first download the checkpoint. We provide the checkp
 Now time to enjoy your 3D reconstruction! You can start by our provided examples, such as:
 
 ```bash
-python demo.py SCENE_DIR=examples/kitchen resume_ckpt=/PATH/YOUR/CKPT 
 
-python demo.py SCENE_DIR=examples/statue resume_ckpt=/PATH/YOUR/CKPT 
+python demo.py SCENE_DIR=examples/statue resume_ckpt=/PATH/YOUR/CKPT shared_camera=True
+
+python demo.py SCENE_DIR=examples/kitchen resume_ckpt=/PATH/YOUR/CKPT 
 
 python demo.py SCENE_DIR=examples/british_museum query_frame_num=2 resume_ckpt=/PATH/YOUR/CKPT 
 ```
 
-All default settings for the flags are specified in `cfgs/demo.yaml`. For example, we have modified the values of `query_frame_num` and `max_query_pts` from the default settings of `3` and `4096` to `5` and `1600`, respectively, to ensure a 32 GB GPU can work for ```examples/apple```. 
+All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` or ```query_frame_num``` to lower GPU memory usage. To enforce a shared camera model for a scene, set ```shared_camera=True```.
+
+<!-- For example, we have modified the values of `query_frame_num` and `max_query_pts` from the default settings of `3` and `4096` to `5` and `1600`, respectively, to ensure a 32 GB GPU can work for ```examples/apple```.  -->
 
 
 The reconstruction result (camera parameters and 3D points) will be automatically saved in the COLMAP format at ```output/seq_name```. You can use the [COLMAP GUI](https://colmap.github.io/gui.html) to view them. 
