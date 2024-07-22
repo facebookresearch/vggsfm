@@ -324,8 +324,8 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         images,
         preliminary_dict,
         pred_score=pred_score,
-        fmat_thres=cfg.fmat_thres,
         BA_iters=cfg.BA_iters,
+        shared_camera=cfg.shared_camera,
         max_reproj_error=cfg.max_reproj_error,
         init_max_reproj_error=cfg.init_max_reproj_error,
         cfg=cfg,
@@ -353,7 +353,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
 
     if cfg.dense_depth:
         # Align dense depth maps with Sparse SfM points
-        
+
         sparse_depth = defaultdict(list)
         # Extract sparse depths from SfM points
         for point3D_idx in reconstruction.points3D:

@@ -63,9 +63,9 @@ class Triangulator(nn.Module):
         images,
         preliminary_dict,
         pred_score=None,
-        fmat_thres=0.5,
         init_max_reproj_error=0.5,
         BA_iters=2,
+        shared_camera=False,
         max_reproj_error=4,
         init_tri_angle_thres=16,
         min_valid_track_length=3,
@@ -107,6 +107,13 @@ class Triangulator(nn.Module):
             pred_vis = pred_vis[0]
             pred_score = pred_score[0]
             inlier_fmat = inlier_fmat[0]
+
+            if shared_camera:
+                fx = intrinsics[:, 0, 0].mean()
+                fy = intrinsics[:, 1, 1].mean()
+
+                intrinsics[:, 0, 0] = fx
+                intrinsics[:, 1, 1] = fy
 
             tracks_normalized = normalize_tracks(pred_tracks, intrinsics)
             # Visibility inlier
@@ -158,6 +165,7 @@ class Triangulator(nn.Module):
                 points_3d_pair,
                 inlier_total,
                 image_size,
+                shared_camera=shared_camera,
                 init_max_reproj_error=init_max_reproj_error,
                 cfg=cfg,
             )
@@ -177,6 +185,7 @@ class Triangulator(nn.Module):
                 track_init_mask,
                 image_size,
                 init_idx,
+                shared_camera=shared_camera,
                 camera_type=cfg.camera_type,
             )
 
@@ -190,6 +199,7 @@ class Triangulator(nn.Module):
                 device,
                 min_valid_track_length,
                 max_reproj_error,
+                shared_camera=shared_camera,
                 cfg=cfg,
             )
 
@@ -209,6 +219,7 @@ class Triangulator(nn.Module):
                         valid_tracks,
                         image_size,
                         force_estimate=force_estimate,
+                        shared_camera=shared_camera,
                         camera_type=cfg.camera_type,
                     )
 
@@ -222,10 +233,10 @@ class Triangulator(nn.Module):
                         device,
                         min_valid_track_length,
                         max_reproj_error,
+                        shared_camera=shared_camera,
                         cfg=cfg,
                     )
 
-            # try:
             ba_options = pycolmap.BundleAdjustmentOptions()
             ba_options.print_summary = False
 
@@ -255,6 +266,7 @@ class Triangulator(nn.Module):
                         points3D,
                         image_size,
                         lastBA=lastBA,
+                        shared_camera=shared_camera,
                         min_valid_track_length=min_valid_track_length,
                         max_reproj_error=max_reproj_error,
                         ba_options=ba_options,
@@ -316,6 +328,7 @@ class Triangulator(nn.Module):
         device,
         min_valid_track_length,
         max_reproj_error=4,
+        shared_camera=False,
         cfg=None,
     ):
         """ """
@@ -330,6 +343,7 @@ class Triangulator(nn.Module):
         )
         # Determine valid tracks based on inlier numbers
         valid_tracks = best_inlier_num >= min_valid_track_length
+
         # Perform global bundle adjustment
         points3D, extrinsics, intrinsics, reconstruction = global_BA(
             best_triangulated_points,
@@ -340,6 +354,7 @@ class Triangulator(nn.Module):
             intrinsics,
             image_size,
             device,
+            shared_camera=shared_camera,
             camera_type=cfg.camera_type,
         )
 

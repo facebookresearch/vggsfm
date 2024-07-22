@@ -104,7 +104,17 @@ def triangulate_by_pair(extrinsics, tracks_normalized, eps=1e-12):
     return points_3d_pair, cheirality_mask, triangles
 
 
-def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size, init_max_reproj_error=0.5, cfg=None):
+def init_BA(
+    extrinsics,
+    intrinsics,
+    tracks,
+    points_3d_pair,
+    inlier,
+    image_size,
+    shared_camera=False,
+    init_max_reproj_error=0.5,
+    cfg=None,
+):
     """
     This function first optimizes the init point cloud
     and the cameras of its corresponding frames by BA,
@@ -155,6 +165,7 @@ def init_BA(extrinsics, intrinsics, tracks, points_3d_pair, inlier, image_size, 
         toBA_tracks,
         toBA_masks,
         image_size,
+        shared_camera=shared_camera,
         camera_type=cfg.camera_type,
     )
 
@@ -202,6 +213,7 @@ def refine_pose(
     tracks,
     valid_track_mask,
     image_size,
+    shared_camera=False,
     max_reproj_error=12,
     camera_type="SIMPLE_PINHOLE",
     force_estimate=False,
@@ -266,21 +278,28 @@ def refine_pose(
 
     scale = image_size.max()
 
-    for ridx in range(S):
-        if camera_type == "SIMPLE_RADIAL":
-            pycolmap_intri = np.array(
-                [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu(), 0]
-            )
-        elif camera_type == "SIMPLE_PINHOLE":
-            pycolmap_intri = np.array(
-                [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu()]
-            )
-        else:
-            raise ValueError(f"Camera type {camera_type} is not supported yet")
+    pycamera = None
 
-        pycamera = pycolmap.Camera(
-            model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=ridx
-        )
+    for ridx in range(S):
+        if pycamera is None or (not shared_camera):
+            if camera_type == "SIMPLE_RADIAL":
+                pycolmap_intri = np.array(
+                    [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu(), 0]
+                )
+            elif camera_type == "SIMPLE_PINHOLE":
+                pycolmap_intri = np.array(
+                    [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu()]
+                )
+            else:
+                raise ValueError(f"Camera type {camera_type} is not supported yet")
+
+            pycamera = pycolmap.Camera(
+                model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=ridx
+            )
+
+        if ridx > 0 and shared_camera:
+            refoptions.refine_focal_length = False
+            refoptions.refine_extra_params = False
 
         cam_from_world = pycolmap.Rigid3d(
             pycolmap.Rotation3d(extrinsics[ridx][:3, :3].cpu()), extrinsics[ridx][:3, 3].cpu()
@@ -355,6 +374,7 @@ def init_refine_pose(
     init_idx,
     max_reproj_error=12,
     second_refine=False,
+    shared_camera=False,
     camera_type="SIMPLE_PINHOLE",
 ):
     """
@@ -401,21 +421,27 @@ def init_refine_pose(
     refined_extrinsics = []
     refined_intrinsics = []
 
+    pycamera = None
     for ridx in range(S):
-        if camera_type == "SIMPLE_RADIAL":
-            pycolmap_intri = np.array(
-                [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu(), 0]
-            )
-        elif camera_type == "SIMPLE_PINHOLE":
-            pycolmap_intri = np.array(
-                [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu()]
-            )
-        else:
-            raise ValueError(f"Camera type {camera_type} is not supported yet")
+        if pycamera is None or (not shared_camera):
+            if camera_type == "SIMPLE_RADIAL":
+                pycolmap_intri = np.array(
+                    [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu(), 0]
+                )
+            elif camera_type == "SIMPLE_PINHOLE":
+                pycolmap_intri = np.array(
+                    [intrinsics[ridx][0, 0].cpu(), intrinsics[ridx][0, 2].cpu(), intrinsics[ridx][1, 2].cpu()]
+                )
+            else:
+                raise ValueError(f"Camera type {camera_type} is not supported yet")
 
-        pycamera = pycolmap.Camera(
-            model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=ridx
-        )
+            pycamera = pycolmap.Camera(
+                model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=ridx
+            )
+
+        if ridx > 0 and shared_camera:
+            refoptions.refine_focal_length = False
+            refoptions.refine_extra_params = False
 
         cam_from_world = pycolmap.Rigid3d(
             pycolmap.Rotation3d(extrinsics[ridx][:3, :3].cpu()), extrinsics[ridx][:3, 3].cpu()
@@ -704,6 +730,7 @@ def global_BA(
     intrinsics,
     image_size,
     device,
+    shared_camera=False,
     camera_type="SIMPLE_PINHOLE",
 ):
     ba_options = prepare_ba_options()
@@ -713,7 +740,14 @@ def global_BA(
     BA_tracks = pred_tracks[:, valid_tracks]
     BA_inlier_masks = inlier_mask[valid_tracks].transpose(0, 1)
     reconstruction = batch_matrix_to_pycolmap(
-        BA_points, extrinsics, intrinsics, BA_tracks, BA_inlier_masks, image_size, camera_type=camera_type
+        BA_points,
+        extrinsics,
+        intrinsics,
+        BA_tracks,
+        BA_inlier_masks,
+        image_size,
+        shared_camera=shared_camera,
+        camera_type=camera_type,
     )
     pycolmap.bundle_adjustment(reconstruction, ba_options)
 
@@ -741,6 +775,7 @@ def iterative_global_BA(
     valid_tracks,
     points3D_opt,
     image_size,
+    shared_camera=False,
     min_valid_track_length=2,
     max_reproj_error=1,
     ba_options=None,
@@ -778,7 +813,14 @@ def iterative_global_BA(
         ba_options = pycolmap.BundleAdjustmentOptions()
 
     reconstruction = batch_matrix_to_pycolmap(
-        BA_points, extrinsics, intrinsics, BA_tracks, BA_inlier_masks, image_size, camera_type=camera_type
+        BA_points,
+        extrinsics,
+        intrinsics,
+        BA_tracks,
+        BA_inlier_masks,
+        image_size,
+        shared_camera=shared_camera,
+        camera_type=camera_type,
     )
     pycolmap.bundle_adjustment(reconstruction, ba_options)
 

@@ -14,7 +14,15 @@ import pycolmap
 
 
 def batch_matrix_to_pycolmap(
-    points3d, extrinsics, intrinsics, tracks, masks, image_size, max_points3D_val=300, camera_type="SIMPLE_PINHOLE"
+    points3d,
+    extrinsics,
+    intrinsics,
+    tracks,
+    masks,
+    image_size,
+    max_points3D_val=300,
+    shared_camera=False,
+    camera_type="SIMPLE_PINHOLE",
 ):
     """
     Convert Batched Pytorch Tensors to PyCOLMAP
@@ -56,22 +64,25 @@ def batch_matrix_to_pycolmap(
 
     num_points3D = len(valid_idx)
 
+    camera = None
     # frame idx
     for fidx in range(N):
         # set camera
-        if camera_type == "SIMPLE_RADIAL":
-            pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], 0])
-        elif camera_type == "SIMPLE_PINHOLE":
-            pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]])
-        else:
-            raise ValueError(f"Camera type {camera_type} is not supported yet")
 
-        camera = pycolmap.Camera(
-            model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=fidx
-        )
+        if camera is None or (not shared_camera):
+            if camera_type == "SIMPLE_RADIAL":
+                pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], 0])
+            elif camera_type == "SIMPLE_PINHOLE":
+                pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]])
+            else:
+                raise ValueError(f"Camera type {camera_type} is not supported yet")
 
-        # add camera
-        reconstruction.add_camera(camera)
+            camera = pycolmap.Camera(
+                model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=fidx
+            )
+
+            # add camera
+            reconstruction.add_camera(camera)
 
         # set image
         cam_from_world = pycolmap.Rigid3d(
@@ -127,12 +138,24 @@ def pycolmap_to_batch_matrix(reconstruction, device="cuda"):
         points3D[point3D_id - 1] = reconstruction.points3D[point3D_id].xyz
     points3D = torch.from_numpy(points3D).to(device)
 
-    extrinsics = torch.from_numpy(
-        np.stack([reconstruction.images[i].cam_from_world.matrix() for i in range(num_images)])
-    )
+    extrinsics = []
+    intrinsics = []
+
+    for i in range(num_images):
+        # Extract and append extrinsics
+        pyimg = reconstruction.images[i]
+        matrix = pyimg.cam_from_world.matrix()
+        extrinsics.append(matrix)
+
+        # Extract and append intrinsics
+        calibration_matrix = reconstruction.cameras[pyimg.camera_id].calibration_matrix()
+        intrinsics.append(calibration_matrix)
+
+    # Convert lists to torch tensors
+    extrinsics = torch.from_numpy(np.stack(extrinsics))
     extrinsics = extrinsics.to(device)
 
-    intrinsics = torch.from_numpy(np.stack([reconstruction.cameras[i].calibration_matrix() for i in range(num_images)]))
+    intrinsics = torch.from_numpy(np.stack(intrinsics))
     intrinsics = intrinsics.to(device)
 
     return points3D, extrinsics, intrinsics
