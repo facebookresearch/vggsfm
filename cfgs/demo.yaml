@@ -14,6 +14,7 @@ mixed_precision: fp16
 extract_color: True
 filter_invalid_frame: True
 
+random_query: False
 comple_nonvis: True
 query_frame_num: 3
 robust_refine: 2

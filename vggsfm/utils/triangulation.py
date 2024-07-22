@@ -337,11 +337,14 @@ def refine_pose(
     valid_frame_mask = torch.logical_and(valid_intri_mask, valid_trans_mask)
 
     if (~valid_frame_mask).sum() > 0:
+        import pdb;pdb.set_trace()
         print("some frames are invalid after BA refinement")
         refined_extrinsics[~valid_frame_mask] = extrinsics[~valid_frame_mask].to(refined_extrinsics.dtype)
         refined_intrinsics[~valid_frame_mask] = intrinsics[~valid_frame_mask].to(refined_extrinsics.dtype)
 
     return refined_extrinsics, refined_intrinsics, valid_frame_mask
+
+
 
 
 def init_refine_pose(
@@ -475,6 +478,7 @@ def init_refine_pose(
     valid_frame_mask = torch.logical_and(valid_intri_mask, valid_trans_mask)
 
     if (~valid_frame_mask).sum() > 0:
+        # intrinsics
         print("some frames are invalid after BA refinement")
         refined_extrinsics[~valid_frame_mask] = extrinsics[~valid_frame_mask].to(refined_extrinsics.dtype)
         refined_intrinsics[~valid_frame_mask] = intrinsics[~valid_frame_mask].to(refined_extrinsics.dtype)

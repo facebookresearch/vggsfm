@@ -25,6 +25,7 @@ import glob
 import copy
 import cv2
 import scipy
+import random
 from visdom import Visdom
 from collections import defaultdict
 from vggsfm.datasets.demo_loader import DemoLoader
@@ -97,7 +98,11 @@ def demo_fn(cfg: DictConfig):
         from pytorch3d.vis.plotly_vis import plot_scene
         from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
 
-        viz = Visdom()
+        # viz = Visdom()
+        from pytorch3d.implicitron.tools import model_io, vis_utils
+        viz = vis_utils.get_visdom_connection(server=f"http://10.200.188.27", port=10088)
+
+
 
     sequence_list = test_dataset.sequence_list
 
@@ -198,7 +203,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
             raw_img = cv2.imread(img_fname)
             # raw resolution
             disp_map = depth_model.infer_image(
-                raw_img, max(1024, max(raw_img.shape[:2]))
+                raw_img, min(1024, max(raw_img.shape[:2]))
             )  # HxW raw depth_map map in numpy
 
             visual_depth = True
@@ -223,7 +228,11 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     # The number of query frames is determined by query_frame_num
 
     with autocast(dtype=dtype):
-        query_frame_indexes = find_query_frame_indexes(reshaped_image, camera_predictor, frame_num)
+        if cfg.random_query:
+            query_frame_indexes = list(range(frame_num))
+            random.shuffle(query_frame_indexes)
+        else:
+            query_frame_indexes = find_query_frame_indexes(reshaped_image, camera_predictor, frame_num)
 
     image_paths = [os.path.basename(imgpath) for imgpath in image_paths]
 
@@ -352,6 +361,9 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         pycamera.height = real_image_size[1]
 
     if cfg.dense_depth:
+        
+        from depth_fuser import DepthFuser
+        
         # Align dense depth maps with Sparse SfM points
         
         sparse_depth = defaultdict(list)
@@ -374,11 +386,17 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         for imgid in reconstruction.images:
             fname_to_id[reconstruction.images[imgid].name] = imgid
 
+
+        unproject3ds = []
+        rgbs = []
+
         disparity_max = 10000
         disparity_min = 0.0001
         depth_max = 1 / disparity_min
         depth_min = 1 / disparity_max
 
+
+        depth_fuser = DepthFuser()
         for img_name in sparse_depth:
             sparse_uvd = np.array(sparse_depth[img_name])
             disp_map = read_array(os.path.join(depth_dir, img_name + ".bin"))
@@ -438,7 +456,165 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
             depth_map[depth_map == np.inf] = 0
             depth_map = depth_map.astype(np.float32)
 
+            provide_gt_sfm_depth_map = True
+            
+            if provide_gt_sfm_depth_map:
+                sparse_depth_map = np.zeros(depth_map.shape)
+                sparse_depth_map[int_uv[:, 1], int_uv[:, 0]] = sparse_uvd[:, -1]
+
+
             write_array(depth_map, os.path.join(depth_dir, img_name) + ".bin")
+
+
+            # unproject dense depth maps
+            pyimg = reconstruction.images[fname_to_id[img_name]]
+            pycam = reconstruction.cameras[pyimg.camera_id]
+
+            # Generate the x and y coordinates
+            x_coords = np.arange(hh)  
+            y_coords = np.arange(ww)  
+            xx, yy = np.meshgrid(x_coords, y_coords)
+
+            valid_depth_mask_hw = np.copy(valid_depth_mask)
+            
+            
+            sampled_points2d = np.column_stack(( xx.ravel(), yy.ravel()))
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            sampled_points2d = sampled_points2d + 0.5
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            ######################################################
+            
+            depth_values = depth_map.reshape(-1)
+            valid_depth_mask = valid_depth_mask.reshape(-1)
+            
+            sampled_points2d = sampled_points2d[valid_depth_mask] 
+            depth_values = depth_values[valid_depth_mask]
+            
+            
+            if provide_gt_sfm_depth_map:
+                sparse_depth_values = sparse_depth_map.reshape(-1)[valid_depth_mask]
+            
+            
+            unproject_points = pycam.cam_from_img(sampled_points2d)
+            unproject_points_homo = np.hstack((unproject_points,  np.ones((unproject_points.shape[0], 1))))
+
+
+            unproject_points_withz = unproject_points_homo * depth_values.reshape(-1, 1)
+            
+            # haha = unproject_points_withz
+            # cam_to_world = pyimg.cam_from_world.inverse().matrix()
+            # another = unproject_points_withz @ cam_to_world[:3,:3].transpose() + cam_to_world[:3,3][None]
+            
+            unproject_points_world = pyimg.cam_from_world.inverse() * unproject_points_withz
+            
+            
+            
+
+            bgr = cv2.imread(cfg.SCENE_DIR+f"/images/{img_name}")
+            rgb_image = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            rgb_image = rgb_image/255
+            rgb = rgb_image.reshape(-1, 3)
+            rgb = rgb[valid_depth_mask]
+            
+            unproject3ds.append(unproject_points_world)
+            rgbs.append(rgb)
+            
+            depth_fuser.add_frame(img_name, pyimg.cam_from_world.matrix(), pycam.calibration_matrix(), depth_values, unproject_points_homo, rgb, rgb_image, (hh, ww), valid_depth_mask_hw, sparse_depth_values)
+
+
+        from pytorch3d.structures import Pointclouds
+        from pytorch3d.vis.plotly_vis import plot_scene
+        from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
+
+        from pytorch3d.implicitron.tools import model_io, vis_utils
+        viz = vis_utils.get_visdom_connection(server=f"http://10.200.188.27", port=10088)
+
+        # torch.save(depth_fuser, "depth_fuserv2.pth", )
+
+        # depth_fuser.prepare_for_opt()
+        
+        # depth_fuser.debug_a_frame()
+
+        import pdb;pdb.set_trace()
+        
+        depth_fuser.optimize_depth()
+        
+        ################################################################################################################################################################################
+        if False:
+            from gsplat.rendering import rasterization
+            
+            points_all = list(depth_fuser.points3D.values())
+            points_all = torch.cat(points_all, dim=0)
+            rgbs_alls = torch.cat(list(depth_fuser.rgbs.values()))
+
+            # points_all = depth_fuser.points3D[img_name]
+            # rgbs_alls = depth_fuser.rgbs[img_name]
+            # Concatenate all tensors into a single tensor
+            # init_opacity = 1
+            num = len(points_all)
+            scales = torch.ones_like(points_all).detach() * 0.001
+            quats = torch.ones((num, 4)).detach().to(points_all.device)
+            opacities = torch.full((num,), 0.99).to(points_all.device) 
+            # TODO: convert K to gsplat K
+            render_colors, render_alphas, info = rasterization(
+                means=points_all,
+                quats=quats,
+                scales=scales,
+                opacities=opacities,
+                colors=rgbs_alls,
+                viewmats = depth_fuser.cam_from_worlds[img_name][None],
+                Ks = depth_fuser.Ks[img_name][None],
+                width=depth_fuser.Ks[img_name][0,2]*2,
+                height=depth_fuser.Ks[img_name][1,2]*2,
+                packed=False,
+                absgrad=False,
+                sparse_grad=False,
+                rasterize_mode="classic",
+            )
+            
+            # cv2.imwrite()
+            # render_colors
+            # import torchvision
+            import torchvision;torchvision.utils.save_image(render_colors.permute(0, 3, 1, 2), 'output.png', nrow=1, padding=0)
+            import pdb;pdb.set_trace()
+
+
+            
+            # unproject_points_world
+
+        
+
+        ################################################################################################################################################################################
+
+        unproject3ds_all = np.concatenate(unproject3ds)
+        rgbs_all = np.concatenate(rgbs)                
+        
+        pcl = Pointclouds(points=torch.from_numpy(unproject3ds_all[None]), features = torch.from_numpy(rgbs_all[None]))
+        
+        visual_dict = {"scenes": {"points": pcl, }}
+        fig = plot_scene(visual_dict, camera_scale=0.05)
+        # env_name = f"{os.path.basename(cfg.SCENE_DIR)}/visual_all"
+        env_name = "tmp"
+        viz.plotlyplot(fig, env=env_name, win="3D")
+
+
+
+
+
+
+
 
     predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
     predictions["extrinsics_opencv"] = extrinsics_opencv
