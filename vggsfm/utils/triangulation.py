@@ -623,7 +623,7 @@ def triangulate_tracks(
 
         # Triangulate based on the inliers
         # and compute the errors
-        lo_triangulated_points, lo_tri_angles, lo_angular_error = local_refine_and_compute_error(
+        lo_triangulated_points, _, lo_angular_error = local_refine_and_compute_error(
             tracks_normalized,
             extrinsics,
             extrinsics_expand,
@@ -641,7 +641,7 @@ def triangulate_tracks(
             lo_num_sec = lo_num
 
         lo_inlier_mask = (lo_angular_error) <= (max_rad_error)
-        lo_triangulated_points_2, lo_tri_angles_2, lo_angular_error_2 = local_refine_and_compute_error(
+        lo_triangulated_points_2, _, lo_angular_error_2 = local_refine_and_compute_error(
             tracks_normalized,
             extrinsics,
             extrinsics_expand,
@@ -656,7 +656,7 @@ def triangulate_tracks(
         lo_num += lo_num_sec
         lo_triangulated_points = torch.cat([lo_triangulated_points, lo_triangulated_points_2], dim=1)
         lo_angular_error = torch.cat([lo_angular_error, lo_angular_error_2], dim=1)
-        lo_tri_angles = torch.cat([lo_tri_angles, lo_tri_angles_2], dim=1)
+        # lo_tri_angles = torch.cat([lo_tri_angles, lo_tri_angles_2], dim=1)
         #############################################################################
 
         all_triangulated_points = torch.cat([triangulated_points, lo_triangulated_points], dim=1)
@@ -689,16 +689,16 @@ def local_refine_and_compute_error(
     max_rad_error,
 ):
     B, S, _ = tracks_normalized.shape
-
+    
     inlier_num = inlier_mask.sum(dim=-1)
     sorted_values, sorted_indices = torch.sort(inlier_num, dim=1, descending=True)
 
     # local refinement
-    lo_triangulated_points, lo_tri_angles, lo_invalid_che_mask = local_refinement_tri(
-        tracks_normalized, extrinsics_expand, inlier_mask, sorted_indices, lo_num=lo_num
+    lo_triangulated_points, lo_tri_masks, lo_invalid_che_mask = local_refinement_tri(
+        tracks_normalized, extrinsics_expand, min_tri_angle, inlier_mask, sorted_indices, lo_num=lo_num
     )
 
-    lo_tri_masks = (lo_tri_angles >= min_tri_angle).any(dim=-1)
+    # lo_tri_masks = (lo_tri_angles >= min_tri_angle).any(dim=-1)
     lo_invalid_tri_mask = (~lo_tri_masks).reshape(B, lo_num)
 
     lo_invalid_mask = torch.logical_or(lo_invalid_tri_mask, lo_invalid_che_mask)
@@ -718,7 +718,7 @@ def local_refine_and_compute_error(
 
     lo_angular_error[invalid_vis_conf_mask[:, None].expand(-1, lo_num, -1)] += torch.pi
 
-    return lo_triangulated_points, lo_tri_angles, lo_angular_error
+    return lo_triangulated_points, lo_tri_masks, lo_angular_error
 
 
 def global_BA(

@@ -403,10 +403,11 @@ def generate_combinations(N):
     return comb_array
 
 
-def local_refinement_tri(points1, extrinsics, inlier_mask, sorted_indices, lo_num=50, low_mem=True):
+def local_refinement_tri(points1, extrinsics, min_tri_angle, inlier_mask, sorted_indices, lo_num=50, low_mem=True):
     """
     Local Refinement for triangulation
     """
+    
     B, N, _ = points1.shape
     batch_index = torch.arange(B).unsqueeze(-1).expand(-1, lo_num)
 
@@ -422,20 +423,22 @@ def local_refinement_tri(points1, extrinsics, inlier_mask, sorted_indices, lo_nu
 
     if low_mem:
         all_triangulated_points = []
-        all_tri_angles = []
+        all_tri_angle_masks = []
         all_invalid_che_mask = []
 
         for loidx in range(lo_num):
             triangulated_points, tri_angles, invalid_che_mask = triangulate_multi_view_point_batched(
                 extrinsics, lo_points1[:, loidx], mask=lo_mask[:, loidx], compute_tri_angle=True, check_cheirality=True
             )
+            
             # Append the outputs to the respective lists
             all_triangulated_points.append(triangulated_points[:, None])
-            all_tri_angles.append(tri_angles[:, None])
             all_invalid_che_mask.append(invalid_che_mask[:, None])
+            tri_angle_masks = (tri_angles[:, None]  >= min_tri_angle).any(dim=-1)
+            all_tri_angle_masks.append(tri_angle_masks)
 
         triangulated_points = torch.cat(all_triangulated_points, dim=1)
-        tri_angles = torch.cat(all_tri_angles, dim=1)
+        tri_angle_masks = torch.cat(all_tri_angle_masks, dim=1)
         invalid_che_mask = torch.cat(all_invalid_che_mask, dim=1)
     else:
         extrinsics_expand = extrinsics.unsqueeze(1).expand(-1, lo_num, -1, -1, -1)
@@ -449,7 +452,9 @@ def local_refinement_tri(points1, extrinsics, inlier_mask, sorted_indices, lo_nu
         )
 
         triangulated_points = triangulated_points.reshape(B, lo_num, 3)
-        tri_angles = tri_angles.reshape(B, lo_num, -1)
+        # tri_angles = tri_angles.reshape(B, lo_num, -1)
+        tri_angle_masks = (tri_angles.reshape(B, lo_num, -1) >= min_tri_angle).any(dim=-1)
         invalid_che_mask = invalid_che_mask.reshape(B, lo_num)
 
-    return triangulated_points, tri_angles, invalid_che_mask
+    return triangulated_points, tri_angle_masks, invalid_che_mask
+
