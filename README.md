@@ -61,6 +61,12 @@ python demo.py SCENE_DIR=examples/british_museum max_query_pts=4096 resume_ckpt=
 
 All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage. To enforce a shared camera model for a scene, set ```shared_camera=True```. 
 
+For example, if you want to run reconstrction on a scene with ```100``` frames, you can start from the setting below, which works well on a ```32 GB``` GPU.
+
+```bash
+python demo.py SCENE_DIR=TO/YOUR/PATH max_query_pts=1024 query_frame_num=6
+```
+
 <!-- For example, we have modified the values of `query_frame_num` and `max_query_pts` from the default settings of `3` and `4096` to `5` and `1600`, respectively, to ensure a 32 GB GPU can work for ```examples/apple```.  -->
 
 
@@ -107,7 +113,7 @@ Then, you just need to set ```dense_depth=True``` when running demo.py. The dept
 
 * What should I do if I encounter an out-of-memory error?
 
-To resolve an out-of-memory error, you can simply try reducing the number of ```max_query_pts``` from the default ```4096``` to  a lower value. Be aware that this may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction. Please note that in the latest commit, the value of ```query_frame_num``` will not affect the GPU memory consumption any more. Feel free to increase ```query_frame_num```.
+To resolve an out-of-memory error, you can simply try reducing the number of ```max_query_pts``` to  a lower value. Be aware that this may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction. Please note that in the latest commit, the value of ```query_frame_num``` will not affect the GPU memory consumption any more. Feel free to increase ```query_frame_num```.
 
 
 ## Testing 

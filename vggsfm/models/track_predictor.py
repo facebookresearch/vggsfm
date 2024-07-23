@@ -52,20 +52,23 @@ class TrackerPredictor(nn.Module):
         if fmaps is None:
             fmaps = self.process_images_to_fmaps(images)
 
+        if inference:   torch.cuda.empty_cache()
+
         # coarse prediction
         coarse_pred_track_lists, pred_vis = self.coarse_predictor(
             query_points=query_points, fmaps=fmaps, iters=coarse_iters, down_ratio=self.coarse_down_ratio
         )
         coarse_pred_track = coarse_pred_track_lists[-1]
 
-        if inference:
-            torch.cuda.empty_cache()
+        if inference:   torch.cuda.empty_cache()
         
         # refine the coarse prediction
         fine_pred_track, pred_score = refine_track(
             images, self.fine_fnet, self.fine_predictor, coarse_pred_track, compute_score=True, cfg=self.cfg
         )
 
+        if inference:   torch.cuda.empty_cache()
+        
         return fine_pred_track, coarse_pred_track, pred_vis, pred_score
 
     def process_images_to_fmaps(self, images):
