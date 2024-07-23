@@ -42,7 +42,7 @@ class TrackerPredictor(nn.Module):
         self.fine_fnet = instantiate(FINE.FEATURENET, _recursive_=False, stride=1, cfg=cfg)
         self.fine_predictor = instantiate(FINE.PREDICTOR, _recursive_=False, stride=1, cfg=cfg)
 
-    def forward(self, images, query_points, fmaps=None, coarse_iters=6):
+    def forward(self, images, query_points, fmaps=None, coarse_iters=6, inference=True):
         """
         images: images as rgb, in the range of [0, 1], with a shape of B x S x 3 x H x W
         query_points: 2D xy of query points, relative to top left, with a shape of B x N x 2
@@ -58,6 +58,9 @@ class TrackerPredictor(nn.Module):
         )
         coarse_pred_track = coarse_pred_track_lists[-1]
 
+        if inference:
+            torch.cuda.empty_cache()
+        
         # refine the coarse prediction
         fine_pred_track, pred_score = refine_track(
             images, self.fine_fnet, self.fine_predictor, coarse_pred_track, compute_score=True, cfg=self.cfg
