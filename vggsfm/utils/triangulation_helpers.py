@@ -116,7 +116,7 @@ def filter_all_points3D(
     min_tri_angle=1.5,
     check_triangle=True,
     return_detail=False,
-    hard_max=100,
+    hard_max=300,
 ):
     """
     Filter 3D points based on reprojection error and triangulation angle error.

@@ -40,6 +40,7 @@ from vggsfm.utils.utils import (
 )
 
 
+
 try:
     import poselib
     from vggsfm.two_view_geo.estimate_preliminary import estimate_preliminary_cameras_poselib
@@ -247,6 +248,17 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     # Prepare image feature maps for tracker
     fmaps_for_tracker = track_predictor.process_images_to_fmaps(images)
 
+
+    if crop_params is not None:
+        bound_bboxes = crop_params[:, :, -4:-2].abs().to(device)
+
+        # also remove those near the boundary
+        remove_borders = 4
+        bound_bboxes[bound_bboxes != 0] += remove_borders
+
+        bound_bboxes = torch.cat([bound_bboxes, reshaped_image.shape[-1] - bound_bboxes], dim=-1)
+
+
     # Predict tracks
     with autocast(dtype=dtype):
         pred_track, pred_vis, pred_score = predict_tracks(
@@ -258,6 +270,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
             query_frame_indexes,
             frame_num,
             device,
+            bound_bboxes,
             cfg,
         )
 
@@ -272,6 +285,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
                 pred_vis,
                 pred_score,
                 500,
+                bound_bboxes,
                 cfg=cfg,
             )
 
@@ -279,13 +293,11 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
 
     # If necessary, force all the predictions at the padding areas as non-visible
     if crop_params is not None:
-        boundaries = crop_params[:, :, -4:-2].abs().to(device)
-        boundaries = torch.cat([boundaries, reshaped_image.shape[-1] - boundaries], dim=-1)
         hvis = torch.logical_and(
-            pred_track[..., 1] >= boundaries[:, :, 1:2], pred_track[..., 1] <= boundaries[:, :, 3:4]
+            pred_track[..., 1] >= bound_bboxes[:, :, 1:2], pred_track[..., 1] <= bound_bboxes[:, :, 3:4]
         )
         wvis = torch.logical_and(
-            pred_track[..., 0] >= boundaries[:, :, 0:1], pred_track[..., 0] <= boundaries[:, :, 2:3]
+            pred_track[..., 0] >= bound_bboxes[:, :, 0:1], pred_track[..., 0] <= bound_bboxes[:, :, 2:3]
         )
         force_vis = torch.logical_and(hvis, wvis)
         pred_vis = pred_vis * force_vis.float()
@@ -459,6 +471,7 @@ def predict_tracks(
     query_frame_indexes,
     frame_num,
     device,
+    bound_bboxes=None,
     cfg=None,
 ):
     pred_track_list = []
@@ -468,9 +481,13 @@ def predict_tracks(
     for query_index in query_frame_indexes:
         print(f"Predicting tracks with query_index = {query_index}")
 
+        if bound_bboxes is not None:
+            bound_bbox = bound_bboxes[:, query_index]
+        else:
+            bound_bbox = None
+            
         # Find query_points at the query frame
-        query_points = get_query_points(images[:, query_index], query_method, max_query_pts)
-
+        query_points = get_query_points(images[:, query_index], query_method, max_query_pts, bound_bbox=bound_bbox)        
         # Switch so that query_index frame stays at the first frame
         # This largely simplifies the code structure of tracker
         new_order = calculate_index_mappings(query_index, frame_num, device=device)
@@ -504,6 +521,7 @@ def comple_nonvis_frames(
     pred_vis,
     pred_score,
     min_vis=500,
+    bound_bboxes=None,
     cfg=None,
 ):
     # if a frame has too few visible inlier, use it as a query
@@ -523,6 +541,7 @@ def comple_nonvis_frames(
                 non_vis_frames,
                 frame_num,
                 device,
+                bound_bboxes,
                 cfg,
             )
             # concat predictions
@@ -542,6 +561,7 @@ def comple_nonvis_frames(
             non_vis_query_list,
             frame_num,
             device,
+            bound_bboxes,
             cfg,
         )
 
@@ -588,7 +608,7 @@ def find_query_frame_indexes(reshaped_image, camera_predictor, query_frame_num, 
     return fps_idx
 
 
-def get_query_points(query_image, query_method, max_query_num=4096, det_thres=0.005):
+def get_query_points(query_image, query_method, max_query_num=4096, det_thres=0.005, bound_bbox=None):
     # Run superpoint and sift on the target frame
     # Feel free to modify for your own
 
@@ -605,7 +625,17 @@ def get_query_points(query_image, query_method, max_query_num=4096, det_thres=0.
         else:
             raise NotImplementedError(f"query method {method} is not supprted now")
 
-        query_points = extractor.extract(query_image)["keypoints"]
+        if bound_bbox is not None:
+            valid_mask = torch.zeros_like(query_image[:,0])
+            x_min, y_min, x_max, y_max = bound_bbox[0]
+            x_min, y_min, x_max, y_max = map(int, (x_min, y_min, x_max, y_max))
+            # Set mask values inside the bounding box to 1
+            valid_mask[:, y_min:y_max, x_min:x_max] = 1
+            invalid_mask = ~(valid_mask.bool())
+        else:
+            invalid_mask = None
+            
+        query_points = extractor.extract(query_image, invalid_mask=invalid_mask)["keypoints"]
         pred_points.append(query_points)
 
     query_points = torch.cat(pred_points, dim=1)

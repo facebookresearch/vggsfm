@@ -29,7 +29,7 @@ pip install omegaconf opencv-python einops visdom
 pip install accelerate==0.24.0
 
 # Install LightGlue
-git clone https://github.com/cvg/LightGlue.git dependency/LightGlue
+git clone https://github.com/jytime/LightGlue.git dependency/LightGlue
 
 cd dependency/LightGlue/
 python -m pip install -e .  # editable mode

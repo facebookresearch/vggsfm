@@ -174,8 +174,7 @@ def init_BA(
 
     # Conduct BA
     pycolmap.bundle_adjustment(reconstruction, ba_options)
-
-    reconstruction = filter_reconstruction(reconstruction)
+    # reconstruction = filter_reconstruction(reconstruction)
 
     # Get the optimized 3D points, extrinsics, and intrinsics
     points3D_opt, extrinsics_opt, intrinsics_opt = pycolmap_to_batch_matrix(
