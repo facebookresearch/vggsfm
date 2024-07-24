@@ -93,6 +93,18 @@ def farthest_point_sampling(distance_matrix, num_samples, most_common_frame_inde
     return selected_indices
 
 
+def generate_rank_by_interval(N, k):
+    result = []
+    for start in range(k):
+        for multiple in range(0, N, k):
+            number = start + multiple
+            if number < N:
+                result.append(number)
+            else:
+                break
+    return result
+
+
 def visual_query_points(images, query_index, query_points):
     """
     Processes an image by converting it to BGR color space, drawing circles at specified points,

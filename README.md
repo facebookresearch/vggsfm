@@ -114,6 +114,11 @@ Then, you just need to set ```dense_depth=True``` when running demo.py. The dept
 To resolve an out-of-memory error, you can simply try reducing the number of ```max_query_pts``` to  a lower value. Be aware that this may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction. Please note that in the latest commit, the value of ```query_frame_num``` will not affect the GPU memory consumption any more. Feel free to increase ```query_frame_num```.
 
 
+* When should I set ```shared_camera``` to True?
+
+Set ```shared_camera``` to True when you know that the input frames were captured by the same camera and the camera focal length did not significantly change during the capture. This assumption is usually valid for images extracted from a video.
+
+
 ## Testing 
 
 We are still preparing the testing script for VGGSfM v2. However, you can use our code for VGGSfM v1.1 to reproduce our benchmark results in the paper. Please refer to the branch ```v1.1```.

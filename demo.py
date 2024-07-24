@@ -31,12 +31,12 @@ from vggsfm.datasets.demo_loader import DemoLoader
 from vggsfm.two_view_geo.estimate_preliminary import estimate_preliminary_cameras
 
 from vggsfm.utils.utils import (
-    set_seed_and_print,
+    read_array,
+    write_array,
+    generate_rank_by_interval,
     farthest_point_sampling,
     calculate_index_mappings,
     switch_tensor_order,
-    write_array,
-    read_array,
 )
 
 
@@ -99,6 +99,8 @@ def demo_fn(cfg: DictConfig):
         from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
 
         viz = Visdom()
+
+
 
     sequence_list = test_dataset.sequence_list
 
@@ -224,23 +226,28 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
     # The number of query frames is determined by query_frame_num
 
     with autocast(dtype=dtype):
-        query_frame_indexes = find_query_frame_indexes(reshaped_image, camera_predictor, frame_num)
+        if cfg.query_by_interval:
+            query_frame_indexes = generate_rank_by_interval(frame_num, frame_num//query_frame_num)
+        else:
+            query_frame_indexes = generate_rank_by_dino(reshaped_image, camera_predictor, frame_num)
+
 
     image_paths = [os.path.basename(imgpath) for imgpath in image_paths]
 
     if cfg.center_order:
         # The code below switchs the first frame (frame 0) to the most common frame
         center_frame_index = query_frame_indexes[0]
-        center_order = calculate_index_mappings(center_frame_index, frame_num, device=device)
+        if center_frame_index !=0:
+            center_order = calculate_index_mappings(center_frame_index, frame_num, device=device)
 
-        images, crop_params = switch_tensor_order([images, crop_params], center_order, dim=1)
-        reshaped_image = switch_tensor_order([reshaped_image], center_order, dim=0)[0]
+            images, crop_params = switch_tensor_order([images, crop_params], center_order, dim=1)
+            reshaped_image = switch_tensor_order([reshaped_image], center_order, dim=0)[0]
 
-        image_paths = [image_paths[i] for i in center_order.cpu().numpy().tolist()]
+            image_paths = [image_paths[i] for i in center_order.cpu().numpy().tolist()]
 
-        # Also update query_frame_indexes:
-        query_frame_indexes = [center_frame_index if x == 0 else x for x in query_frame_indexes]
-        query_frame_indexes[0] = 0
+            # Also update query_frame_indexes:
+            query_frame_indexes = [center_frame_index if x == 0 else x for x in query_frame_indexes]
+            query_frame_indexes[0] = 0
 
     # only pick query_frame_num
     query_frame_indexes = query_frame_indexes[:query_frame_num]
@@ -573,7 +580,7 @@ def comple_nonvis_frames(
     return pred_track, pred_vis, pred_score
 
 
-def find_query_frame_indexes(reshaped_image, camera_predictor, query_frame_num, image_size=336):
+def generate_rank_by_dino(reshaped_image, camera_predictor, query_frame_num, image_size=336):
     # Downsample image to image_size x image_size
     # because we found it is unnecessary to use high resolution
     rgbs = F.interpolate(reshaped_image, (image_size, image_size), mode="bilinear", align_corners=True)
