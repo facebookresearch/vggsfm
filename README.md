@@ -82,8 +82,8 @@ By doing so, you should see an interface such as:
 
 [Beta] If you want to visualize the 2D reprojections of the reconstructed 3D points, set ```make_reproj_video``` to True. This will generate a video named ```reproj.mp4``` under ```SCENE_DIR```. For example:
 
+![reproj](https://github.com/vggsfm/vggsfm.github.io/blob/main/resources/reproj.gif)
 
-<iframe width="780" height="520" src="https://raw.githubusercontent.com/vggsfm/vggsfm.github.io/main/resources/reproj.mp4" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 
 ### 3. Try your own data
