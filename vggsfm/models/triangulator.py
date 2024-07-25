@@ -295,6 +295,13 @@ class Triangulator(nn.Module):
 
                 sum_rgb = (BA_inlier_masks.float()[..., None] * valid_track_rgb).sum(dim=0)
                 points3D_rgb = sum_rgb / BA_inlier_masks.sum(dim=0)[:, None]
+                
+                if points3D_rgb.shape[0] == max(reconstruction.point3D_ids()):
+                    for point3D_id in reconstruction.points3D: 
+                        color_255 = points3D_rgb[point3D_id-1].cpu().numpy() * 255
+                        reconstruction.points3D[point3D_id].color = np.round(color_255).astype(np.uint8)
+                else:
+                    print("Cannot save point rgb colors to colmap reconstruction object. Please file an issue in github. ")
             else:
                 points3D_rgb = None
 
