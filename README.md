@@ -121,9 +121,9 @@ To resolve an out-of-memory error, you can simply try reducing the number of ```
 * __How to handle sparse data with minimal view overlap?__
 
 For scenarios with sparse views and minimal overlap, the simplest solution is to set ```query_frame_num``` to the total number of your images and use a ```max_query_pts``` of 4096 or more. This ensures all frames are registered. Since we only have sparse views, the inference process remains very fast. For example, the following command took around 20 seconds to reconstruct an 8-frame scene:
-
+```
 python demo.py SCENE_DIR=a_scene_with_8_frames query_frame_num=8 max_query_pts=4096 query_method=aliked
-
+```
 
 
 * __When should I set ```shared_camera``` to True?__
