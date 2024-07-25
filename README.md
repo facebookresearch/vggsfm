@@ -19,6 +19,9 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 
 **Updates:**
+
+- Happy to share we were ranked 1st 🥇 in the CVPR24 IMC Challenge regarding camera pose (Rot&Trans) estimation.
+
 - [Jul 10, 2024] Now we support exporting dense depth maps!
 
 - [Jun 26, 2024] Excited to release our demo on Hugging Face Space🤗. Try it out [here](https://huggingface.co/spaces/facebook/vggsfm)!
