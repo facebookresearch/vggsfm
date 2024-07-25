@@ -113,12 +113,12 @@ Then, you just need to set ```dense_depth=True``` when running demo.py. The dept
 
 ### FAQ
 
-* What should I do if I encounter an out-of-memory error?
+* __What should I do if I encounter an out-of-memory error?__
 
 To resolve an out-of-memory error, you can simply try reducing the number of ```max_query_pts``` to  a lower value. Be aware that this may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction. Please note that in the latest commit, the value of ```query_frame_num``` will not affect the GPU memory consumption any more. Feel free to increase ```query_frame_num```.
 
 
-* How to handle sparse data with minimal view overlap?
+* __How to handle sparse data with minimal view overlap?__
 
 For scenarios with sparse views and minimal overlap, the simplest solution is to set ```query_frame_num``` to the total number of your images and use a ```max_query_pts``` of 4096 or more. This ensures all frames are registered. Since we only have sparse views, the inference process remains very fast. For example, the following command took around 20 seconds to reconstruct an 8-frame scene:
 
@@ -126,7 +126,7 @@ python demo.py SCENE_DIR=a_scene_with_8_frames query_frame_num=8 max_query_pts=4
 
 
 
-* When should I set ```shared_camera``` to True?
+* __When should I set ```shared_camera``` to True?__
 
 Set ```shared_camera``` to True when you know that the input frames were captured by the same camera and the camera focal length did not significantly change during the capture. This assumption is usually valid for images extracted from a video.
 
