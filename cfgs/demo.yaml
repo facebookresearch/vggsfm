@@ -37,9 +37,13 @@ SCENE_DIR: examples/kitchen
 resume_ckpt:  ckpt/vggsfm_v2_0_0.bin
 
 query_by_interval: False
-query_method: "sp+sift"
+query_method: "aliked"
 
 use_poselib: True
+
+
+make_reproj_video: False
+
 
 MODEL:
     _target_: vggsfm.models.VGGSfM

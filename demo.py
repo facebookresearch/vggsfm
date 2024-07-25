@@ -37,6 +37,7 @@ from vggsfm.utils.utils import (
     farthest_point_sampling,
     calculate_index_mappings,
     switch_tensor_order,
+    create_video_with_reprojections,
 )
 
 
@@ -99,7 +100,6 @@ def demo_fn(cfg: DictConfig):
         from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
 
         viz = Visdom()
-
 
 
     sequence_list = test_dataset.sequence_list
@@ -168,6 +168,7 @@ def demo_fn(cfg: DictConfig):
 
             env_name = f"demo_visual_{seq_name}"
             print(f"Visualizing the scene by visdom at env: {env_name}")
+            
             viz.plotlyplot(fig, env=env_name, win="3D")
 
     return True
@@ -349,31 +350,36 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         init_max_reproj_error=cfg.init_max_reproj_error,
         cfg=cfg,
     )
-
+    rescale_camera = True
+    
     for pyimageid in reconstruction.images:
         # scale from resized image size to the real size
         # rename the images to the original names
         pyimage = reconstruction.images[pyimageid]
         pycamera = reconstruction.cameras[pyimage.camera_id]
-
         pyimage.name = image_paths[pyimageid]
 
-        pred_params = copy.deepcopy(pycamera.params)
-        real_image_size = crop_params[0, pyimageid][:2]
-        real_focal = real_image_size.max() / cfg.img_size * pred_params[0]
+        if rescale_camera:
+            pred_params = copy.deepcopy(pycamera.params)
+            real_image_size = crop_params[0, pyimageid][:2]
+            real_focal = real_image_size.max() / cfg.img_size * pred_params[0]
+            real_pp = real_image_size.cpu().numpy() // 2
 
-        real_pp = real_image_size.cpu().numpy() // 2
+            pred_params[0] = real_focal
+            pred_params[1:3] = real_pp
+            pycamera.params = pred_params
+            pycamera.width = real_image_size[0]
+            pycamera.height = real_image_size[1]
 
-        pred_params[0] = real_focal
-        pred_params[1:3] = real_pp
-        pycamera.params = pred_params
-        pycamera.width = real_image_size[0]
-        pycamera.height = real_image_size[1]
+        if cfg.shared_camera:
+            # if shared_camera, all images share the same camera
+            # no need to rescale any more
+            rescale_camera = False
+            
 
-    if cfg.dense_depth:
-        # Align dense depth maps with Sparse SfM points
-
+    if cfg.dense_depth or cfg.make_reproj_video:
         sparse_depth = defaultdict(list)
+        sparse_point = defaultdict(list)
         # Extract sparse depths from SfM points
         for point3D_idx in reconstruction.points3D:
             pt3D = reconstruction.points3D[point3D_idx]
@@ -388,11 +394,21 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
                 # instead of the cropped one
                 uv = pycam.img_from_cam(projection)
                 sparse_depth[img_name].append(np.append(uv, depth))
+                sparse_point[img_name].append(np.append(pt3D.xyz, point3D_idx))
 
-        fname_to_id = {}
-        for imgid in reconstruction.images:
-            fname_to_id[reconstruction.images[imgid].name] = imgid
 
+    if cfg.make_reproj_video:
+        max_hw = crop_params[0,:,:2].max(dim=0)[0].long()
+        video_size = (max_hw[0].item(), max_hw[1].item())
+        output_path = os.path.join(cfg.SCENE_DIR, "reproj.mp4")
+        fname_prefix = os.path.join(cfg.SCENE_DIR, "images")
+        create_video_with_reprojections(output_path, fname_prefix, video_size, 
+                                        reconstruction, image_paths, 
+                                        sparse_depth, sparse_point)
+
+
+    if cfg.dense_depth:
+        # Align dense depth maps with Sparse SfM points
         disparity_max = 10000
         disparity_min = 0.0001
         depth_max = 1 / disparity_min

@@ -52,16 +52,16 @@ Now time to enjoy your 3D reconstruction! You can start by our provided examples
 
 ```bash
 
-python demo.py SCENE_DIR=examples/statue resume_ckpt=/PATH/YOUR/CKPT shared_camera=True
+python demo.py SCENE_DIR=examples/statue resume_ckpt=/PATH/YOUR/CKPT shared_camera=True query_method=sp+sift
 
-python demo.py SCENE_DIR=examples/kitchen resume_ckpt=/PATH/YOUR/CKPT 
+python demo.py SCENE_DIR=examples/kitchen resume_ckpt=/PATH/YOUR/CKPT query_method=aliked
 
 python demo.py SCENE_DIR=examples/british_museum max_query_pts=4096 resume_ckpt=/PATH/YOUR/CKPT 
 ```
 
-All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage. To enforce a shared camera model for a scene, set ```shared_camera=True```. 
+All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage. To enforce a shared camera model for a scene, set ```shared_camera=True```. To use query points from different methods, set ```query_method``` to ```sp```, ```sift```, ```aliked```, or any combination like ```sp+sift```.
 
-For example, to run reconstruction on a scene with ```100``` frames on a ```32 GB``` GPU, you can start from the setting below:
+To run reconstruction on a scene with ```100``` frames on a ```32 GB``` GPU, you can start from the setting below:
 
 ```bash
 python demo.py SCENE_DIR=TO/YOUR/PATH max_query_pts=1024 query_frame_num=6
@@ -80,6 +80,10 @@ By doing so, you should see an interface such as:
 
 ![UI](assets/ui.png)
 
+[Beta] If you want to visualize the 2D reprojections of the reconstructed 3D points, set ```make_reproj_video``` to True. This will generate a video named ```reproj.mp4``` under ```SCENE_DIR```. For example:
+
+
+<iframe width="780" height="520" src="https://raw.githubusercontent.com/vggsfm/vggsfm.github.io/main/resources/reproj.mp4" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
 
 ### 3. Try your own data
@@ -114,9 +118,18 @@ Then, you just need to set ```dense_depth=True``` when running demo.py. The dept
 To resolve an out-of-memory error, you can simply try reducing the number of ```max_query_pts``` to  a lower value. Be aware that this may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction. Please note that in the latest commit, the value of ```query_frame_num``` will not affect the GPU memory consumption any more. Feel free to increase ```query_frame_num```.
 
 
+* How to handle sparse data with minimal view overlap?
+
+For scenarios with sparse views and minimal overlap, the simplest solution is to set ```query_frame_num``` to the total number of your images and use a ```max_query_pts``` of 4096 or more. This ensures all frames are registered. Since we only have sparse views, the inference process remains very fast. For example, the following command took around 20 seconds to reconstruct an 8-frame scene:
+
+python demo.py SCENE_DIR=a_scene_with_8_frames query_frame_num=8 max_query_pts=4096 query_method=aliked
+
+
+
 * When should I set ```shared_camera``` to True?
 
 Set ```shared_camera``` to True when you know that the input frames were captured by the same camera and the camera focal length did not significantly change during the capture. This assumption is usually valid for images extracted from a video.
+
 
 
 ## Testing 

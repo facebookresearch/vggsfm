@@ -22,6 +22,7 @@ import torch.nn.functional as F
 
 from .metric import closed_form_inverse
 
+import os
 import cv2
 import struct
 
@@ -176,3 +177,111 @@ def write_array(array, path):
         format_char_sequence = "".join(["f"] * len(data_list))
         byte_data = struct.pack(endian_character + format_char_sequence, *data_list)
         fid.write(byte_data)
+
+
+
+def filter_invisible_reprojections(uvs_int, depths):
+    """
+    Filters out invisible 3D points when projecting them to 2D.
+
+    When reprojecting 3D points to 2D, multiple 3D points may map to the same 2D pixel due to occlusion or close proximity. 
+    This function filters out the reprojections of invisible 3D points based on their depths.
+
+    Parameters:
+    uvs_int (np.ndarray): Array of 2D points with shape (n, 2).
+    depths (np.ndarray): Array of depths corresponding to the 3D points, with shape (n).
+
+    Returns:
+    np.ndarray: A boolean mask with shape (n). True indicates the point is kept, False means it is removed.
+    """
+    
+    # Find unique rows and their indices
+    _, inverse_indices, counts = np.unique(uvs_int, axis=0, return_inverse=True, return_counts=True)
+
+    # Initialize mask with True (keep all points initially)
+    mask = np.ones(uvs_int.shape[0], dtype=bool)
+
+    # Set the mask to False for non-unique points and keep the one with the smallest depth
+    for i in np.where(counts > 1)[0]:
+        duplicate_indices = np.where(inverse_indices == i)[0]
+        min_depth_index = duplicate_indices[np.argmin(depths[duplicate_indices])]
+        mask[duplicate_indices] = False
+        mask[min_depth_index] = True
+
+    return mask
+
+
+def create_video_with_reprojections(output_path, fname_prefix, video_size, reconstruction, 
+                                    image_paths, 
+                                    sparse_depth, sparse_point,
+                                    draw_radius=3, cmap = "gist_rainbow", fps=1, color_mode="dis_to_center"):
+    import matplotlib
+    print("Generating reprojection video")
+    
+    video_size_rev = video_size[::-1]
+    video_writer = cv2.VideoWriter(output_path, 
+                                   cv2.VideoWriter_fourcc(*'mp4v'), fps, video_size)
+    colormap = matplotlib.colormaps.get_cmap(cmap)
+    
+    if color_mode == "dis_to_center":
+        points3D = np.array([point.xyz for point in reconstruction.points3D.values()])
+        median_point = np.median(points3D, axis=0)
+        distances = np.linalg.norm(points3D - median_point, axis=1)
+        min_dis = distances.min()
+        # max_dis = distances.max()
+        max_dis = np.percentile(distances, 99)  # 99th percentile distance to avoid extreme values
+    elif color_mode == "dis_to_origin":
+        points3D = np.array([point.xyz for point in reconstruction.points3D.values()])
+        distances = np.linalg.norm(points3D, axis=1)
+        min_dis = distances.min()
+        max_dis = distances.max()
+    elif color_mode == "point_order":
+        max_point3D_idx = max(reconstruction.point3D_ids())
+    else:
+        raise NotImplementedError
+        
+    for fname in sorted(image_paths):  
+        img_with_circles = cv2.imread(os.path.join(fname_prefix, fname))
+        
+        uvds = np.array(sparse_depth[fname])
+        uvs, uv_depth = uvds[:, :2], uvds[:, -1]
+        uvs_int = np.round(uvs).astype(int)
+    
+        if color_mode == "dis_to_center":
+            point3D_xyz = np.array(sparse_point[fname])[:, :3]
+            dis = np.linalg.norm(point3D_xyz-median_point, axis=1)
+            color_indices = (dis - min_dis) / (max_dis-min_dis) # 0-1
+        elif color_mode == "dis_to_origin":
+            point3D_xyz = np.array(sparse_point[fname])[:, :3]
+            dis = np.linalg.norm(point3D_xyz, axis=1)
+            color_indices = (dis - min_dis) / (max_dis-min_dis) # 0-1
+        elif color_mode == "point_order":
+            point3D_idxes = np.array(sparse_point[fname])[:, -1]
+            color_indices = point3D_idxes / max_point3D_idx # 0-1
+        else:
+            raise NotImplementedError
+
+        colors = (colormap(color_indices)[:, :3] * 255).astype(int)
+        
+        # Filter out occluded points
+        vis_reproj_mask = filter_invisible_reprojections(uvs_int, uv_depth)
+
+        for (x, y), color in zip(uvs_int[vis_reproj_mask], colors[vis_reproj_mask]): 
+            cv2.circle(img_with_circles, (x, y), radius=draw_radius, 
+                       color=(int(color[0]), int(color[1]), int(color[2])), 
+                       thickness=-1, lineType=cv2.LINE_AA)
+
+        if img_with_circles.shape[:2] != video_size_rev:
+            # Center Pad
+            target_h, target_w = video_size_rev
+            h, w, c = img_with_circles.shape
+            top_pad = (target_h - h) // 2
+            bottom_pad = target_h - h - top_pad
+            left_pad = (target_w - w) // 2
+            right_pad = target_w - w - left_pad
+            img_with_circles = cv2.copyMakeBorder(img_with_circles, top_pad, bottom_pad, left_pad, right_pad, 
+                                                  cv2.BORDER_CONSTANT, value=[0, 0, 0])
+        video_writer.write(img_with_circles)
+
+    video_writer.release()
+    print("Finished generating reprojection video")
