@@ -323,6 +323,7 @@ def refine_pose(
 
         if estimate_abs_pose and force_estimate:
             inlier_mask = inlier_nongeo[ridx]
+
             if inlier_mask.sum() > 50:
                 print(f"Estimating absolute poses by visible matches for frame {ridx}")
                 estanswer = pycolmap.absolute_pose_estimation(
@@ -420,6 +421,7 @@ def init_refine_pose(
     refined_extrinsics = []
     refined_intrinsics = []
 
+    
     pycamera = None
     for ridx in range(S):
         if pycamera is None or (not shared_camera):
@@ -748,6 +750,7 @@ def global_BA(
         shared_camera=shared_camera,
         camera_type=camera_type,
     )
+
     pycolmap.bundle_adjustment(reconstruction, ba_options)
 
     reconstruction = filter_reconstruction(reconstruction)
@@ -852,7 +855,18 @@ def iterative_global_BA(
     BA_inlier_masks = filtered_inlier_mask[:, valid_tracks_afterBA]
 
     if lastBA:
-        reconstruction = filter_reconstruction(reconstruction, filter_points=True)
+        # probably not necessary
+        reconstruction = batch_matrix_to_pycolmap(
+            points3D_opt,
+            extrinsics,
+            intrinsics,
+            pred_tracks[:, valid_tracks],
+            BA_inlier_masks,
+            image_size,
+            shared_camera=shared_camera,
+            camera_type=camera_type,
+        )
+        reconstruction = filter_reconstruction(reconstruction)
 
     return points3D_opt, extrinsics, intrinsics, valid_tracks, BA_inlier_masks, reconstruction
 
