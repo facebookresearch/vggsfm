@@ -97,11 +97,7 @@ def demo_fn(cfg: DictConfig):
         from pytorch3d.vis.plotly_vis import plot_scene
         from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
 
-        # viz = Visdom()
-        from pytorch3d.implicitron.tools import model_io, vis_utils
-        viz = vis_utils.get_visdom_connection(server=f"http://10.200.161.165", port=10088)
-
-
+        viz = Visdom()
 
     sequence_list = test_dataset.sequence_list
 

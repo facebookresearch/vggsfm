@@ -20,17 +20,15 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 **Updates:**
 
-- Happy to share we were ranked 1st 🥇 in the CVPR24 IMC Challenge regarding camera pose (Rot&Trans) estimation.
+- **[Jul 28, 2024]**
+  - Added support for filtering out dynamic objects using masks.
+  - Added support for `visual_dense_point_cloud`.
+  - Added support for `visual_query_points`.
+  - Made `visual_depths` optional.
 
 - [Jul 10, 2024] Now we support exporting dense depth maps!
 
-- [Jun 26, 2024] Excited to release our demo on Hugging Face Space🤗. Try it out [here](https://huggingface.co/spaces/facebook/vggsfm)!
-
-- [Jun 25, 2024] Upgrade to VGGSfM 2.0! More memory efficient, more robust, more powerful, and easier to start!
-
-
-- [Apr 23, 2024] Release the code and model weight for VGGSfM v1.1.
-
+- Happy to share we were ranked 1st 🥇 in the CVPR24 IMC Challenge regarding camera pose (Rot&Trans) estimation.
 
 
 
