@@ -71,7 +71,7 @@ python demo.py SCENE_DIR=TO/YOUR/PATH max_query_pts=1024 query_frame_num=6
 
 The reconstruction result (camera parameters and 3D points) will be automatically saved in the COLMAP format at ```output/seq_name```. You can use the [COLMAP GUI](https://colmap.github.io/gui.html) to view them. 
 
-If you want to visualize it more easily, we provide an approach supported by [visdom](https://github.com/fossasia/visdom). To begin using Visdom, start the server by entering ```visdom``` in the command line. Once the server is running, access Visdom by navigating to ```http://localhost:8097``` in your web browser. Now every reconstruction will be visualized and saved to the visdom server by enabling ```visualize=True```:
+If you want to visualize it more easily, we provide an approach supported by [visdom](https://github.com/fossasia/visdom). To begin using Visdom, start the server by entering ```visdom``` in the command line. Once the server is running, access Visdom by navigating to ```http://localhost:8097``` in your web browser. Now every reconstruction will be visualized and saved to the Visdom server by enabling ```visualize=True```:
 
 ```bash
 python demo.py visualize=True ...(other flags)
@@ -110,7 +110,7 @@ pip install scikit-learn
 git clone git@github.com:DepthAnything/Depth-Anything-V2.git dependency/depth_any_v2
 ```
 
-Then, you just need to set ```dense_depth=True``` when running demo.py. Depth maps will be saved in the ```depths``` folder under ```cfg.SCENE_DIR```, using the COLMAP format (e.g., ```*.bin```). To visualize 2D depth maps, set ```visual_depths=True```. To visualize the dense point cloud (unprojected dense depth maps) in Visdom, set ```visual_dense_point_cloud=True```.
+Then, you just need to set ```dense_depth=True``` when running demo.py. Depth maps will be saved in the ```depths``` folder under ```cfg.SCENE_DIR```, using the COLMAP format (e.g., ```*.bin```). To visualize 2D depth maps, set ```visual_depths=True```. To visualize the dense point cloud (unprojected dense depth maps) in Visdom, set ```visual_dense_point_cloud=True``` (note it may take seconds to open the Visdom page when there are too many points).
 
 
 

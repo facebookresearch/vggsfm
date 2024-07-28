@@ -25,6 +25,7 @@ import glob
 import copy
 import cv2
 import scipy
+from tqdm import tqdm
 from visdom import Visdom
 from collections import defaultdict
 from vggsfm.datasets.demo_loader import DemoLoader
@@ -36,7 +37,8 @@ from vggsfm.utils.utils import (
     generate_rank_by_interval,
     farthest_point_sampling,
     calculate_index_mappings,
-    align_dense_depth_maps,
+    extract_dense_depth_maps_and_save,
+    align_dense_depth_maps_and_save,
     switch_tensor_order,
     visual_query_points,
     create_depth_map_visual,
@@ -51,12 +53,6 @@ try:
 except:
     print("Poselib is not installed. Please disable use_poselib")
 
-try:
-    from dependency.depth_any_v2.depth_anything_v2.dpt import DepthAnythingV2
-
-    print("DepthAnythingV2 is available")
-except:
-    print("DepthAnythingV2 is not installed. Please disable dense_depth")
 
 
 @hydra.main(config_path="cfgs/", config_name="demo")
@@ -170,14 +166,25 @@ def demo_fn(cfg: DictConfig):
 
             unproj_dense_points3D = predictions["unproj_dense_points3D"]
             if unproj_dense_points3D is not None:
-                unproj_pts = unproj_dense_points3D[0]
-                unproj_pts_rgb = unproj_dense_points3D[1]
-                # mask out too far away 3D points due to depth unprojection 
-                mask_for_visual = unproj_pts.abs().max(-1)[0] <= 512
-                dense_pcl = Pointclouds(points=unproj_pts[mask_for_visual][None], 
-                                        features=unproj_pts_rgb[mask_for_visual][None])
-                visual_dict["scenes"]["dense_points"] = dense_pcl
-
+                unprojected_rgb_points_list = []
+                for unproj_img_name in sorted(unproj_dense_points3D.keys()):
+                    unprojected_rgb_points = torch.from_numpy(unproj_dense_points3D[unproj_img_name])
+                    unprojected_rgb_points_list.append(unprojected_rgb_points)
+                    
+                    # Separate 3D point locations and RGB colors
+                    point_locations = unprojected_rgb_points[0]  # 3D point location
+                    rgb_colors = unprojected_rgb_points[1]  # RGB color
+                    
+                    # Create a mask for points within the specified range
+                    valid_mask = point_locations.abs().max(-1)[0] <= 512
+                    
+                    # Create a Pointclouds object with valid points and their RGB colors
+                    point_cloud = Pointclouds(points=point_locations[valid_mask][None], 
+                                            features=rgb_colors[valid_mask][None])
+                    
+                    # Add the point cloud to the visual dictionary
+                    visual_dict["scenes"][f"unproj_{unproj_img_name}"] = point_cloud    
+                                    
             fig = plot_scene(visual_dict, camera_scale=0.05)
 
             env_name = f"demo_visual_{seq_name}"
@@ -198,34 +205,10 @@ def run_one_scene(model, images, masks=None, crop_params=None, query_frame_num=3
     reshaped_image = images.reshape(batch_num * frame_num, image_dim, height, width)
 
     if cfg.dense_depth:
-        print("Extracting dense depth maps")
+        print("Predicting dense depth maps via monocular depth estimation.")
         depth_dir = os.path.join(cfg.SCENE_DIR, "depths")
-        os.makedirs(depth_dir, exist_ok=True)
-        # Build DepthAnythingV2 model
-        model_config = {"encoder": "vitl", "features": 256, "out_channels": [256, 512, 1024, 1024]}
-        depth_model = DepthAnythingV2(**model_config)
-        _DEPTH_ANYTHING_V2_URL = (
-            "https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth"
-        )
-        checkpoint = torch.hub.load_state_dict_from_url(_DEPTH_ANYTHING_V2_URL)
-        depth_model.load_state_dict(checkpoint)
-        depth_model = depth_model.to(device).eval()
-
-        for idx in range(len(image_paths)):
-            img_fname = image_paths[idx]
-            raw_img = cv2.imread(img_fname)
-            # raw resolution
-            disp_map = depth_model.infer_image(
-                raw_img, min(1024, max(raw_img.shape[:2]))
-            )  # HxW raw depth_map map in numpy
-
-            if cfg.visual_depths:
-                create_depth_map_visual(disp_map, raw_img, img_fname, depth_dir)
-
-            write_array(disp_map, img_fname.replace("images", "depths") + ".bin")
-
-        print("Monocular depth maps complete. Depth alignment to be conducted.")
-
+        extract_dense_depth_maps_and_save(depth_dir, image_paths, device, cfg)
+        
     predictions = {}
     extra_dict = {}
 
@@ -426,15 +409,9 @@ def run_one_scene(model, images, masks=None, crop_params=None, query_frame_num=3
 
     if cfg.dense_depth:
         print("Aligning dense depth maps by sparse SfM points")
-        unproj_dense_points3D = align_dense_depth_maps(reconstruction, sparse_depth, depth_dir, cfg)
+        unproj_dense_points3D = align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg)
 
-    if cfg.visual_dense_point_cloud:
-        assert cfg.dense_depth, "dense_depth must be True when visual_dense_point_cloud is True."
-        unproj_dense_points3D = np.concatenate(unproj_dense_points3D, axis=1)
-        unproj_dense_points3D = torch.from_numpy(unproj_dense_points3D)
-    else:
-        unproj_dense_points3D = None
-        
+
     predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
     predictions["extrinsics_opencv"] = extrinsics_opencv
     predictions["intrinsics_opencv"] = intrinsics_opencv

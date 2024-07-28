@@ -20,11 +20,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-from .metric import closed_form_inverse
 
 import os
 import cv2
 import struct
+
+from tqdm import tqdm
+from .metric import closed_form_inverse
+
 
 
 def calculate_index_mappings(query_index, S, device=None):
@@ -316,8 +319,45 @@ def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
     return output_filename
 
 
+def extract_dense_depth_maps_and_save(depth_dir, image_paths, device, cfg):
+    """
+    Extract dense depth maps from a list of image paths and save them to a specified directory.
+    """
+    try:
+        from dependency.depth_any_v2.depth_anything_v2.dpt import DepthAnythingV2
+        print("DepthAnythingV2 is available")
+    except:
+        print("DepthAnythingV2 is not installed. Please disable dense_depth")
 
-def align_dense_depth_maps(reconstruction, sparse_depth, depth_dir, cfg):
+    print("Extracting dense depth maps")
+    
+    os.makedirs(depth_dir, exist_ok=True)
+
+    # Build DepthAnythingV2 model
+    model_config = {"encoder": "vitl", "features": 256, "out_channels": [256, 512, 1024, 1024]}
+    depth_model = DepthAnythingV2(**model_config)
+    _DEPTH_ANYTHING_V2_URL = (
+        "https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth"
+    )
+    checkpoint = torch.hub.load_state_dict_from_url(_DEPTH_ANYTHING_V2_URL)
+    depth_model.load_state_dict(checkpoint)
+    depth_model = depth_model.to(device).eval()
+
+    for idx in tqdm(range(len(image_paths)), desc="Predicting monocular depth maps"):
+        img_fname = image_paths[idx]
+        raw_img = cv2.imread(img_fname)
+        # raw resolution
+        disp_map = depth_model.infer_image(
+            raw_img, min(1024, max(raw_img.shape[:2]))
+        )  # HxW raw depth_map map in numpy
+
+        if cfg.visual_depths:
+            create_depth_map_visual(disp_map, raw_img, img_fname, depth_dir)
+        write_array(disp_map, img_fname.replace("images", "depths") + ".bin")
+    print("Monocular depth maps complete. Depth alignment to be conducted.")
+
+
+def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg):
     # For dense depth estimation
     from sklearn.linear_model import RANSACRegressor
     from sklearn.linear_model import LinearRegression
@@ -328,10 +368,10 @@ def align_dense_depth_maps(reconstruction, sparse_depth, depth_dir, cfg):
     depth_max = 1 / disparity_min
     depth_min = 1 / disparity_max
 
-    unproj_dense_points3D = []
+    unproj_dense_points3D = {}
     fname_to_id = {reconstruction.images[imgid].name: imgid for imgid in reconstruction.images}
 
-    for img_name in sparse_depth:
+    for img_name in tqdm(sparse_depth, desc="Load monocular depth and Align"):
         sparse_uvd = np.array(sparse_depth[img_name])
         disp_map = read_array(os.path.join(depth_dir, img_name + ".bin"))
 
@@ -422,6 +462,9 @@ def align_dense_depth_maps(reconstruction, sparse_depth, depth_dir, cfg):
             rgb = rgb_image.reshape(-1, 3)
             rgb = rgb[valid_depth_mask]
                 
-            unproj_dense_points3D.append(np.array([unproject_points_world, rgb]))
-
+            unproj_dense_points3D[img_name] = np.array([unproject_points_world, rgb])
+    
+    if not cfg.visual_dense_point_cloud:
+        unproj_dense_points3D = None
+        
     return unproj_dense_points3D

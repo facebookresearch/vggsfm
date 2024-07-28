@@ -856,16 +856,18 @@ def iterative_global_BA(
 
     if lastBA:
         # probably not necessary
-        reconstruction = batch_matrix_to_pycolmap(
-            points3D_opt,
-            extrinsics,
-            intrinsics,
-            pred_tracks[:, valid_tracks],
-            BA_inlier_masks,
-            image_size,
-            shared_camera=shared_camera,
-            camera_type=camera_type,
-        )
+        if camera_type is not "SIMPLE_RADIAL":
+            reconstruction = batch_matrix_to_pycolmap(
+                points3D_opt,
+                extrinsics,
+                intrinsics,
+                pred_tracks[:, valid_tracks],
+                BA_inlier_masks,
+                image_size,
+                shared_camera=shared_camera,
+                camera_type=camera_type,
+            )
+            
         reconstruction = filter_reconstruction(reconstruction)
 
     return points3D_opt, extrinsics, intrinsics, valid_tracks, BA_inlier_masks, reconstruction
