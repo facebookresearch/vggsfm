@@ -20,8 +20,8 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 **Updates:**
 
-- **[Jul 28, 2024]**
-  - Added support for filtering out dynamic objects using masks.
+- [Jul 28, 2024]
+  - Added support for filtering out dynamic objects using masks. We will add an example soon but you can check `demo_loader.py` for a quick view.
   - Added support for `visual_dense_point_cloud`.
   - Added support for `visual_query_points`.
   - Made `visual_depths` optional.
