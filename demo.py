@@ -36,11 +36,12 @@ from vggsfm.utils.utils import (
     generate_rank_by_interval,
     farthest_point_sampling,
     calculate_index_mappings,
+    align_dense_depth_maps,
     switch_tensor_order,
+    visual_query_points,
+    create_depth_map_visual,
     create_video_with_reprojections,
 )
-
-
 
 try:
     import poselib
@@ -56,10 +57,6 @@ try:
     print("DepthAnythingV2 is available")
 except:
     print("DepthAnythingV2 is not installed. Please disable dense_depth")
-
-# For dense depth estimation
-from sklearn.linear_model import RANSACRegressor
-from sklearn.linear_model import LinearRegression
 
 
 @hydra.main(config_path="cfgs/", config_name="demo")
@@ -86,7 +83,8 @@ def demo_fn(cfg: DictConfig):
     # Prepare test dataset
     test_dataset = DemoLoader(
         SCENE_DIR=cfg.SCENE_DIR, img_size=cfg.img_size, normalize_cameras=False, load_gt=cfg.load_gt, cfg=cfg
-    )
+    )   
+    
 
     if cfg.resume_ckpt:
         # Reload model
@@ -99,7 +97,10 @@ def demo_fn(cfg: DictConfig):
         from pytorch3d.vis.plotly_vis import plot_scene
         from pytorch3d.renderer.cameras import PerspectiveCameras as PerspectiveCamerasVisual
 
-        viz = Visdom()
+        # viz = Visdom()
+        from pytorch3d.implicitron.tools import model_io, vis_utils
+        viz = vis_utils.get_visdom_connection(server=f"http://10.200.161.165", port=10088)
+
 
 
     sequence_list = test_dataset.sequence_list
@@ -118,7 +119,13 @@ def demo_fn(cfg: DictConfig):
         images = images.unsqueeze(0)
         crop_params = crop_params.unsqueeze(0)
 
-        batch_size = len(images)
+
+        if batch["masks"] is not None:
+            masks = batch["masks"].to(device)
+            masks = masks.unsqueeze(0)   
+        else:
+            masks = None 
+
 
         with torch.no_grad():
             # Run the model
@@ -135,6 +142,7 @@ def demo_fn(cfg: DictConfig):
             predictions = run_one_scene(
                 model,
                 images,
+                masks=masks,
                 crop_params=crop_params,
                 query_frame_num=cfg.query_frame_num,
                 image_paths=image_paths,
@@ -164,6 +172,16 @@ def demo_fn(cfg: DictConfig):
 
             visual_dict = {"scenes": {"points": pcl, "cameras": visual_cameras}}
 
+            unproj_dense_points3D = predictions["unproj_dense_points3D"]
+            if unproj_dense_points3D is not None:
+                unproj_pts = unproj_dense_points3D[0]
+                unproj_pts_rgb = unproj_dense_points3D[1]
+                # mask out too far away 3D points due to depth unprojection 
+                mask_for_visual = unproj_pts.abs().max(-1)[0] <= 512
+                dense_pcl = Pointclouds(points=unproj_pts[mask_for_visual][None], 
+                                        features=unproj_pts_rgb[mask_for_visual][None])
+                visual_dict["scenes"]["dense_points"] = dense_pcl
+
             fig = plot_scene(visual_dict, camera_scale=0.05)
 
             env_name = f"demo_visual_{seq_name}"
@@ -174,7 +192,7 @@ def demo_fn(cfg: DictConfig):
     return True
 
 
-def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_paths=None, dtype=None, cfg=None):
+def run_one_scene(model, images, masks=None, crop_params=None, query_frame_num=3, image_paths=None, dtype=None, cfg=None):
     """
     images have been normalized to the range [0, 1] instead of [0, 255]
     """
@@ -205,13 +223,12 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
                 raw_img, min(1024, max(raw_img.shape[:2]))
             )  # HxW raw depth_map map in numpy
 
-            visual_depth = True
-            if visual_depth:
+            if cfg.visual_depths:
                 create_depth_map_visual(disp_map, raw_img, img_fname, depth_dir)
 
             write_array(disp_map, img_fname.replace("images", "depths") + ".bin")
 
-        print("Dense depth maps complete")
+        print("Monocular depth maps complete. Depth alignment to be conducted.")
 
     predictions = {}
     extra_dict = {}
@@ -240,8 +257,8 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         center_frame_index = query_frame_indexes[0]
         if center_frame_index !=0:
             center_order = calculate_index_mappings(center_frame_index, frame_num, device=device)
-
-            images, crop_params = switch_tensor_order([images, crop_params], center_order, dim=1)
+            
+            images, crop_params, masks = switch_tensor_order([images, crop_params, masks], center_order, dim=1)
             reshaped_image = switch_tensor_order([reshaped_image], center_order, dim=0)[0]
 
             image_paths = [image_paths[i] for i in center_order.cpu().numpy().tolist()]
@@ -274,6 +291,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
             cfg.max_query_pts,
             track_predictor,
             images,
+            masks,
             fmaps_for_tracker,
             query_frame_indexes,
             frame_num,
@@ -286,6 +304,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
             pred_track, pred_vis, pred_score = comple_nonvis_frames(
                 track_predictor,
                 images,
+                masks,
                 fmaps_for_tracker,
                 frame_num,
                 device,
@@ -311,6 +330,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         pred_vis = pred_vis * force_vis.float()
 
     # TODO: plot 2D matches
+    
     if cfg.use_poselib:
         estimate_preliminary_cameras_fn = estimate_preliminary_cameras_poselib
     else:
@@ -350,6 +370,7 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
         init_max_reproj_error=cfg.init_max_reproj_error,
         cfg=cfg,
     )
+    
     rescale_camera = True
     
     for pyimageid in reconstruction.images:
@@ -408,81 +429,28 @@ def run_one_scene(model, images, crop_params=None, query_frame_num=3, image_path
 
 
     if cfg.dense_depth:
-        # Align dense depth maps with Sparse SfM points
-        disparity_max = 10000
-        disparity_min = 0.0001
-        depth_max = 1 / disparity_min
-        depth_min = 1 / disparity_max
+        print("Aligning dense depth maps by sparse SfM points")
+        unproj_dense_points3D = align_dense_depth_maps(reconstruction, sparse_depth, depth_dir, cfg)
 
-        for img_name in sparse_depth:
-            sparse_uvd = np.array(sparse_depth[img_name])
-            disp_map = read_array(os.path.join(depth_dir, img_name + ".bin"))
-
-            ww, hh = disp_map.shape
-            # filter out the projections outside the image
-            int_uv = np.round(sparse_uvd[:, :2]).astype(int)
-            maskhh = (int_uv[:, 0] >= 0) & (int_uv[:, 0] < hh)
-            maskww = (int_uv[:, 1] >= 0) & (int_uv[:, 1] < ww)
-            mask = maskhh & maskww
-            sparse_uvd = sparse_uvd[mask]
-            int_uv = int_uv[mask]
-            # nearest neighbour sampling
-            sampled_disps = disp_map[int_uv[:, 1], int_uv[:, 0]]
-
-            # Note that dense depth maps may have some invalid values such as sky
-            # they are marked as 0
-            # hence filter out 0 from the sampled depths
-            positive_mask = sampled_disps > 0
-            sampled_disps = sampled_disps[positive_mask]
-            sfm_depths = sparse_uvd[:, -1][positive_mask]
-
-            sfm_depths = np.clip(sfm_depths, depth_min, depth_max)
-
-            thres_ratio = 30
-            target_disps = 1 / sfm_depths
-
-            # RANSAC
-            X = sampled_disps.reshape(-1, 1)
-            y = target_disps
-            ransac_thres = np.median(y) / thres_ratio
-            ransac = RANSACRegressor(
-                LinearRegression(),
-                min_samples=2,
-                residual_threshold=ransac_thres,
-                max_trials=20000,
-                loss="squared_error",
-            )
-            ransac.fit(X, y)
-            scale = ransac.estimator_.coef_[0]
-            shift = ransac.estimator_.intercept_
-            inlier_mask = ransac.inlier_mask_
-
-            nonzero_mask = disp_map != 0
-
-            # Rescale the disparity map
-            disp_map[nonzero_mask] = disp_map[nonzero_mask] * scale + shift
-
-            valid_depth_mask = (disp_map > 0) & (disp_map <= disparity_max)
-
-            disp_map[~valid_depth_mask] = 0
-
-            # Convert the disparity map to depth map
-            depth_map = np.full(disp_map.shape, np.inf)
-            depth_map[disp_map != 0] = 1 / disp_map[disp_map != 0]
-
-            depth_map[depth_map == np.inf] = 0
-            depth_map = depth_map.astype(np.float32)
-
-            write_array(depth_map, os.path.join(depth_dir, img_name) + ".bin")
-
+    if cfg.visual_dense_point_cloud:
+        assert cfg.dense_depth, "dense_depth must be True when visual_dense_point_cloud is True."
+        unproj_dense_points3D = np.concatenate(unproj_dense_points3D, axis=1)
+        unproj_dense_points3D = torch.from_numpy(unproj_dense_points3D)
+    else:
+        unproj_dense_points3D = None
+        
     predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
     predictions["extrinsics_opencv"] = extrinsics_opencv
     predictions["intrinsics_opencv"] = intrinsics_opencv
     predictions["points3D"] = points3D
     predictions["points3D_rgb"] = points3D_rgb
     predictions["reconstruction"] = reconstruction
+    predictions["unproj_dense_points3D"] = unproj_dense_points3D
 
     return predictions
+
+
+################################################ Helper Functions
 
 
 def predict_tracks(
@@ -490,6 +458,7 @@ def predict_tracks(
     max_query_pts,
     track_predictor,
     images,
+    masks,
     fmaps_for_tracker,
     query_frame_indexes,
     frame_num,
@@ -500,6 +469,10 @@ def predict_tracks(
     pred_track_list = []
     pred_vis_list = []
     pred_score_list = []
+    
+    if cfg.visual_query_points:
+        query_dir = os.path.join(cfg.SCENE_DIR, "query")
+        os.makedirs(query_dir, exist_ok=True)
 
     for query_index in query_frame_indexes:
         print(f"Predicting tracks with query_index = {query_index}")
@@ -509,8 +482,15 @@ def predict_tracks(
         else:
             bound_bbox = None
             
+        mask = masks[:, query_index] if masks is not None else None
+
         # Find query_points at the query frame
-        query_points = get_query_points(images[:, query_index], query_method, max_query_pts, bound_bbox=bound_bbox)        
+        query_points = get_query_points(images[:, query_index], mask, query_method, max_query_pts, bound_bbox=bound_bbox)        
+        
+        if cfg.visual_query_points:
+            save_name = os.path.join(query_dir, f"query_{query_index}.png")
+            visual_query_points(images, query_index, query_points, save_name=save_name)
+            
         # Switch so that query_index frame stays at the first frame
         # This largely simplifies the code structure of tracker
         new_order = calculate_index_mappings(query_index, frame_num, device=device)
@@ -537,6 +517,7 @@ def predict_tracks(
 def comple_nonvis_frames(
     track_predictor,
     images,
+    masks,
     fmaps_for_tracker,
     frame_num,
     device,
@@ -560,6 +541,7 @@ def comple_nonvis_frames(
                 cfg.max_query_pts // 2,
                 track_predictor,
                 images,
+                masks,
                 fmaps_for_tracker,
                 non_vis_frames,
                 frame_num,
@@ -580,6 +562,7 @@ def comple_nonvis_frames(
             cfg.max_query_pts,
             track_predictor,
             images,
+            masks,
             fmaps_for_tracker,
             non_vis_query_list,
             frame_num,
@@ -631,7 +614,7 @@ def generate_rank_by_dino(reshaped_image, camera_predictor, query_frame_num, ima
     return fps_idx
 
 
-def get_query_points(query_image, query_method, max_query_num=4096, det_thres=0.005, bound_bbox=None):
+def get_query_points(query_image, seg_invalid_mask, query_method, max_query_num=4096, det_thres=0.005, bound_bbox=None):
     # Run superpoint and sift on the target frame
     # Feel free to modify for your own
 
@@ -648,16 +631,18 @@ def get_query_points(query_image, query_method, max_query_num=4096, det_thres=0.
         else:
             raise NotImplementedError(f"query method {method} is not supprted now")
 
+        invalid_mask = None
+
         if bound_bbox is not None:
-            valid_mask = torch.zeros_like(query_image[:,0])
-            x_min, y_min, x_max, y_max = bound_bbox[0]
-            x_min, y_min, x_max, y_max = map(int, (x_min, y_min, x_max, y_max))
-            # Set mask values inside the bounding box to 1
-            valid_mask[:, y_min:y_max, x_min:x_max] = 1
-            invalid_mask = ~(valid_mask.bool())
-        else:
-            invalid_mask = None
-            
+            x_min, y_min, x_max, y_max = map(int, bound_bbox[0])
+            bbox_valid_mask = torch.zeros_like(query_image[:, 0], dtype=torch.bool)
+            bbox_valid_mask[:, y_min:y_max, x_min:x_max] = 1
+            invalid_mask = ~bbox_valid_mask
+
+        if seg_invalid_mask is not None:
+            seg_invalid_mask = seg_invalid_mask.squeeze(1).bool()
+            invalid_mask = seg_invalid_mask if invalid_mask is None else torch.logical_or(invalid_mask, seg_invalid_mask)
+    
         query_points = extractor.extract(query_image, invalid_mask=invalid_mask)["keypoints"]
         pred_points.append(query_points)
 
@@ -669,31 +654,6 @@ def get_query_points(query_image, query_method, max_query_num=4096, det_thres=0.
 
     return query_points
 
-
-def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
-    import matplotlib
-
-    # Normalize the depth map to the range 0-255
-    depth_map_visual = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min()) * 255.0
-    depth_map_visual = depth_map_visual.astype(np.uint8)
-
-    # Get the colormap
-    cmap = matplotlib.colormaps.get_cmap("Spectral_r")
-
-    # Apply the colormap and convert to uint8
-    depth_map_visual = (cmap(depth_map_visual)[:, :, :3] * 255)[:, :, ::-1].astype(np.uint8)
-
-    # Create a white split region
-    split_region = np.ones((raw_img.shape[0], 50, 3), dtype=np.uint8) * 255
-
-    # Combine the raw image, split region, and depth map visual
-    combined_result = cv2.hconcat([raw_img, split_region, depth_map_visual])
-
-    # Save the result to a file
-    output_filename = outdir + f"/depth_{os.path.basename(img_fname)}.png"
-    cv2.imwrite(output_filename, combined_result)
-
-    return output_filename
 
 
 def seed_all_random_engines(seed: int) -> None:

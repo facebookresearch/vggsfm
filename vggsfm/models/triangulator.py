@@ -202,7 +202,6 @@ class Triangulator(nn.Module):
                 shared_camera=shared_camera,
                 cfg=cfg,
             )
-
             if cfg.robust_refine > 0:
                 for refine_idx in range(cfg.robust_refine):
                     # Helpful for some turnable videos
@@ -301,6 +300,7 @@ class Triangulator(nn.Module):
                         color_255 = points3D_rgb[point3D_id-1].cpu().numpy() * 255
                         reconstruction.points3D[point3D_id].color = np.round(color_255).astype(np.uint8)
                 else:
+                    import pdb;pdb.set_trace()
                     print("Cannot save point rgb colors to colmap reconstruction object. Please file an issue in github. ")
             else:
                 points3D_rgb = None
@@ -321,8 +321,9 @@ class Triangulator(nn.Module):
                 if len(invalid_ids) > 0:
                     for invalid_id in invalid_ids:
                         reconstruction.deregister_image(invalid_id)
-
+                        
             return BA_cameras_PT3D, extrinsics, intrinsics, points3D, points3D_rgb, reconstruction, valid_frame_mask
+
 
     def triangulate_tracks_and_BA(
         self,

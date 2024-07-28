@@ -44,7 +44,7 @@ def switch_tensor_order(tensors, order, dim=1):
     """
     Switch the tensor among the specific dimension
     """
-    return [torch.index_select(tensor, dim, order) for tensor in tensors]
+    return [torch.index_select(tensor, dim, order) if tensor is not None else None for tensor in tensors]
 
 
 def set_seed_and_print(seed):
@@ -106,7 +106,7 @@ def generate_rank_by_interval(N, k):
     return result
 
 
-def visual_query_points(images, query_index, query_points):
+def visual_query_points(images, query_index, query_points, save_name="image_cv2.png"):
     """
     Processes an image by converting it to BGR color space, drawing circles at specified points,
     and saving the image to a file.
@@ -127,7 +127,7 @@ def visual_query_points(images, query_index, query_points):
         image_cv2 = cv2.circle(image_cv2, (int(x), int(y)), 4, (0, 255, 0), -1)
 
     # Save the processed image to a file
-    cv2.imwrite("image_cv2.png", image_cv2)
+    cv2.imwrite(save_name, image_cv2)
 
 
 def read_array(path):
@@ -219,8 +219,10 @@ def create_video_with_reprojections(output_path, fname_prefix, video_size, recon
     print("Generating reprojection video")
     
     video_size_rev = video_size[::-1]
+
     video_writer = cv2.VideoWriter(output_path, 
                                    cv2.VideoWriter_fourcc(*'mp4v'), fps, video_size)
+    
     colormap = matplotlib.colormaps.get_cmap(cmap)
     
     if color_mode == "dis_to_center":
@@ -285,3 +287,141 @@ def create_video_with_reprojections(output_path, fname_prefix, video_size, recon
 
     video_writer.release()
     print("Finished generating reprojection video")
+
+
+
+def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
+    import matplotlib
+
+    # Normalize the depth map to the range 0-255
+    depth_map_visual = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min()) * 255.0
+    depth_map_visual = depth_map_visual.astype(np.uint8)
+
+    # Get the colormap
+    cmap = matplotlib.colormaps.get_cmap("Spectral_r")
+
+    # Apply the colormap and convert to uint8
+    depth_map_visual = (cmap(depth_map_visual)[:, :, :3] * 255)[:, :, ::-1].astype(np.uint8)
+
+    # Create a white split region
+    split_region = np.ones((raw_img.shape[0], 50, 3), dtype=np.uint8) * 255
+
+    # Combine the raw image, split region, and depth map visual
+    combined_result = cv2.hconcat([raw_img, split_region, depth_map_visual])
+
+    # Save the result to a file
+    output_filename = outdir + f"/depth_{os.path.basename(img_fname)}.png"
+    cv2.imwrite(output_filename, combined_result)
+
+    return output_filename
+
+
+
+def align_dense_depth_maps(reconstruction, sparse_depth, depth_dir, cfg):
+    # For dense depth estimation
+    from sklearn.linear_model import RANSACRegressor
+    from sklearn.linear_model import LinearRegression
+
+    # Define disparity and depth limits
+    disparity_max = 10000
+    disparity_min = 0.0001
+    depth_max = 1 / disparity_min
+    depth_min = 1 / disparity_max
+
+    unproj_dense_points3D = []
+    fname_to_id = {reconstruction.images[imgid].name: imgid for imgid in reconstruction.images}
+
+    for img_name in sparse_depth:
+        sparse_uvd = np.array(sparse_depth[img_name])
+        disp_map = read_array(os.path.join(depth_dir, img_name + ".bin"))
+
+        ww, hh = disp_map.shape
+        # Filter out the projections outside the image
+        int_uv = np.round(sparse_uvd[:, :2]).astype(int)
+        maskhh = (int_uv[:, 0] >= 0) & (int_uv[:, 0] < hh)
+        maskww = (int_uv[:, 1] >= 0) & (int_uv[:, 1] < ww)
+        mask = maskhh & maskww
+        sparse_uvd = sparse_uvd[mask]
+        int_uv = int_uv[mask]
+
+        # Nearest neighbour sampling
+        sampled_disps = disp_map[int_uv[:, 1], int_uv[:, 0]]
+
+        # Note that dense depth maps may have some invalid values such as sky
+        # they are marked as 0, hence filter out 0 from the sampled depths
+        positive_mask = sampled_disps > 0
+        sampled_disps = sampled_disps[positive_mask]
+        sfm_depths = sparse_uvd[:, -1][positive_mask]
+
+        sfm_depths = np.clip(sfm_depths, depth_min, depth_max)
+
+        thres_ratio = 30
+        target_disps = 1 / sfm_depths
+
+        # RANSAC
+        X = sampled_disps.reshape(-1, 1)
+        y = target_disps
+        ransac_thres = np.median(y) / thres_ratio
+        ransac = RANSACRegressor(
+            LinearRegression(),
+            min_samples=2,
+            residual_threshold=ransac_thres,
+            max_trials=20000,
+            loss="squared_error",
+        )
+        ransac.fit(X, y)
+        scale = ransac.estimator_.coef_[0]
+        shift = ransac.estimator_.intercept_
+        inlier_mask = ransac.inlier_mask_
+
+        nonzero_mask = disp_map != 0
+
+        # Rescale the disparity map
+        disp_map[nonzero_mask] = disp_map[nonzero_mask] * scale + shift
+
+        valid_depth_mask = (disp_map > 0) & (disp_map <= disparity_max)
+        disp_map[~valid_depth_mask] = 0
+
+        # Convert the disparity map to depth map
+        depth_map = np.full(disp_map.shape, np.inf)
+        depth_map[disp_map != 0] = 1 / disp_map[disp_map != 0]
+        depth_map[depth_map == np.inf] = 0
+        depth_map = depth_map.astype(np.float32)
+
+        write_array(depth_map, os.path.join(depth_dir, img_name) + ".bin")
+
+        if cfg.visual_dense_point_cloud:
+            # TODO: remove the dirty codes here
+            pyimg = reconstruction.images[fname_to_id[img_name]]
+            pycam = reconstruction.cameras[pyimg.camera_id]
+
+            # Generate the x and y coordinates
+            x_coords = np.arange(hh)  
+            y_coords = np.arange(ww)  
+            xx, yy = np.meshgrid(x_coords, y_coords)
+
+            valid_depth_mask_hw = np.copy(valid_depth_mask)
+            sampled_points2d = np.column_stack(( xx.ravel(), yy.ravel()))
+            # sampled_points2d = sampled_points2d + 0.5 # TODO figure it out if we still need +0.5
+                    
+            depth_values = depth_map.reshape(-1)
+            valid_depth_mask = valid_depth_mask.reshape(-1)
+            
+            sampled_points2d = sampled_points2d[valid_depth_mask] 
+            depth_values = depth_values[valid_depth_mask]
+            
+            unproject_points = pycam.cam_from_img(sampled_points2d)
+            unproject_points_homo = np.hstack((unproject_points,  np.ones((unproject_points.shape[0], 1))))
+            unproject_points_withz = unproject_points_homo * depth_values.reshape(-1, 1)
+            unproject_points_world = pyimg.cam_from_world.inverse() * unproject_points_withz
+            
+            bgr = cv2.imread(os.path.join(cfg.SCENE_DIR, "images", img_name))
+            
+            rgb_image = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            rgb_image = rgb_image / 255
+            rgb = rgb_image.reshape(-1, 3)
+            rgb = rgb[valid_depth_mask]
+                
+            unproj_dense_points3D.append(np.array([unproject_points_world, rgb]))
+
+    return unproj_dense_points3D

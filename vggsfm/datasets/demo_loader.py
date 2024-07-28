@@ -65,6 +65,11 @@ class DemoLoader(Dataset):
         # bag_name = os.path.basename(SCENE_DIR)
         bag_name = os.path.basename(os.path.normpath(SCENE_DIR))
 
+        if os.path.exists(os.path.join(SCENE_DIR, "masks")):
+            self.have_mask = True
+        else:
+            self.have_mask = False
+            
         img_filenames = glob.glob(os.path.join(SCENE_DIR, "images/*"))
 
         if self.sort_by_filename:
@@ -93,7 +98,7 @@ class DemoLoader(Dataset):
 
         for img_name in img_filenames:
             frame_dict = {}
-            frame_dict["filepath"] = img_name
+            frame_dict["img_path"] = img_name
 
             if self.load_gt:
                 anno_dict = calib_dict[os.path.basename(img_name)]
@@ -151,9 +156,10 @@ class DemoLoader(Dataset):
         annos = [metadata[i] for i in ids]
 
         if self.sort_by_filename:
-            annos = sorted(annos, key=lambda x: x["filepath"])
+            annos = sorted(annos, key=lambda x: x["img_path"])
 
         images = []
+        masks = []
         image_paths = []
 
         if self.load_gt:
@@ -163,11 +169,16 @@ class DemoLoader(Dataset):
             principal_points = []
 
         for anno in annos:
-            image_path = anno["filepath"]
+            image_path = anno["img_path"]
 
             image = Image.open(image_path).convert("RGB")
-
             images.append(image)
+            
+            if self.have_mask:
+                mask_path = image_path.replace("images", "masks")
+                mask = Image.open(mask_path).convert("L")
+                masks.append(mask)
+                
             image_paths.append(image_path)
 
             if self.load_gt:
@@ -190,6 +201,7 @@ class DemoLoader(Dataset):
 
         crop_parameters = []
         images_transformed = []
+        masks_transformed = []
 
         if self.load_gt:
             new_fls = []
@@ -211,8 +223,14 @@ class DemoLoader(Dataset):
 
             # Crop image by bbox
             image = self._crop_image(image, bbox)
-
             images_transformed.append(self.transform(image))
+
+
+            if self.have_mask:
+                mask = masks[i]
+                mask = self._crop_image(mask, bbox)
+                masks_transformed.append(self.transform(mask))
+                
 
             if self.load_gt:
                 bbox_xywh = torch.FloatTensor(bbox_xyxy_to_xywh(bbox))
@@ -234,7 +252,8 @@ class DemoLoader(Dataset):
                 new_pps.append(new_principal_point)
 
         images = images_transformed
-
+        masks = masks_transformed
+        
         if self.load_gt:
             new_fls = torch.stack(new_fls)
             new_pps = torch.stack(new_pps)
@@ -286,11 +305,19 @@ class DemoLoader(Dataset):
         # Add images
         if self.transform is not None:
             images = torch.stack(images)
+            
+            if self.have_mask:
+                masks = torch.stack(masks)
 
         if not self.eval_time:
             raise ValueError("color aug should not happen for Sequence")
 
         batch["image"] = images.clamp(0, 1)
+
+        if self.have_mask:
+            batch["masks"] = masks.clamp(0, 1)
+        else:
+            batch["masks"] = None
 
         if return_path:
             return batch, image_paths

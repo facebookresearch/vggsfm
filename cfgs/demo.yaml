@@ -44,6 +44,9 @@ use_poselib: True
 
 make_reproj_video: False
 
+visual_depths: False
+visual_query_points: False
+visual_dense_point_cloud: False
 
 MODEL:
     _target_: vggsfm.models.VGGSfM

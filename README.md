@@ -105,14 +105,16 @@ Have fun and feel free to create an issue if you meet any problem. SfM is always
 
 ### 4. Dense depth maps (Beta)
 
-We support extracting dense depth maps with the help of [Depth-Anything-V2](https://github.com/DepthAnything/Depth-Anything-V2). Bascially, we align the dense depth prediction from Depth-Anything-V2 using the sparse SfM point cloud predicted by VGGSfM. To enable this, please first download Depth-Anything-V2 and install scikit-learn:
+We support extracting dense depth maps with the help of [Depth-Anything-V2](https://github.com/DepthAnything/Depth-Anything-V2). Bascially, we align the dense depth prediction from Depth-Anything-V2 using the sparse SfM point cloud predicted by VGGSfM. To enable this, please first git clone Depth-Anything-V2 and install scikit-learn:
 
 ```bash
 pip install scikit-learn
 git clone git@github.com:DepthAnything/Depth-Anything-V2.git dependency/depth_any_v2
 ```
 
-Then, you just need to set ```dense_depth=True``` when running demo.py. The depth maps will be saved to a folder called depths under cfg.SCENE_DIR, in the format of COLMAP.  
+Then, you just need to set ```dense_depth=True``` when running demo.py. Depth maps will be saved in the ```depths``` folder under ```cfg.SCENE_DIR```, using the COLMAP format (e.g., ```*.bin```). To visualize 2D depth maps, set ```visual_depths=True```. To visualize the dense point cloud (unprojected dense depth maps) in Visdom, set ```visual_dense_point_cloud=True```.
+
+
 
 ### FAQ
 
