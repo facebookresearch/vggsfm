@@ -203,6 +203,7 @@ def run_one_scene(model, images, masks=None, crop_params=None, query_frame_num=3
     batch_num, frame_num, image_dim, height, width = images.shape
     device = images.device
     reshaped_image = images.reshape(batch_num * frame_num, image_dim, height, width)
+    unproj_dense_points3D = None
 
     if cfg.dense_depth:
         print("Predicting dense depth maps via monocular depth estimation.")
