@@ -84,9 +84,14 @@ def demo_fn(cfg: DictConfig):
 
     if cfg.resume_ckpt:
         # Reload model
-        checkpoint = torch.load(cfg.resume_ckpt)
+        if cfg.auto_download_ckpt:
+            _VGGSFM_URL = "https://huggingface.co/facebook/VGGSfM/resolve/main/vggsfm_v2_0_0.bin"
+            checkpoint = torch.hub.load_state_dict_from_url(_VGGSFM_URL)
+        else:
+            checkpoint = torch.load(cfg.resume_ckpt)
         model.load_state_dict(checkpoint, strict=True)
         print(f"Successfully resumed from {cfg.resume_ckpt}")
+
 
     if cfg.visualize:
         from pytorch3d.structures import Pointclouds
@@ -149,19 +154,23 @@ def demo_fn(cfg: DictConfig):
         print(f"The output has been saved in COLMAP style at: {output_path} ")
         os.makedirs(output_path, exist_ok=True)
         reconstruction_pycolmap.write(output_path)
-
-        pred_cameras_PT3D = predictions["pred_cameras_PT3D"]
-
+        
         if cfg.visualize:
             if "points3D_rgb" in predictions:
                 pcl = Pointclouds(points=predictions["points3D"][None], features=predictions["points3D_rgb"][None])
             else:
                 pcl = Pointclouds(points=predictions["points3D"][None])
 
-            visual_cameras = PerspectiveCamerasVisual(
-                R=pred_cameras_PT3D.R, T=pred_cameras_PT3D.T, device=pred_cameras_PT3D.device
-            )
 
+            extrinsics_opencv = predictions["extrinsics_opencv"]
+            # From OpenCV/COLMAP to PyTorch3D
+            rot_PT3D = extrinsics_opencv[:, :3, :3].clone().permute(0, 2, 1)
+            trans_PT3D = extrinsics_opencv[:, :3, 3].clone()
+            trans_PT3D[:, :2] *= -1
+            rot_PT3D[:, :, :2] *= -1
+            visual_cameras = PerspectiveCamerasVisual(R=rot_PT3D, T=trans_PT3D, device=trans_PT3D.device)
+            
+            
             visual_dict = {"scenes": {"points": pcl, "cameras": visual_cameras}}
 
             unproj_dense_points3D = predictions["unproj_dense_points3D"]
@@ -330,7 +339,6 @@ def run_one_scene(model, images, masks=None, crop_params=None, query_frame_num=3
 
     # Conduct Triangulation and Bundle Adjustment
     (
-        BA_cameras_PT3D,
         extrinsics_opencv,
         intrinsics_opencv,
         points3D,
@@ -413,7 +421,12 @@ def run_one_scene(model, images, masks=None, crop_params=None, query_frame_num=3
         unproj_dense_points3D = align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg)
 
 
-    predictions["pred_cameras_PT3D"] = BA_cameras_PT3D
+    if center_order is not None:
+        # NOTE we changed the image order previously, now we need to scwitch it back
+        extrinsics_opencv = extrinsics_opencv[center_order]
+        intrinsics_opencv = intrinsics_opencv[center_order]
+        
+        
     predictions["extrinsics_opencv"] = extrinsics_opencv
     predictions["intrinsics_opencv"] = intrinsics_opencv
     predictions["points3D"] = points3D

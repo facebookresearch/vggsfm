@@ -45,7 +45,8 @@ This script installs official ```pytorch3d```, ```accelerate```, ```lightglue```
 ## Demo 
 
 ### 1. Download Model
-To get started, you need to first download the checkpoint. We provide the checkpoint for v2.0 model by [Hugging Face](https://huggingface.co/facebook/VGGSfM/blob/main/vggsfm_v2_0_0.bin) and [Google Drive](https://drive.google.com/file/d/163bHiqeTJhQ2_UnihRNPRA4Y9X8-gZ1-/view?usp=sharing).
+The checkpoint will be automatically downloaded from [Hugging Face](https://huggingface.co/facebook/VGGSfM/tree/main). You can also manually download it from [Hugging Face](https://huggingface.co/facebook/VGGSfM/blob/main/vggsfm_v2_0_0.bin) and [Google Drive](https://drive.google.com/file/d/163bHiqeTJhQ2_UnihRNPRA4Y9X8-gZ1-/view?usp=sharing). If you prefer to specify the checkpoint path manually, set the path in ```resume_ckpt``` and set ```auto_download_ckpt``` to False.
+
 
 ### 2. Run the Demo 
 
@@ -53,11 +54,11 @@ Now time to enjoy your 3D reconstruction! You can start by our provided examples
 
 ```bash
 
-python demo.py SCENE_DIR=examples/statue resume_ckpt=/PATH/YOUR/CKPT shared_camera=True query_method=sp+sift
+python demo.py SCENE_DIR=examples/statue shared_camera=True query_method=sp+sift
 
-python demo.py SCENE_DIR=examples/kitchen resume_ckpt=/PATH/YOUR/CKPT query_method=aliked
+python demo.py SCENE_DIR=examples/kitchen query_method=aliked
 
-python demo.py SCENE_DIR=examples/british_museum max_query_pts=4096 resume_ckpt=/PATH/YOUR/CKPT 
+python demo.py SCENE_DIR=examples/british_museum max_query_pts=4096 
 ```
 
 All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage. To enforce a shared camera model for a scene, set ```shared_camera=True```. To use query points from different methods, set ```query_method``` to ```sp```, ```sift```, ```aliked```, or any combination like ```sp+sift```.

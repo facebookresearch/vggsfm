@@ -305,15 +305,7 @@ class Triangulator(nn.Module):
             else:
                 points3D_rgb = None
 
-            # From OpenCV/COLMAP to PyTorch3D
-            rot_BA = rot_BA.clone().permute(0, 2, 1)
-            trans_BA = trans_BA.clone()
-            trans_BA[:, :2] *= -1
-            rot_BA[:, :, :2] *= -1
-            BA_cameras_PT3D = PerspectiveCameras(R=rot_BA, T=trans_BA, device=device)
-
             if cfg.filter_invalid_frame:
-                BA_cameras_PT3D = BA_cameras_PT3D[valid_frame_mask]
                 extrinsics = extrinsics[valid_frame_mask]
                 intrinsics = intrinsics[valid_frame_mask]
                 invalid_ids = torch.nonzero(~valid_frame_mask).squeeze(1)
@@ -322,7 +314,7 @@ class Triangulator(nn.Module):
                     for invalid_id in invalid_ids:
                         reconstruction.deregister_image(invalid_id)
                         
-            return BA_cameras_PT3D, extrinsics, intrinsics, points3D, points3D_rgb, reconstruction, valid_frame_mask
+            return extrinsics, intrinsics, points3D, points3D_rgb, reconstruction, valid_frame_mask
 
 
     def triangulate_tracks_and_BA(
