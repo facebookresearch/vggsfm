@@ -12,7 +12,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
-from accelerate.utils import set_seed as accelerate_set_seed, PrecisionType
+from accelerate.utils import set_seed as accelerate_set_seed
 
 
 import torch
@@ -20,13 +20,143 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
 import os
 import cv2
+import random
 import struct
 
 from tqdm import tqdm
-from .metric import closed_form_inverse
+from .metric import closed_form_inverse, closed_form_inverse_OpenCV
+
+
+from scipy.spatial.transform import Rotation as sciR
+
+from minipytorch3d.cameras import CamerasBase, PerspectiveCameras
+
+
+def average_camera_prediction(camera_predictor, reshaped_image, batch_size, repeat_times = 5, query_indices=None):
+    # Use different frames as query for camera prediction
+    # since camera_predictor is super fast,
+    # this is almost a free-lunch
+    
+    # Ensure function is only used for inference with batch_size 1
+    assert batch_size == 1, "This function is designed for inference with batch_size=1."
+    
+    # Determine the number of frames in the input image
+    num_frames = len(reshaped_image)
+    device = reshaped_image.device
+
+    if query_indices is None:
+        # Adjust repeat_times if there are fewer frames than requested repeats
+        repeat_times = min(repeat_times, num_frames)
+    
+        # Randomly select query indices, ensuring the first frame is always included
+        query_indices = random.sample(range(num_frames), repeat_times)
+        if 0 not in query_indices:
+            query_indices.insert(0, 0)
+
+    # Initialize lists to store predictions
+    rotation_matrices = []
+    translations = []
+    focal_lengths = []
+
+    for query_index in query_indices: 
+        # Create a new order to place the query frame at the first position
+        new_order = calculate_index_mappings(query_index, num_frames, device=device)
+        reshaped_image_ordered = switch_tensor_order([reshaped_image], new_order, dim=0)[0]
+        
+        # Predict camera parameters using the reordered image
+        # NOTE the output has been in OPENCV format instead of PyTorch3D
+        pred_cameras = camera_predictor(reshaped_image_ordered, batch_size=batch_size)["pred_cameras"]
+
+        R = pred_cameras.R
+        abs_T = pred_cameras.T
+        
+        extrinsics_4x4 = torch.eye(4, 4).to(R.dtype).to(R.device)
+        extrinsics_4x4 = extrinsics_4x4[None].repeat(len(R), 1, 1)
+
+        extrinsics_4x4[:, :3, :3] = R.clone()
+        extrinsics_4x4[:, :3, 3] = abs_T.clone()
+
+        # Get rotation and focal length from predictions
+        extrinsics_4x4, focal_length = switch_tensor_order(
+            [extrinsics_4x4, 
+             pred_cameras.focal_length], 
+            new_order, 
+            dim=0
+        )
+
+        rel_transform = closed_form_inverse_OpenCV(extrinsics_4x4[0:1])
+        rel_transform = rel_transform.expand(len(extrinsics_4x4), -1, -1)
+
+        # relative to the first camera
+        # NOTE it is extrinsics_4x4 x rel_transform instead of rel_transform x extrinsics_4x4
+        # this is different in opencv / pytorch3d convention
+        extrinsics_4x4 = torch.bmm(extrinsics_4x4, rel_transform)
+
+        R = extrinsics_4x4[:, :3, :3].clone()
+        abs_T = extrinsics_4x4[:, :3, 3].clone()
+
+        # Collect the relative rotation and translation matrices
+        rotation_matrices.append(R[None])
+        translations.append(abs_T[None])
+        focal_lengths.append(focal_length[None])
+
+    # Concatenate the predictions across sampled frames
+    rotation_matrices = torch.concat(rotation_matrices)
+    translations = torch.concat(translations)
+    focal_lengths = torch.concat(focal_lengths)
+
+    # Average the rotation matrices using a helper function
+    avg_rotation_matrices = average_batch_rotation_matrices(rotation_matrices.cpu().numpy())
+    avg_rotation_matrices = torch.from_numpy(avg_rotation_matrices).to(device)
+    
+    # Compute the average translation and focal length
+    avg_translation = translations.mean(0)
+    avg_focal_length = focal_lengths.mean(0)
+    
+    # Create and return the averaged camera prediction
+    avg_predicted_camera = PerspectiveCameras(
+        focal_length=avg_focal_length, 
+        R=avg_rotation_matrices, 
+        T=avg_translation, 
+        device=device
+    )
+
+    return avg_predicted_camera
+
+
+def average_batch_rotation_matrices(batch_rotation_matrices):
+    """
+    Average a batch of rotation matrices across the batch dimension.
+
+    :param batch_rotation_matrices: Array of shape (B, N, 3, 3) containing rotation matrices.
+    :return: Averaged rotation matrices of shape (N, 3, 3).
+    """
+    B, N, _, _ = batch_rotation_matrices.shape
+    
+    # Reshape batch matrices to a single array for vectorized operations
+    reshaped_matrices = batch_rotation_matrices.reshape(B * N, 3, 3)
+    
+    # Convert matrices to quaternions using vectorized operation
+    quaternions = sciR.from_matrix(reshaped_matrices).as_quat()
+    
+    # Reshape quaternions to (B, N, 4) for easier averaging
+    quaternions = quaternions.reshape(B, N, 4)
+    
+    # Compute the mean quaternion for each set of N matrices
+    mean_quaternions = np.mean(quaternions, axis=0)
+    
+    # import pdb;pdb.set_trace()
+    # Normalize the resulting quaternions
+    mean_quaternions /= np.linalg.norm(mean_quaternions, axis=1, keepdims=True)
+    
+
+    # Convert back to rotation matrices using vectorized operation
+    average_rotation_matrices = sciR.from_quat(mean_quaternions).as_matrix()
+    
+    return average_rotation_matrices
+
 
 
 

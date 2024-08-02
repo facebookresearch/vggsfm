@@ -25,7 +25,7 @@ conda install pytorch3d -c pytorch3d
 
 # Install pip packages
 pip install hydra-core --upgrade
-pip install omegaconf opencv-python einops visdom tqdm
+pip install omegaconf opencv-python einops visdom tqdm scipy
 pip install accelerate==0.24.0
 
 # Install LightGlue

@@ -30,6 +30,7 @@ max_query_pts: 2048
 
 dense_depth: False
 
+avg_camera: False
 shared_camera: False
 
 SCENE_DIR: examples/kitchen

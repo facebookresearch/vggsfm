@@ -42,6 +42,7 @@ from vggsfm.utils.utils import (
     switch_tensor_order,
     visual_query_points,
     create_depth_map_visual,
+    average_camera_prediction,
     create_video_with_reprojections,
 )
 
@@ -333,9 +334,12 @@ def run_one_scene(model, images, masks=None, crop_params=None, query_frame_num=3
         pred_track, pred_vis, width, height, tracks_score=pred_score, max_error=cfg.fmat_thres, loopresidual=True
     )
 
-    pose_predictions = camera_predictor(reshaped_image, batch_size=batch_num)
+    if cfg.avg_camera:
+        pred_cameras = average_camera_prediction(camera_predictor, reshaped_image, batch_num, 
+                                                 query_indices=query_frame_indexes)
+    else:
+        pred_cameras = camera_predictor(reshaped_image, batch_size=batch_num)["pred_cameras"]
 
-    pred_cameras = pose_predictions["pred_cameras"]
 
     # Conduct Triangulation and Bundle Adjustment
     (
