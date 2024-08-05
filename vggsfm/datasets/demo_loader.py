@@ -46,10 +46,7 @@ class DemoLoader(Dataset):
         normalize_cameras=True,
         sort_by_filename=True,
         load_gt=False,
-        cfg=None,
     ):
-        self.cfg = cfg
-
         self.sequences = {}
 
         if SCENE_DIR == None:
@@ -313,11 +310,14 @@ class DemoLoader(Dataset):
             raise ValueError("color aug should not happen for Sequence")
 
         batch["image"] = images.clamp(0, 1)
-
+        
+        batch["scene_dir"] = os.path.dirname(os.path.dirname(image_paths[0]))
+        
         if self.have_mask:
             batch["masks"] = masks.clamp(0, 1)
         else:
             batch["masks"] = None
+
 
         if return_path:
             return batch, image_paths

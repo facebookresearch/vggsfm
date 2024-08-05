@@ -126,6 +126,12 @@ def average_camera_prediction(camera_predictor, reshaped_image, batch_size, repe
     return avg_predicted_camera
 
 
+def seed_all_random_engines(seed: int) -> None:
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
+
+
 def average_batch_rotation_matrices(batch_rotation_matrices):
     """
     Average a batch of rotation matrices across the batch dimension.
@@ -239,6 +245,42 @@ def generate_rank_by_interval(N, k):
     return result
 
 
+def generate_rank_by_dino(reshaped_image, camera_predictor, query_frame_num, image_size=336):
+    # Downsample image to image_size x image_size
+    # because we found it is unnecessary to use high resolution
+    rgbs = F.interpolate(reshaped_image, (image_size, image_size), mode="bilinear", align_corners=True)
+    rgbs = camera_predictor._resnet_normalize_image(rgbs)
+
+    # Get the image features (patch level)
+    frame_feat = camera_predictor.backbone(rgbs, is_training=True)
+    frame_feat = frame_feat["x_norm_patchtokens"]
+    frame_feat_norm = F.normalize(frame_feat, p=2, dim=1)
+
+    # Compute the similiarty matrix
+    frame_feat_norm = frame_feat_norm.permute(1, 0, 2)
+    similarity_matrix = torch.bmm(frame_feat_norm, frame_feat_norm.transpose(-1, -2))
+    similarity_matrix = similarity_matrix.mean(dim=0)
+    distance_matrix = 100 - similarity_matrix.clone()
+
+    # Ignore self-pairing
+    similarity_matrix.fill_diagonal_(-100)
+
+    similarity_sum = similarity_matrix.sum(dim=1)
+
+    # Find the most common frame
+    most_common_frame_index = torch.argmax(similarity_sum).item()
+
+    # Conduct FPS sampling
+    # Starting from the most_common_frame_index,
+    # try to find the farthest frame,
+    # then the farthest to the last found frame
+    # (frames are not allowed to be found twice)
+    fps_idx = farthest_point_sampling(distance_matrix, query_frame_num, most_common_frame_index)
+
+    return fps_idx
+
+
+
 def visual_query_points(images, query_index, query_points, save_name="image_cv2.png"):
     """
     Processes an image by converting it to BGR color space, drawing circles at specified points,
@@ -344,11 +386,10 @@ def filter_invisible_reprojections(uvs_int, depths):
     return mask
 
 
-def create_video_with_reprojections(output_path, fname_prefix, video_size, reconstruction, 
-                                    image_paths, 
+def create_video_with_reprojections(output_path, fname_prefix, video_size, 
+                                    reconstruction, image_paths, 
                                     sparse_depth, sparse_point,
                                     draw_radius=3, cmap = "gist_rainbow", fps=1, color_mode="dis_to_center"):
-    import matplotlib
     print("Generating reprojection video")
     
     video_size_rev = video_size[::-1]
@@ -423,9 +464,7 @@ def create_video_with_reprojections(output_path, fname_prefix, video_size, recon
 
 
 
-def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
-    import matplotlib
-
+def create_depth_map_visual(depth_map, raw_img, output_filename):
     # Normalize the depth map to the range 0-255
     depth_map_visual = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min()) * 255.0
     depth_map_visual = depth_map_visual.astype(np.uint8)
@@ -443,13 +482,12 @@ def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
     combined_result = cv2.hconcat([raw_img, split_region, depth_map_visual])
 
     # Save the result to a file
-    output_filename = outdir + f"/depth_{os.path.basename(img_fname)}.png"
     cv2.imwrite(output_filename, combined_result)
 
     return output_filename
 
 
-def extract_dense_depth_maps_and_save(depth_dir, image_paths, device, cfg):
+def extract_dense_depth_maps_and_save(depth_model, depth_dir, image_paths):
     """
     Extract dense depth maps from a list of image paths and save them to a specified directory.
     """
@@ -463,16 +501,6 @@ def extract_dense_depth_maps_and_save(depth_dir, image_paths, device, cfg):
     
     os.makedirs(depth_dir, exist_ok=True)
 
-    # Build DepthAnythingV2 model
-    model_config = {"encoder": "vitl", "features": 256, "out_channels": [256, 512, 1024, 1024]}
-    depth_model = DepthAnythingV2(**model_config)
-    _DEPTH_ANYTHING_V2_URL = (
-        "https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth"
-    )
-    checkpoint = torch.hub.load_state_dict_from_url(_DEPTH_ANYTHING_V2_URL)
-    depth_model.load_state_dict(checkpoint)
-    depth_model = depth_model.to(device).eval()
-
     for idx in tqdm(range(len(image_paths)), desc="Predicting monocular depth maps"):
         img_fname = image_paths[idx]
         raw_img = cv2.imread(img_fname)
@@ -481,13 +509,16 @@ def extract_dense_depth_maps_and_save(depth_dir, image_paths, device, cfg):
             raw_img, min(1024, max(raw_img.shape[:2]))
         )  # HxW raw depth_map map in numpy
 
-        if cfg.visual_depths:
-            create_depth_map_visual(disp_map, raw_img, img_fname, depth_dir)
-        write_array(disp_map, img_fname.replace("images", "depths") + ".bin")
+        out_fname = os.path.join(depth_dir, os.path.basename(img_fname))
+        
+        name_wo_extension = os.path.splitext(out_fname)[0]
+        out_fname_with_bin = name_wo_extension + ".bin"
+        write_array(disp_map, out_fname_with_bin)
+        
     print("Monocular depth maps complete. Depth alignment to be conducted.")
 
 
-def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg):
+def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, image_dir_prefix, visual_dense_point_cloud=False):
     # For dense depth estimation
     from sklearn.linear_model import RANSACRegressor
     from sklearn.linear_model import LinearRegression
@@ -503,7 +534,12 @@ def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg
 
     for img_name in tqdm(sparse_depth, desc="Load monocular depth and Align"):
         sparse_uvd = np.array(sparse_depth[img_name])
-        disp_map = read_array(os.path.join(depth_dir, img_name + ".bin"))
+        
+        out_fname = os.path.join(depth_dir, os.path.basename(img_name))
+        name_wo_extension = os.path.splitext(out_fname)[0]
+        out_fname_with_bin = name_wo_extension + ".bin"
+
+        disp_map = read_array(out_fname_with_bin)
 
         ww, hh = disp_map.shape
         # Filter out the projections outside the image
@@ -558,9 +594,10 @@ def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg
         depth_map[depth_map == np.inf] = 0
         depth_map = depth_map.astype(np.float32)
 
-        write_array(depth_map, os.path.join(depth_dir, img_name) + ".bin")
 
-        if cfg.visual_dense_point_cloud:
+        write_array(depth_map, out_fname_with_bin)
+
+        if visual_dense_point_cloud:
             # TODO: remove the dirty codes here
             pyimg = reconstruction.images[fname_to_id[img_name]]
             pycam = reconstruction.cameras[pyimg.camera_id]
@@ -585,7 +622,7 @@ def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg
             unproject_points_withz = unproject_points_homo * depth_values.reshape(-1, 1)
             unproject_points_world = pyimg.cam_from_world.inverse() * unproject_points_withz
             
-            bgr = cv2.imread(os.path.join(cfg.SCENE_DIR, "images", img_name))
+            bgr = cv2.imread(os.path.join(image_dir_prefix, img_name))
             
             rgb_image = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
             rgb_image = rgb_image / 255
@@ -594,7 +631,7 @@ def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg
                 
             unproj_dense_points3D[img_name] = np.array([unproject_points_world, rgb])
     
-    if not cfg.visual_dense_point_cloud:
+    if not visual_dense_point_cloud:
         unproj_dense_points3D = None
         
     return unproj_dense_points3D
