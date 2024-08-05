@@ -423,10 +423,11 @@ class VGGSfMRunner:
                 pycamera.width = real_image_size[0]
                 pycamera.height = real_image_size[1]
 
+            resize_ratio = resize_ratio.item()
             if self.cfg.shift_point2d_to_original_res:
                 top_left = crop_params[0, pyimageid][-4:-2].abs().cpu().numpy()
                 for point2D in pyimage.points2D: 
-                    point2D.xy = (point2D.xy - top_left) * resize_ratio.item()
+                    point2D.xy = (point2D.xy - top_left) * resize_ratio
 
             if self.cfg.shared_camera:
                 # if shared_camera, all images share the same camera
