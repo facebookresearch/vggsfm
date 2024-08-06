@@ -44,7 +44,9 @@ def _define_control_points(x, weight, storage_opts=None):
     """
     storage_opts = storage_opts or {}
     x_mean = oputil.wmean(x, weight)
-    c_world = F.pad(torch.eye(3, **storage_opts), (0, 0, 0, 1), value=0.0).expand_as(x[:, :4, :])
+    c_world = F.pad(
+        torch.eye(3, **storage_opts), (0, 0, 0, 1), value=0.0
+    ).expand_as(x[:, :4, :])
     return c_world + x_mean
 
 
@@ -84,8 +86,12 @@ def _build_M(y, alphas, weight):
 
     M = torch.cat(
         (
-            lm_alphas(prepad(prepad(-y[:, :, 0, None, None], 0.0), 1.0)),  # u constraints
-            lm_alphas(prepad(prepad(-y[:, :, 1, None, None], 1.0), 0.0)),  # v constraints
+            lm_alphas(
+                prepad(prepad(-y[:, :, 0, None, None], 0.0), 1.0)
+            ),  # u constraints
+            lm_alphas(
+                prepad(prepad(-y[:, :, 1, None, None], 1.0), 0.0)
+            ),  # v constraints
         ),
         dim=-1,
     ).reshape(bs, -1, 12)
@@ -138,7 +144,9 @@ def _algebraic_error(x_w_rotated, x_cam, weight):
     return oputil.wmean(dist, weight)[:, 0, 0]
 
 
-def _compute_norm_sign_scaling_factor(c_cam, alphas, x_world, y, weight, eps=1e-9):
+def _compute_norm_sign_scaling_factor(
+    c_cam, alphas, x_world, y, weight, eps=1e-9
+):
     """Given a solution, adjusts the scale and flip
     Args:
         c_cam: control points in camera coordinates
@@ -152,12 +160,18 @@ def _compute_norm_sign_scaling_factor(c_cam, alphas, x_world, y, weight, eps=1e-
     # position of reference points in camera coordinates
     x_cam = torch.matmul(alphas, c_cam)
 
-    x_cam = x_cam * (1.0 - 2.0 * (oputil.wmean(x_cam[..., 2:], weight) < 0).float())
+    x_cam = x_cam * (
+        1.0 - 2.0 * (oputil.wmean(x_cam[..., 2:], weight) < 0).float()
+    )
     if torch.any(x_cam[..., 2:] < -eps):
-        neg_rate = oputil.wmean((x_cam[..., 2:] < 0).float(), weight, dim=(0, 1)).item()
+        neg_rate = oputil.wmean(
+            (x_cam[..., 2:] < 0).float(), weight, dim=(0, 1)
+        ).item()
         warnings.warn("\nEPnP: %2.2f%% points have z<0." % (neg_rate * 100.0))
 
-    R, T, s = points_alignment.corresponding_points_alignment(x_world, x_cam, weight, estimate_scale=True)
+    R, T, s = points_alignment.corresponding_points_alignment(
+        x_world, x_cam, weight, estimate_scale=True
+    )
     s = s.clamp(eps)
     x_cam = x_cam / s[:, None, None]
     T = T / s[:, None]
@@ -199,7 +213,9 @@ def _kernel_vec_distances(v):
     dv = _gen_pairs(v, dim=-3, reducer=lambda a, b: a - b)  # B x 6 x 3 x D
 
     # we should take dot-product of all (i,j), i < j, with coeff 2
-    rows_2ij = 2.0 * _gen_pairs(dv, dim=-1, reducer=lambda a, b: (a * b).sum(dim=-2))
+    rows_2ij = 2.0 * _gen_pairs(
+        dv, dim=-1, reducer=lambda a, b: (a * b).sum(dim=-2)
+    )
     # this should produce B x 6 x (D choose 2) tensor
 
     # we should take dot-product of all (i,i)
@@ -219,7 +235,9 @@ def _solve_lstsq_subcols(rhs, lhs, lhs_col_idx):
     Returns:
         a least-squares solution for lhs * X = rhs
     """
-    lhs = lhs.index_select(-1, torch.tensor(lhs_col_idx, device=lhs.device).long())
+    lhs = lhs.index_select(
+        -1, torch.tensor(lhs_col_idx, device=lhs.device).long()
+    )
     return torch.matmul(torch.pinverse(lhs), rhs[:, :, None])
 
 
@@ -264,9 +282,13 @@ def _find_null_space_coords_2(kernel_dsts, cw_dst):
     beta = _solve_lstsq_subcols(cw_dst, kernel_dsts, [0, 4, 1])
 
     coord_0 = (beta[:, :1, :].abs() ** 0.5) * _binary_sign(beta[:, 1:2, :])
-    coord_1 = (beta[:, 2:3, :].abs() ** 0.5) * ((beta[:, :1, :] >= 0) == (beta[:, 2:3, :] >= 0)).float()
+    coord_1 = (beta[:, 2:3, :].abs() ** 0.5) * (
+        (beta[:, :1, :] >= 0) == (beta[:, 2:3, :] >= 0)
+    ).float()
 
-    return torch.cat((coord_0, coord_1, torch.zeros_like(beta[:, :2, :])), dim=1)
+    return torch.cat(
+        (coord_0, coord_1, torch.zeros_like(beta[:, :2, :])), dim=1
+    )
 
 
 def _find_null_space_coords_3(kernel_dsts, cw_dst, eps=1e-9):
@@ -286,10 +308,14 @@ def _find_null_space_coords_3(kernel_dsts, cw_dst, eps=1e-9):
     beta = _solve_lstsq_subcols(cw_dst, kernel_dsts, [0, 4, 1, 5, 7])
 
     coord_0 = (beta[:, :1, :].abs() ** 0.5) * _binary_sign(beta[:, 1:2, :])
-    coord_1 = (beta[:, 2:3, :].abs() ** 0.5) * ((beta[:, :1, :] >= 0) == (beta[:, 2:3, :] >= 0)).float()
+    coord_1 = (beta[:, 2:3, :].abs() ** 0.5) * (
+        (beta[:, :1, :] >= 0) == (beta[:, 2:3, :] >= 0)
+    ).float()
     coord_2 = beta[:, 3:4, :] / torch.clamp(coord_0[:, :1, :], eps)
 
-    return torch.cat((coord_0, coord_1, coord_2, torch.zeros_like(beta[:, :1, :])), dim=1)
+    return torch.cat(
+        (coord_0, coord_1, coord_2, torch.zeros_like(beta[:, :1, :])), dim=1
+    )
 
 
 def efficient_pnp(
@@ -354,7 +380,9 @@ def efficient_pnp(
     # TODO: more stable when initialised with the center and eigenvectors!
     weights = masks
 
-    c_world = _define_control_points(x.detach(), weights, storage_opts={"dtype": x.dtype, "device": x.device})
+    c_world = _define_control_points(
+        x.detach(), weights, storage_opts={"dtype": x.dtype, "device": x.device}
+    )
 
     # find the linear combination of the control points to represent the 3d points
     alphas = _compute_alphas(x, c_world)
@@ -374,20 +402,36 @@ def efficient_pnp(
         if skip_quadratic_eq
         else [
             fnsc(kernel_dsts, c_world_distances)
-            for fnsc in [_find_null_space_coords_1, _find_null_space_coords_2, _find_null_space_coords_3]
+            for fnsc in [
+                _find_null_space_coords_1,
+                _find_null_space_coords_2,
+                _find_null_space_coords_3,
+            ]
         ]
     )
 
-    c_cam_variants = [kernel] + [torch.matmul(kernel, beta[:, None, :, :]) for beta in betas]
+    c_cam_variants = [kernel] + [
+        torch.matmul(kernel, beta[:, None, :, :]) for beta in betas
+    ]
 
-    solutions = [_compute_norm_sign_scaling_factor(c_cam[..., 0], alphas, x, y, weights) for c_cam in c_cam_variants]
+    solutions = [
+        _compute_norm_sign_scaling_factor(c_cam[..., 0], alphas, x, y, weights)
+        for c_cam in c_cam_variants
+    ]
 
-    sol_zipped = EpnpSolution(*(torch.stack(list(col)) for col in zip(*solutions)))
+    sol_zipped = EpnpSolution(
+        *(torch.stack(list(col)) for col in zip(*solutions))
+    )
     best = torch.argmin(sol_zipped.err_2d, dim=0)
 
     def gather1d(source, idx):
         # reduces the dim=1 by picking the slices in a 1D tensor idx
         # in other words, it is batched index_select.
-        return source.gather(0, idx.reshape(1, -1, *([1] * (len(source.shape) - 2))).expand_as(source[:1]))[0]
+        return source.gather(
+            0,
+            idx.reshape(1, -1, *([1] * (len(source.shape) - 2))).expand_as(
+                source[:1]
+            ),
+        )[0]
 
     return EpnpSolution(*[gather1d(sol_col, best) for sol_col in sol_zipped])

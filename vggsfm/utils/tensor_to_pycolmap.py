@@ -60,7 +60,9 @@ def batch_matrix_to_pycolmap(
 
     # Only add 3D points that have sufficient 2D points
     for vidx in valid_idx:
-        reconstruction.add_point3D(points3d[vidx], pycolmap.Track(), np.zeros(3))
+        reconstruction.add_point3D(
+            points3d[vidx], pycolmap.Track(), np.zeros(3)
+        )
 
     num_points3D = len(valid_idx)
 
@@ -71,14 +73,33 @@ def batch_matrix_to_pycolmap(
 
         if camera is None or (not shared_camera):
             if camera_type == "SIMPLE_RADIAL":
-                pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2], 0])
+                pycolmap_intri = np.array(
+                    [
+                        intrinsics[fidx][0, 0],
+                        intrinsics[fidx][0, 2],
+                        intrinsics[fidx][1, 2],
+                        0,
+                    ]
+                )
             elif camera_type == "SIMPLE_PINHOLE":
-                pycolmap_intri = np.array([intrinsics[fidx][0, 0], intrinsics[fidx][0, 2], intrinsics[fidx][1, 2]])
+                pycolmap_intri = np.array(
+                    [
+                        intrinsics[fidx][0, 0],
+                        intrinsics[fidx][0, 2],
+                        intrinsics[fidx][1, 2],
+                    ]
+                )
             else:
-                raise ValueError(f"Camera type {camera_type} is not supported yet")
+                raise ValueError(
+                    f"Camera type {camera_type} is not supported yet"
+                )
 
             camera = pycolmap.Camera(
-                model=camera_type, width=image_size[0], height=image_size[1], params=pycolmap_intri, camera_id=fidx
+                model=camera_type,
+                width=image_size[0],
+                height=image_size[1],
+                params=pycolmap_intri,
+                camera_id=fidx,
             )
 
             # add camera
@@ -86,9 +107,15 @@ def batch_matrix_to_pycolmap(
 
         # set image
         cam_from_world = pycolmap.Rigid3d(
-            pycolmap.Rotation3d(extrinsics[fidx][:3, :3]), extrinsics[fidx][:3, 3]
+            pycolmap.Rotation3d(extrinsics[fidx][:3, :3]),
+            extrinsics[fidx][:3, 3],
         )  # Rot and Trans
-        image = pycolmap.Image(id=fidx, name=f"image_{fidx}", camera_id=camera.camera_id, cam_from_world=cam_from_world)
+        image = pycolmap.Image(
+            id=fidx,
+            name=f"image_{fidx}",
+            camera_id=camera.camera_id,
+            cam_from_world=cam_from_world,
+        )
 
         points2D_list = []
 
@@ -97,13 +124,17 @@ def batch_matrix_to_pycolmap(
         for point3D_id in range(1, num_points3D + 1):
             original_track_idx = valid_idx[point3D_id - 1]
 
-            if (reconstruction.points3D[point3D_id].xyz < max_points3D_val).all():
+            if (
+                reconstruction.points3D[point3D_id].xyz < max_points3D_val
+            ).all():
                 if masks[fidx][original_track_idx]:
                     # It seems we don't need +0.5 for BA
                     point2D_xy = tracks[fidx][original_track_idx]
                     # Please note when adding the Point2D object
                     # It not only requires the 2D xy location, but also the id to 3D point
-                    points2D_list.append(pycolmap.Point2D(point2D_xy, point3D_id))
+                    points2D_list.append(
+                        pycolmap.Point2D(point2D_xy, point3D_id)
+                    )
 
                     # add element
                     track = reconstruction.points3D[point3D_id].track
@@ -148,7 +179,9 @@ def pycolmap_to_batch_matrix(reconstruction, device="cuda"):
         extrinsics.append(matrix)
 
         # Extract and append intrinsics
-        calibration_matrix = reconstruction.cameras[pyimg.camera_id].calibration_matrix()
+        calibration_matrix = reconstruction.cameras[
+            pyimg.camera_id
+        ].calibration_matrix()
         intrinsics.append(calibration_matrix)
 
     # Convert lists to torch tensors

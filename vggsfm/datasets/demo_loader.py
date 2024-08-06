@@ -66,7 +66,7 @@ class DemoLoader(Dataset):
             self.have_mask = True
         else:
             self.have_mask = False
-            
+
         img_filenames = glob.glob(os.path.join(SCENE_DIR, "images/*"))
 
         if self.sort_by_filename:
@@ -78,20 +78,31 @@ class DemoLoader(Dataset):
             """
             We assume the ground truth cameras exist in the format of colmap
             """
-            reconstruction = pycolmap.Reconstruction(os.path.join(SCENE_DIR, "sparse", "0"))
+            reconstruction = pycolmap.Reconstruction(
+                os.path.join(SCENE_DIR, "sparse", "0")
+            )
 
             calib_dict = {}
             for image_id, image in reconstruction.images.items():
-                extrinsic = reconstruction.images[image_id].cam_from_world.matrix
+                extrinsic = reconstruction.images[
+                    image_id
+                ].cam_from_world.matrix
                 camera_id = image.camera_id
-                intrinsic = reconstruction.cameras[camera_id].calibration_matrix()
+                intrinsic = reconstruction.cameras[
+                    camera_id
+                ].calibration_matrix()
 
                 R = torch.from_numpy(extrinsic[:, :3])
                 T = torch.from_numpy(extrinsic[:, 3])
                 fl = torch.from_numpy(intrinsic[[0, 1], [0, 1]])
                 pp = torch.from_numpy(intrinsic[[0, 1], [2, 2]])
 
-                calib_dict[image.name] = {"R": R, "T": T, "focal_length": fl, "principal_point": pp}
+                calib_dict[image.name] = {
+                    "R": R,
+                    "T": T,
+                    "focal_length": fl,
+                    "principal_point": pp,
+                }
 
         for img_name in img_filenames:
             frame_dict = {}
@@ -107,7 +118,12 @@ class DemoLoader(Dataset):
         self.sequence_list = sorted(self.sequences.keys())
 
         if transform is None:
-            self.transform = transforms.Compose([transforms.ToTensor(), transforms.Resize(img_size, antialias=True)])
+            self.transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Resize(img_size, antialias=True),
+                ]
+            )
         else:
             self.transform = transform
 
@@ -127,11 +143,17 @@ class DemoLoader(Dataset):
     def _crop_image(self, image, bbox, white_bg=False):
         if white_bg:
             # Only support PIL Images
-            image_crop = Image.new("RGB", (bbox[2] - bbox[0], bbox[3] - bbox[1]), (255, 255, 255))
+            image_crop = Image.new(
+                "RGB", (bbox[2] - bbox[0], bbox[3] - bbox[1]), (255, 255, 255)
+            )
             image_crop.paste(image, (-bbox[0], -bbox[1]))
         else:
             image_crop = transforms.functional.crop(
-                image, top=bbox[1], left=bbox[0], height=bbox[3] - bbox[1], width=bbox[2] - bbox[0]
+                image,
+                top=bbox[1],
+                left=bbox[0],
+                height=bbox[3] - bbox[1],
+                width=bbox[2] - bbox[0],
             )
         return image_crop
 
@@ -141,7 +163,9 @@ class DemoLoader(Dataset):
         else:
             raise NotImplementedError("Do not train on Sequence.")
 
-    def get_data(self, index=None, sequence_name=None, ids=None, return_path=False):
+    def get_data(
+        self, index=None, sequence_name=None, ids=None, return_path=False
+    ):
         if sequence_name is None:
             sequence_name = self.sequence_list[index]
 
@@ -170,12 +194,12 @@ class DemoLoader(Dataset):
 
             image = Image.open(image_path).convert("RGB")
             images.append(image)
-            
+
             if self.have_mask:
                 mask_path = image_path.replace("images", "masks")
                 mask = Image.open(mask_path).convert("L")
                 masks.append(mask)
-                
+
             image_paths.append(image_path)
 
             if self.load_gt:
@@ -215,30 +239,39 @@ class DemoLoader(Dataset):
             else:
                 bbox = np.array(anno["bbox"])
 
-            crop_paras = calculate_crop_parameters(image, bbox, crop_dim, self.img_size)
+            crop_paras = calculate_crop_parameters(
+                image, bbox, crop_dim, self.img_size
+            )
             crop_parameters.append(crop_paras)
 
             # Crop image by bbox
             image = self._crop_image(image, bbox)
             images_transformed.append(self.transform(image))
 
-
             if self.have_mask:
                 mask = masks[i]
                 mask = self._crop_image(mask, bbox)
                 masks_transformed.append(self.transform(mask))
-                
 
             if self.load_gt:
                 bbox_xywh = torch.FloatTensor(bbox_xyxy_to_xywh(bbox))
 
                 # Cropping images
-                focal_length_cropped, principal_point_cropped = adjust_camera_to_bbox_crop_(
-                    focal_lengths[i], principal_points[i], torch.FloatTensor(image.size), bbox_xywh
+                (
+                    focal_length_cropped,
+                    principal_point_cropped,
+                ) = adjust_camera_to_bbox_crop_(
+                    focal_lengths[i],
+                    principal_points[i],
+                    torch.FloatTensor(image.size),
+                    bbox_xywh,
                 )
 
                 # Resizing images
-                new_focal_length, new_principal_point = adjust_camera_to_image_scale_(
+                (
+                    new_focal_length,
+                    new_principal_point,
+                ) = adjust_camera_to_image_scale_(
                     focal_length_cropped,
                     principal_point_cropped,
                     torch.FloatTensor(image.size),
@@ -250,7 +283,7 @@ class DemoLoader(Dataset):
 
         images = images_transformed
         masks = masks_transformed
-        
+
         if self.load_gt:
             new_fls = torch.stack(new_fls)
             new_pps = torch.stack(new_pps)
@@ -268,13 +301,18 @@ class DemoLoader(Dataset):
             batchT[:, :2] *= -1
 
             cameras = PerspectiveCameras(
-                focal_length=new_fls.float(), principal_point=new_pps.float(), R=batchR.float(), T=batchT.float()
+                focal_length=new_fls.float(),
+                principal_point=new_pps.float(),
+                R=batchR.float(),
+                T=batchT.float(),
             )
 
             if self.normalize_cameras:
                 # Move the cameras so that they stay in a better coordinate
                 # This will not affect the evaluation result
-                normalized_cameras, points = normalize_cameras(cameras, points=None)
+                normalized_cameras, points = normalize_cameras(
+                    cameras, points=None
+                )
 
                 if normalized_cameras == -1:
                     print("Error in normalizing cameras: camera scale was 0")
@@ -302,7 +340,7 @@ class DemoLoader(Dataset):
         # Add images
         if self.transform is not None:
             images = torch.stack(images)
-            
+
             if self.have_mask:
                 masks = torch.stack(masks)
 
@@ -310,14 +348,13 @@ class DemoLoader(Dataset):
             raise ValueError("color aug should not happen for Sequence")
 
         batch["image"] = images.clamp(0, 1)
-        
+
         batch["scene_dir"] = os.path.dirname(os.path.dirname(image_paths[0]))
-        
+
         if self.have_mask:
             batch["masks"] = masks.clamp(0, 1)
         else:
             batch["masks"] = None
-
 
         if return_path:
             return batch, image_paths
@@ -337,6 +374,15 @@ def calculate_crop_parameters(image, bbox, crop_dim, img_size):
     crop_width = 2 * s * (bbox[2] - bbox[0]) / length
     bbox_after = bbox / crop_dim * img_size
     crop_parameters = torch.tensor(
-        [width, height, crop_width, s, bbox_after[0], bbox_after[1], bbox_after[2], bbox_after[3]]
+        [
+            width,
+            height,
+            crop_width,
+            s,
+            bbox_after[0],
+            bbox_after[1],
+            bbox_after[2],
+            bbox_after[3],
+        ]
     ).float()
     return crop_parameters

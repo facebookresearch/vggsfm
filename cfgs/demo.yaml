@@ -30,7 +30,7 @@ max_query_pts: 2048
 
 dense_depth: False
 
-avg_camera: True
+avg_pose: True
 shared_camera: False
 
 SCENE_DIR: examples/kitchen
@@ -50,6 +50,12 @@ make_reproj_video: False
 visual_tracks: False
 visual_query_points: False
 visual_dense_point_cloud: False
+
+
+
+
+
+
 
 MODEL:
     _target_: vggsfm.models.VGGSfM

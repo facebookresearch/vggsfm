@@ -18,7 +18,11 @@ import math
 
 
 def triangulate_multi_view_point_batched(
-    cams_from_world, points, mask=None, compute_tri_angle=False, check_cheirality=False
+    cams_from_world,
+    points,
+    mask=None,
+    compute_tri_angle=False,
+    check_cheirality=False,
 ):
     # cams_from_world: BxNx3x4
     # points: BxNx2
@@ -30,7 +34,17 @@ def triangulate_multi_view_point_batched(
 
     # Convert points to homogeneous coordinates and normalize
     points_homo = torch.cat(
-        (points, torch.ones(B, N, 1, dtype=cams_from_world.dtype, device=cams_from_world.device)), dim=-1
+        (
+            points,
+            torch.ones(
+                B,
+                N,
+                1,
+                dtype=cams_from_world.dtype,
+                device=cams_from_world.device,
+            ),
+        ),
+        dim=-1,
     )
     points_norm = points_homo / torch.norm(points_homo, dim=-1, keepdim=True)
 
@@ -38,7 +52,9 @@ def triangulate_multi_view_point_batched(
     outer_products = torch.einsum("bni,bnj->bnij", points_norm, points_norm)
 
     # Compute the term for each camera-point pair
-    terms = cams_from_world - torch.einsum("bnij,bnik->bnjk", outer_products, cams_from_world)
+    terms = cams_from_world - torch.einsum(
+        "bnij,bnik->bnjk", outer_products, cams_from_world
+    )
 
     if mask is not None:
         terms = terms * mask[:, :, None, None]
@@ -76,24 +92,34 @@ def triangulate_multi_view_point_batched(
     first_eigenvector = eigenvectors[:, :, 0]
 
     # Perform homogeneous normalization: divide by the last component
-    first_eigenvector_hnormalized = first_eigenvector / first_eigenvector[..., -1:]
+    first_eigenvector_hnormalized = (
+        first_eigenvector / first_eigenvector[..., -1:]
+    )
 
     # Return the first eigenvector normalized to make its first component 1
     triangulated_points = first_eigenvector_hnormalized[..., :-1]
 
     if check_cheirality:
         points3D_homogeneous = torch.cat(
-            [triangulated_points, torch.ones_like(triangulated_points[..., 0:1])], dim=1
+            [
+                triangulated_points,
+                torch.ones_like(triangulated_points[..., 0:1]),
+            ],
+            dim=1,
         )  # Nx4
 
         points3D_homogeneous = points3D_homogeneous.unsqueeze(1).unsqueeze(-1)
-        points_cam = torch.matmul(cams_from_world, points3D_homogeneous).squeeze(-1)
+        points_cam = torch.matmul(
+            cams_from_world, points3D_homogeneous
+        ).squeeze(-1)
 
         invalid_cheirality_mask = points_cam[..., -1] <= 0
         invalid_cheirality_mask = invalid_cheirality_mask.any(dim=1)
 
     if compute_tri_angle:
-        triangles = calculate_triangulation_angle_batched(cams_from_world, triangulated_points)
+        triangles = calculate_triangulation_angle_batched(
+            cams_from_world, triangulated_points
+        )
 
     if check_cheirality and compute_tri_angle:
         return triangulated_points, triangles, invalid_cheirality_mask
@@ -141,7 +167,9 @@ def filter_all_points3D(
     inlier = reproj_error <= (max_reproj_error**2)
     valid_track_length = inlier.sum(dim=0)
 
-    valid_track_mask = valid_track_length >= 2  # at least two frames to form a track
+    valid_track_mask = (
+        valid_track_length >= 2
+    )  # at least two frames to form a track
 
     if hard_max > 0:
         valid_value_mask = (points3D.abs() <= hard_max).all(-1)
@@ -155,7 +183,9 @@ def filter_all_points3D(
 
         B = len(extrinsics)
 
-        triangles = calculate_triangulation_angle_exhaustive(extrinsics, points3D)
+        triangles = calculate_triangulation_angle_exhaustive(
+            extrinsics, points3D
+        )
 
         # only when both the pair are within reporjection thres,
         # the triangles can be counted
@@ -163,7 +193,9 @@ def filter_all_points3D(
         inlier_col = inlier[None].expand(B, -1, -1).reshape(B * B, -1)
         inlier_grid = torch.logical_and(inlier_row, inlier_col)
 
-        triangles_valid_mask = torch.logical_and((triangles >= min_tri_angle), inlier_grid)
+        triangles_valid_mask = torch.logical_and(
+            (triangles >= min_tri_angle), inlier_grid
+        )
 
         # if any pair meets the standard, it is okay
         triangles_valid_any = triangles_valid_mask.sum(dim=0) > 0
@@ -171,7 +203,9 @@ def filter_all_points3D(
         triangles_valid_any_full_size = torch.zeros_like(valid_track_mask)
         triangles_valid_any_full_size[valid_track_mask] = triangles_valid_any
 
-        return_mask = torch.logical_and(triangles_valid_any_full_size, valid_track_mask)
+        return_mask = torch.logical_and(
+            triangles_valid_any_full_size, valid_track_mask
+        )
     else:
         return_mask = valid_track_mask
 
@@ -183,7 +217,14 @@ def filter_all_points3D(
     return return_mask
 
 
-def project_3D_points(points3D, extrinsics, intrinsics=None, return_points_cam=False, default=0, only_points_cam=False):
+def project_3D_points(
+    points3D,
+    extrinsics,
+    intrinsics=None,
+    return_points_cam=False,
+    default=0,
+    only_points_cam=False,
+):
     """
     Transforms 3D points to 2D using extrinsic and intrinsic parameters.
     Args:
@@ -196,12 +237,18 @@ def project_3D_points(points3D, extrinsics, intrinsics=None, return_points_cam=F
     with autocast(dtype=torch.double):
         N = points3D.shape[0]  # Number of points
         B = extrinsics.shape[0]  # Batch size, i.e., number of cameras
-        points3D_homogeneous = torch.cat([points3D, torch.ones_like(points3D[..., 0:1])], dim=1)  # Nx4
+        points3D_homogeneous = torch.cat(
+            [points3D, torch.ones_like(points3D[..., 0:1])], dim=1
+        )  # Nx4
         # Reshape for batch processing
-        points3D_homogeneous = points3D_homogeneous.unsqueeze(0).expand(B, -1, -1)  # BxNx4
+        points3D_homogeneous = points3D_homogeneous.unsqueeze(0).expand(
+            B, -1, -1
+        )  # BxNx4
         # Step 1: Apply extrinsic parameters
         # Transform 3D points to camera coordinate system for all cameras
-        points_cam = torch.bmm(extrinsics, points3D_homogeneous.transpose(-1, -2))
+        points_cam = torch.bmm(
+            extrinsics, points3D_homogeneous.transpose(-1, -2)
+        )
 
         if only_points_cam:
             return points_cam
@@ -210,7 +257,9 @@ def project_3D_points(points3D, extrinsics, intrinsics=None, return_points_cam=F
         # Intrinsic multiplication requires a transpose to match dimensions (Bx3x3 * Bx3xN -> Bx3xN)
         points2D_homogeneous = torch.bmm(intrinsics, points_cam)  # Still Bx3xN
         points2D_homogeneous = points2D_homogeneous.transpose(1, 2)  # BxNx3
-        points2D = points2D_homogeneous[..., :2] / points2D_homogeneous[..., 2:3]  # BxNx2
+        points2D = (
+            points2D_homogeneous[..., :2] / points2D_homogeneous[..., 2:3]
+        )  # BxNx2
         # Performs safe division, replacing NaNs with a default value
         points2D[torch.isnan(points2D)] = default
         if return_points_cam:
@@ -218,7 +267,9 @@ def project_3D_points(points3D, extrinsics, intrinsics=None, return_points_cam=F
         return points2D
 
 
-def calculate_normalized_angular_error_batched(point2D, point3D, cam_from_world, to_degree=False):
+def calculate_normalized_angular_error_batched(
+    point2D, point3D, cam_from_world, to_degree=False
+):
     """
     Please note the normalized angular error is different from triangulation angle
     """
@@ -231,13 +282,19 @@ def calculate_normalized_angular_error_batched(point2D, point3D, cam_from_world,
     assert len(cam_from_world) == B
 
     # homogeneous
-    point2D_homo = torch.cat([point2D, torch.ones_like(point2D[..., 0:1])], dim=-1)
-    point3D_homo = torch.cat([point3D, torch.ones_like(point3D[..., 0:1])], dim=-1)
+    point2D_homo = torch.cat(
+        [point2D, torch.ones_like(point2D[..., 0:1])], dim=-1
+    )
+    point3D_homo = torch.cat(
+        [point3D, torch.ones_like(point3D[..., 0:1])], dim=-1
+    )
 
     point3D_homo_tran = point3D_homo.transpose(-1, -2)
 
     ray1 = point2D_homo
-    ray2 = cam_from_world[None].expand(P, -1, -1, -1) @ point3D_homo_tran[:, None].expand(-1, B, -1, -1)
+    ray2 = cam_from_world[None].expand(P, -1, -1, -1) @ point3D_homo_tran[
+        :, None
+    ].expand(-1, B, -1, -1)
 
     ray1 = F.normalize(ray1, dim=-1)
     # PxBxNx3
@@ -283,13 +340,17 @@ def calculate_triangulation_angle_batched(extrinsics, points3D, eps=1e-12):
     ray_length_squared2 = (points3D[:, None] - proj_center2).norm(dim=-1) ** 2
 
     denominator = 2.0 * torch.sqrt(ray_length_squared1 * ray_length_squared2)
-    nominator = ray_length_squared1 + ray_length_squared2 - baseline_length_squared
+    nominator = (
+        ray_length_squared1 + ray_length_squared2 - baseline_length_squared
+    )
     # if denominator is zero, angle is zero
     # so we set nominator and denominator as one
     # acos(1) = 0
     nonvalid = denominator <= eps
     nominator = torch.where(nonvalid, torch.ones_like(nominator), nominator)
-    denominator = torch.where(nonvalid, torch.ones_like(denominator), denominator)
+    denominator = torch.where(
+        nonvalid, torch.ones_like(denominator), denominator
+    )
     cos_angle = nominator / denominator
     cos_angle = torch.clamp(cos_angle, -1.0, 1.0)
     triangles = torch.abs(torch.acos(cos_angle))
@@ -315,32 +376,48 @@ def calculate_triangulation_angle_exhaustive(extrinsics, points3D):
     proj_center1 = proj_center1.reshape(B * B, 3)
     proj_center2 = proj_center2.reshape(B * B, 3)
 
-    triangles = calculate_triangulation_angle(proj_center1, proj_center2, points3D)
+    triangles = calculate_triangulation_angle(
+        proj_center1, proj_center2, points3D
+    )
 
     return triangles
 
 
-def calculate_triangulation_angle(proj_center1, proj_center2, point3D, eps=1e-12):
+def calculate_triangulation_angle(
+    proj_center1, proj_center2, point3D, eps=1e-12
+):
     # proj_center1: Bx3
     # proj_center2: Bx3
     # point3D: Px3
     # returned: (B*B)xP, in degree
 
     # B
-    baseline_length_squared = (proj_center1 - proj_center2).norm(dim=-1) ** 2  # B*(S-1)x1
+    baseline_length_squared = (proj_center1 - proj_center2).norm(
+        dim=-1
+    ) ** 2  # B*(S-1)x1
 
     # BxP
-    ray_length_squared1 = (point3D[None] - proj_center1[:, None]).norm(dim=-1) ** 2
-    ray_length_squared2 = (point3D[None] - proj_center2[:, None]).norm(dim=-1) ** 2
+    ray_length_squared1 = (point3D[None] - proj_center1[:, None]).norm(
+        dim=-1
+    ) ** 2
+    ray_length_squared2 = (point3D[None] - proj_center2[:, None]).norm(
+        dim=-1
+    ) ** 2
 
     denominator = 2.0 * torch.sqrt(ray_length_squared1 * ray_length_squared2)
-    nominator = ray_length_squared1 + ray_length_squared2 - baseline_length_squared.unsqueeze(-1)
+    nominator = (
+        ray_length_squared1
+        + ray_length_squared2
+        - baseline_length_squared.unsqueeze(-1)
+    )
     # if denominator is zero, angle is zero
     # so we set nominator and denominator as one
     # acos(1) = 0
     nonvalid = denominator <= eps
     nominator = torch.where(nonvalid, torch.ones_like(nominator), nominator)
-    denominator = torch.where(nonvalid, torch.ones_like(denominator), denominator)
+    denominator = torch.where(
+        nonvalid, torch.ones_like(denominator), denominator
+    )
     cos_angle = nominator / denominator
     cos_angle = torch.clamp(cos_angle, -1.0, 1.0)
     triangles = torch.abs(torch.acos(cos_angle))
@@ -363,7 +440,9 @@ def create_intri_matrix(focal_length, principal_point):
 
     if len(focal_length.shape) == 2:
         B = focal_length.shape[0]
-        intri_matrix = torch.zeros(B, 3, 3, dtype=focal_length.dtype, device=focal_length.device)
+        intri_matrix = torch.zeros(
+            B, 3, 3, dtype=focal_length.dtype, device=focal_length.device
+        )
         intri_matrix[:, 0, 0] = focal_length[:, 0]
         intri_matrix[:, 1, 1] = focal_length[:, 1]
         intri_matrix[:, 2, 2] = 1.0
@@ -371,7 +450,9 @@ def create_intri_matrix(focal_length, principal_point):
         intri_matrix[:, 1, 2] = principal_point[:, 1]
     else:
         B, S = focal_length.shape[0], focal_length.shape[1]
-        intri_matrix = torch.zeros(B, S, 3, 3, dtype=focal_length.dtype, device=focal_length.device)
+        intri_matrix = torch.zeros(
+            B, S, 3, 3, dtype=focal_length.dtype, device=focal_length.device
+        )
         intri_matrix[:, :, 0, 0] = focal_length[:, :, 0]
         intri_matrix[:, :, 1, 1] = focal_length[:, :, 1]
         intri_matrix[:, :, 2, 2] = 1.0
@@ -403,11 +484,19 @@ def generate_combinations(N):
     return comb_array
 
 
-def local_refinement_tri(points1, extrinsics, min_tri_angle, inlier_mask, sorted_indices, lo_num=50, low_mem=True):
+def local_refinement_tri(
+    points1,
+    extrinsics,
+    min_tri_angle,
+    inlier_mask,
+    sorted_indices,
+    lo_num=50,
+    low_mem=True,
+):
     """
     Local Refinement for triangulation
     """
-    
+
     B, N, _ = points1.shape
     batch_index = torch.arange(B).unsqueeze(-1).expand(-1, lo_num)
 
@@ -427,34 +516,53 @@ def local_refinement_tri(points1, extrinsics, min_tri_angle, inlier_mask, sorted
         all_invalid_che_mask = []
 
         for loidx in range(lo_num):
-            triangulated_points, tri_angles, invalid_che_mask = triangulate_multi_view_point_batched(
-                extrinsics, lo_points1[:, loidx], mask=lo_mask[:, loidx], compute_tri_angle=True, check_cheirality=True
+            (
+                triangulated_points,
+                tri_angles,
+                invalid_che_mask,
+            ) = triangulate_multi_view_point_batched(
+                extrinsics,
+                lo_points1[:, loidx],
+                mask=lo_mask[:, loidx],
+                compute_tri_angle=True,
+                check_cheirality=True,
             )
-            
+
             # Append the outputs to the respective lists
             all_triangulated_points.append(triangulated_points[:, None])
             all_invalid_che_mask.append(invalid_che_mask[:, None])
-            tri_angle_masks = (tri_angles[:, None]  >= min_tri_angle).any(dim=-1)
+            tri_angle_masks = (tri_angles[:, None] >= min_tri_angle).any(dim=-1)
             all_tri_angle_masks.append(tri_angle_masks)
 
         triangulated_points = torch.cat(all_triangulated_points, dim=1)
         tri_angle_masks = torch.cat(all_tri_angle_masks, dim=1)
         invalid_che_mask = torch.cat(all_invalid_che_mask, dim=1)
     else:
-        extrinsics_expand = extrinsics.unsqueeze(1).expand(-1, lo_num, -1, -1, -1)
+        extrinsics_expand = extrinsics.unsqueeze(1).expand(
+            -1, lo_num, -1, -1, -1
+        )
         lo_points1 = lo_points1.reshape(B * lo_num, N, -1)
         lo_mask = lo_mask.reshape(B * lo_num, N)
         lo_extrinsics = extrinsics_expand.reshape(B * lo_num, N, 3, 4)
 
         # triangulate the inliers
-        triangulated_points, tri_angles, invalid_che_mask = triangulate_multi_view_point_batched(
-            lo_extrinsics, lo_points1, mask=lo_mask, compute_tri_angle=True, check_cheirality=True
+        (
+            triangulated_points,
+            tri_angles,
+            invalid_che_mask,
+        ) = triangulate_multi_view_point_batched(
+            lo_extrinsics,
+            lo_points1,
+            mask=lo_mask,
+            compute_tri_angle=True,
+            check_cheirality=True,
         )
 
         triangulated_points = triangulated_points.reshape(B, lo_num, 3)
         # tri_angles = tri_angles.reshape(B, lo_num, -1)
-        tri_angle_masks = (tri_angles.reshape(B, lo_num, -1) >= min_tri_angle).any(dim=-1)
+        tri_angle_masks = (
+            tri_angles.reshape(B, lo_num, -1) >= min_tri_angle
+        ).any(dim=-1)
         invalid_che_mask = invalid_che_mask.reshape(B, lo_num)
 
     return triangulated_points, tri_angle_masks, invalid_che_mask
-

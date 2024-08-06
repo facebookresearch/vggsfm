@@ -102,7 +102,9 @@ class Visualizer:
             assert segm_mask is not None
         if segm_mask is not None:
             coords = tracks[0, query_frame].round().long()
-            segm_mask = segm_mask[0, query_frame][coords[:, 1], coords[:, 0]].long()
+            segm_mask = segm_mask[0, query_frame][
+                coords[:, 1], coords[:, 0]
+            ].long()
 
         video = F.pad(
             video,
@@ -127,21 +129,22 @@ class Visualizer:
             compensate_for_camera_motion=compensate_for_camera_motion,
         )
         if save_video:
-            self.save_video(res_video, filename=filename, writer=writer, step=step)
+            self.save_video(
+                res_video, filename=filename, writer=writer, step=step
+            )
         return res_video
 
     def save_video(self, video, filename, writer=None, step=0):
         if writer is not None:
             writer.add_video(
-                filename,
-                video.to(torch.uint8),
-                global_step=step,
-                fps=self.fps,
+                filename, video.to(torch.uint8), global_step=step, fps=self.fps
             )
         else:
             os.makedirs(self.save_dir, exist_ok=True)
             wide_list = list(video.unbind(1))
-            wide_list = [wide[0].permute(1, 2, 0).cpu().numpy() for wide in wide_list]
+            wide_list = [
+                wide[0].permute(1, 2, 0).cpu().numpy() for wide in wide_list
+            ]
 
             # Prepare the video file path
             save_path = os.path.join(self.save_dir, f"{filename}.mp4")
@@ -172,7 +175,9 @@ class Visualizer:
 
         assert D == 2
         assert C == 3
-        video = video[0].permute(0, 2, 3, 1).byte().detach().cpu().numpy()  # S, H, W, C
+        video = (
+            video[0].permute(0, 2, 3, 1).byte().detach().cpu().numpy()
+        )  # S, H, W, C
         tracks = tracks[0].long().detach().cpu().numpy()  # S, N, 2
         if gt_tracks is not None:
             gt_tracks = gt_tracks[0].detach().cpu().numpy()
@@ -187,7 +192,9 @@ class Visualizer:
         if self.mode == "optical_flow":
             import flow_vis
 
-            vector_colors = flow_vis.flow_to_color(tracks - tracks[query_frame][None])
+            vector_colors = flow_vis.flow_to_color(
+                tracks - tracks[query_frame][None]
+            )
         elif segm_mask is None:
             if self.mode == "rainbow":
                 y_min, y_max = (
@@ -224,14 +231,18 @@ class Visualizer:
                 segm_mask = segm_mask.cpu()
                 color = np.zeros((segm_mask.shape[0], 3), dtype=np.float32)
                 color[segm_mask > 0] = np.array(self.color_map(1.0)[:3]) * 255.0
-                color[segm_mask <= 0] = np.array(self.color_map(0.0)[:3]) * 255.0
+                color[segm_mask <= 0] = (
+                    np.array(self.color_map(0.0)[:3]) * 255.0
+                )
                 vector_colors = np.repeat(color[None], T, axis=0)
 
         #  draw tracks
         if self.tracks_leave_trace != 0:
             for t in range(query_frame + 1, T):
                 first_ind = (
-                    max(0, t - self.tracks_leave_trace) if self.tracks_leave_trace >= 0 else 0
+                    max(0, t - self.tracks_leave_trace)
+                    if self.tracks_leave_trace >= 0
+                    else 0
                 )
                 curr_tracks = tracks[first_ind : t + 1]
                 curr_colors = vector_colors[first_ind : t + 1]
@@ -246,12 +257,12 @@ class Visualizer:
                     curr_colors = curr_colors[:, segm_mask > 0]
 
                 res_video[t] = self._draw_pred_tracks(
-                    res_video[t],
-                    curr_tracks,
-                    curr_colors,
+                    res_video[t], curr_tracks, curr_colors
                 )
                 if gt_tracks is not None:
-                    res_video[t] = self._draw_gt_tracks(res_video[t], gt_tracks[first_ind : t + 1])
+                    res_video[t] = self._draw_gt_tracks(
+                        res_video[t], gt_tracks[first_ind : t + 1]
+                    )
 
         #  draw points
         for t in range(query_frame, T):
@@ -277,14 +288,18 @@ class Visualizer:
         #  construct the final rgb sequence
         if self.show_first_frame > 0:
             res_video = [res_video[0]] * self.show_first_frame + res_video[1:]
-        return torch.from_numpy(np.stack(res_video)).permute(0, 3, 1, 2)[None].byte()
+        return (
+            torch.from_numpy(np.stack(res_video))
+            .permute(0, 3, 1, 2)[None]
+            .byte()
+        )
 
     def _draw_pred_tracks(
         self,
-        rgb: np.ndarray,  # H x W x 3
-        tracks: np.ndarray,  # T x 2
+        rgb: np.ndarray,
+        tracks: np.ndarray,
         vector_colors: np.ndarray,
-        alpha: float = 0.5,
+        alpha: float = 0.5,  # H x W x 3  # T x 2
     ):
         T, N, _ = tracks.shape
         rgb = Image.fromarray(np.uint8(rgb))
@@ -305,16 +320,22 @@ class Visualizer:
                     )
             if self.tracks_leave_trace > 0:
                 rgb = Image.fromarray(
-                    np.uint8(add_weighted(np.array(rgb), alpha, np.array(original), 1 - alpha, 0))
+                    np.uint8(
+                        add_weighted(
+                            np.array(rgb),
+                            alpha,
+                            np.array(original),
+                            1 - alpha,
+                            0,
+                        )
+                    )
                 )
         rgb = np.array(rgb)
         return rgb
 
     def _draw_gt_tracks(
-        self,
-        rgb: np.ndarray,  # H x W x 3,
-        gt_tracks: np.ndarray,  # T x 2
-    ):
+        self, rgb: np.ndarray, gt_tracks: np.ndarray
+    ):  # H x W x 3,  # T x 2
         T, N, _ = gt_tracks.shape
         color = np.array((211, 0, 0))
         rgb = Image.fromarray(np.uint8(rgb))
@@ -324,23 +345,27 @@ class Visualizer:
                 #  draw a red cross
                 if gt_tracks[0] > 0 and gt_tracks[1] > 0:
                     length = self.linewidth * 3
-                    coord_y = (int(gt_tracks[0]) + length, int(gt_tracks[1]) + length)
-                    coord_x = (int(gt_tracks[0]) - length, int(gt_tracks[1]) - length)
-                    rgb = draw_line(
-                        rgb,
-                        coord_y,
-                        coord_x,
-                        color,
-                        self.linewidth,
+                    coord_y = (
+                        int(gt_tracks[0]) + length,
+                        int(gt_tracks[1]) + length,
                     )
-                    coord_y = (int(gt_tracks[0]) - length, int(gt_tracks[1]) + length)
-                    coord_x = (int(gt_tracks[0]) + length, int(gt_tracks[1]) - length)
+                    coord_x = (
+                        int(gt_tracks[0]) - length,
+                        int(gt_tracks[1]) - length,
+                    )
                     rgb = draw_line(
-                        rgb,
-                        coord_y,
-                        coord_x,
-                        color,
-                        self.linewidth,
+                        rgb, coord_y, coord_x, color, self.linewidth
+                    )
+                    coord_y = (
+                        int(gt_tracks[0]) - length,
+                        int(gt_tracks[1]) + length,
+                    )
+                    coord_x = (
+                        int(gt_tracks[0]) + length,
+                        int(gt_tracks[1]) - length,
+                    )
+                    rgb = draw_line(
+                        rgb, coord_y, coord_x, color, self.linewidth
                     )
         rgb = np.array(rgb)
         return rgb

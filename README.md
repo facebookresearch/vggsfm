@@ -19,12 +19,13 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 
 **Updates:**
+- [Aug 6, 2024]
+  - VGGSfM is now available as a Python package, making it easier to integrate into other codebases!
+  - Introduced a new `VGGSfMRunner` class that serves as a central controller for all functionalities.
 
 - [Jul 28, 2024]
-  - Added support for filtering out dynamic objects using masks. We will add an example soon but you can check `demo_loader.py` for a quick view.
+  - Added support for filtering out dynamic objects using ```masks```. We will add an example soon but you can check `demo_loader.py` for a quick view.
   - Added support for `visual_dense_point_cloud`.
-  - Added support for `visual_query_points`.
-  - Made `visual_depths` optional.
 
 - [Jul 10, 2024] Now we support exporting dense depth maps!
 
@@ -37,6 +38,7 @@ We provide a simple installation script that, by default, sets up a conda enviro
 
 ```.bash
 source install.sh
+python -m pip install -e .
 ```
 
 This script installs official ```pytorch3d```, ```accelerate```, ```lightglue```, ```pycolmap```, ```poselib```, and ```visdom```. If you cannot install ```pytorch3d``` on your machine, feel free to comment the line, because now we only use it during visualization (i.e., ```cfg.visualize=True```). 
@@ -70,9 +72,12 @@ python demo.py SCENE_DIR=TO/YOUR/PATH max_query_pts=1024 query_frame_num=6
 ```
 
 
-The reconstruction result (camera parameters and 3D points) will be automatically saved in the COLMAP format at ```output/seq_name```. You can use the [COLMAP GUI](https://colmap.github.io/gui.html) to view them. 
+The reconstruction result (camera parameters and 3D points) will be automatically saved in the COLMAP format at ```output/seq_name```. This format is widely supported by the recent NeRF/Gaussian Splatting codebases. You can use [COLMAP GUI](https://colmap.github.io/gui.html) or [viser](https://github.com/nerfstudio-project/viser) to view the reconstruction. 
 
-If you want to visualize it more easily, we provide an approach supported by [visdom](https://github.com/fossasia/visdom). To begin using Visdom, start the server by entering ```visdom``` in the command line. Once the server is running, access Visdom by navigating to ```http://localhost:8097``` in your web browser. Now every reconstruction will be visualized and saved to the Visdom server by enabling ```visualize=True```:
+
+### 3. Visualization
+
+If you want to visualize it more easily, we provide an approach supported by [visdom](https://github.com/fossasia/visdom). To begin using Visdom, start the server by entering ```visdom``` in the command line. Once the server is running, access Visdom by navigating to ```http://localhost:8097``` in your web browser. Now every reconstruction can be visualized and saved to the Visdom server by enabling ```visualize=True```:
 
 ```bash
 python demo.py visualize=True ...(other flags)
@@ -82,13 +87,15 @@ By doing so, you should see an interface such as:
 
 ![UI](assets/ui.png)
 
-[Beta] If you want to visualize the 2D reprojections of the reconstructed 3D points, set ```make_reproj_video``` to True. This will generate a video named ```reproj.mp4``` under ```SCENE_DIR```. For example:
+[Beta] If you want to visualize the 2D reprojections of the reconstructed 3D points, set ```make_reproj_video``` to True. This will generate a video named ```reproj.mp4``` under ```SCENE_DIR/visuals```. For example:
 
 <img src="https://github.com/vggsfm/vggsfm.github.io/blob/main/resources/reproj.gif" width="500" alt="reproj">
 
 
+To visualize raw predictions of our track predictor, enable ```visual_tracks=True``` to generate ```track.mp4``` (In ```track.mp4```, transparent points indicate low visibility or confidence.).
 
-### 3. Try your own data
+
+### 4. Try your own data
 
 You only need to specify the address of your data, such as:
 
@@ -102,16 +109,17 @@ Please ensure that the images are stored in ```YOUR_FOLDER/images```. This folde
 Have fun and feel free to create an issue if you meet any problem. SfM is always about corner/hard cases. I am happy to help. If you prefer not to share your images publicly, please send them to me by email.
 
 
-### 4. Dense depth maps (Beta)
+### 5. Dense depth maps (Beta)
 
 We support extracting dense depth maps with the help of [Depth-Anything-V2](https://github.com/DepthAnything/Depth-Anything-V2). Bascially, we align the dense depth prediction from Depth-Anything-V2 using the sparse SfM point cloud predicted by VGGSfM. To enable this, please first git clone Depth-Anything-V2 and install scikit-learn:
 
 ```bash
 pip install scikit-learn
 git clone git@github.com:DepthAnything/Depth-Anything-V2.git dependency/depth_any_v2
+python -m pip install -e .
 ```
 
-Then, you just need to set ```dense_depth=True``` when running demo.py. Depth maps will be saved in the ```depths``` folder under ```cfg.SCENE_DIR```, using the COLMAP format (e.g., ```*.bin```). To visualize 2D depth maps, set ```visual_depths=True```. To visualize the dense point cloud (unprojected dense depth maps) in Visdom, set ```visual_dense_point_cloud=True``` (note it may take seconds to open the Visdom page when there are too many points).
+Then, you just need to set ```dense_depth=True``` when running demo.py. Depth maps will be saved in the ```depths``` folder under ```cfg.SCENE_DIR```, using the COLMAP format (e.g., ```*.bin```). To visualize the dense point cloud (unprojected dense depth maps) in Visdom, set ```visual_dense_point_cloud=True``` (note it may take seconds to open the Visdom page when there are too many points).
 
 
 
@@ -151,13 +159,14 @@ See the [LICENSE](./LICENSE) file for details about the license under which this
 
 
 ## Citing VGGSfM
-
 If you find our repository useful, please consider giving it a star ⭐ and citing our paper in your work:
 
+
 ```bibtex
-@article{wang2023vggsfm,
+@inproceedings{wang2024vggsfm,
   title={VGGSfM: Visual Geometry Grounded Deep Structure From Motion},
   author={Wang, Jianyuan and Karaev, Nikita and Rupprecht, Christian and Novotny, David},
-  journal={arXiv preprint arXiv:2312.04563},
-  year={2023}
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  pages={21686--21697},
+  year={2024}
 }

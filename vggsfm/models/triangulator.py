@@ -5,33 +5,17 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import os
-import math
-
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from hydra.utils import instantiate
 
-import logging
-from collections import defaultdict
-from dataclasses import field, dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
-from einops import rearrange, repeat
-import copy
-import kornia
 import pycolmap
+import numpy as np
 from torch.cuda.amp import autocast
 
-# from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
-from minipytorch3d.cameras import CamerasBase, PerspectiveCameras
-
-
 # #####################
-# from ..two_view_geo.utils import inlier_by_fundamental
+from .utils import get_EFP
+
 from ..utils.triangulation import (
-    create_intri_matrix,
     triangulate_by_pair,
     init_BA,
     init_refine_pose,
@@ -41,8 +25,6 @@ from ..utils.triangulation import (
     iterative_global_BA,
 )
 from ..utils.triangulation_helpers import filter_all_points3D
-
-from .utils import get_EFP
 
 
 class Triangulator(nn.Module):
@@ -69,7 +51,9 @@ class Triangulator(nn.Module):
         max_reproj_error=4,
         init_tri_angle_thres=16,
         min_valid_track_length=3,
-        cfg=None,
+        robust_refine=2,
+        extract_color=True,
+        camera_type="SIMPLE_PINHOLE",
     ):
         """
         Conduct triangulation and bundle adjustment given
@@ -87,9 +71,13 @@ class Triangulator(nn.Module):
             B, S, _, H, W = images.shape
             _, _, N, _ = pred_tracks.shape
 
-            assert B == 1  # The released implementation now only supports batch=1 during inference
+            assert (
+                B == 1
+            )  # The released implementation now only supports batch=1 during inference
 
-            image_size = torch.tensor([W, H], dtype=pred_tracks.dtype, device=device)
+            image_size = torch.tensor(
+                [W, H], dtype=pred_tracks.dtype, device=device
+            )
             # extrinsics: B x S x 3 x 4
             # intrinsics: B x S x 3 x 3
             # focal_length, principal_point : B x S x 2
@@ -127,9 +115,11 @@ class Triangulator(nn.Module):
             # we first triangulate a point cloud for each pair of query-reference images,
             # i.e., we have S-1 3D point clouds
             # points_3d_pair: S-1 x N x 3
-            points_3d_pair, cheirality_mask_pair, triangle_value_pair = triangulate_by_pair(
-                extrinsics[None], tracks_normalized[None]
-            )
+            (
+                points_3d_pair,
+                cheirality_mask_pair,
+                triangle_value_pair,
+            ) = triangulate_by_pair(extrinsics[None], tracks_normalized[None])
 
             # Check which point cloud can provide sufficient inliers
             # that pass the triangulation angle and cheirality check
@@ -139,7 +129,9 @@ class Triangulator(nn.Module):
                 # If no success, relax the constraint
                 # try at most 5 times
                 triangle_mask = triangle_value_pair >= init_tri_angle_thres
-                inlier_total = torch.logical_and(inlier_geo_vis, cheirality_mask_pair)
+                inlier_total = torch.logical_and(
+                    inlier_geo_vis, cheirality_mask_pair
+                )
                 inlier_total = torch.logical_and(inlier_total, triangle_mask)
                 inlier_num_per_frame = inlier_total.sum(dim=-1)
 
@@ -158,7 +150,14 @@ class Triangulator(nn.Module):
                 trial_count += 1
 
             # Conduct BA on the init point cloud and init pair
-            points3D_init, extrinsics, intrinsics, track_init_mask, reconstruction, init_idx = init_BA(
+            (
+                points3D_init,
+                extrinsics,
+                intrinsics,
+                track_init_mask,
+                reconstruction,
+                init_idx,
+            ) = init_BA(
                 extrinsics,
                 intrinsics,
                 pred_tracks,
@@ -167,7 +166,7 @@ class Triangulator(nn.Module):
                 image_size,
                 shared_camera=shared_camera,
                 init_max_reproj_error=init_max_reproj_error,
-                cfg=cfg,
+                camera_type=camera_type,
             )
 
             # Given we have a well-conditioned point cloud,
@@ -186,10 +185,16 @@ class Triangulator(nn.Module):
                 image_size,
                 init_idx,
                 shared_camera=shared_camera,
-                camera_type=cfg.camera_type,
+                camera_type=camera_type,
             )
 
-            points3D, extrinsics, intrinsics, valid_tracks, reconstruction = self.triangulate_tracks_and_BA(
+            (
+                points3D,
+                extrinsics,
+                intrinsics,
+                valid_tracks,
+                reconstruction,
+            ) = self.triangulate_tracks_and_BA(
                 pred_tracks,
                 intrinsics,
                 extrinsics,
@@ -200,14 +205,15 @@ class Triangulator(nn.Module):
                 min_valid_track_length,
                 max_reproj_error,
                 shared_camera=shared_camera,
-                cfg=cfg,
+                camera_type=camera_type,
             )
-            if cfg.robust_refine > 0:
-                for refine_idx in range(cfg.robust_refine):
+
+            if robust_refine > 0:
+                for refine_idx in range(robust_refine):
                     # Helpful for some turnable videos
                     inlier_vis_all = pred_vis > 0.05
 
-                    force_estimate = refine_idx == (cfg.robust_refine - 1)
+                    force_estimate = refine_idx == (robust_refine - 1)
 
                     extrinsics, intrinsics, valid_intri_mask = refine_pose(
                         extrinsics,
@@ -219,10 +225,16 @@ class Triangulator(nn.Module):
                         image_size,
                         force_estimate=force_estimate,
                         shared_camera=shared_camera,
-                        camera_type=cfg.camera_type,
+                        camera_type=camera_type,
                     )
 
-                    points3D, extrinsics, intrinsics, valid_tracks, reconstruction = self.triangulate_tracks_and_BA(
+                    (
+                        points3D,
+                        extrinsics,
+                        intrinsics,
+                        valid_tracks,
+                        reconstruction,
+                    ) = self.triangulate_tracks_and_BA(
                         pred_tracks,
                         intrinsics,
                         extrinsics,
@@ -233,7 +245,7 @@ class Triangulator(nn.Module):
                         min_valid_track_length,
                         max_reproj_error,
                         shared_camera=shared_camera,
-                        cfg=cfg,
+                        camera_type=camera_type,
                     )
 
             ba_options = pycolmap.BundleAdjustmentOptions()
@@ -269,7 +281,7 @@ class Triangulator(nn.Module):
                         min_valid_track_length=min_valid_track_length,
                         max_reproj_error=max_reproj_error,
                         ba_options=ba_options,
-                        camera_type=cfg.camera_type,
+                        camera_type=camera_type,
                     )
                     max_reproj_error = max_reproj_error // 2
                     if max_reproj_error <= 1:
@@ -282,40 +294,54 @@ class Triangulator(nn.Module):
 
             # find the invalid predictions
             scale = image_size.max()
-            valid_intri_mask = torch.logical_and(intrinsics[:, 0, 0] >= 0.1 * scale, intrinsics[:, 0, 0] <= 30 * scale)
+            valid_intri_mask = torch.logical_and(
+                intrinsics[:, 0, 0] >= 0.1 * scale,
+                intrinsics[:, 0, 0] <= 30 * scale,
+            )
             valid_trans_mask = (trans_BA.abs() <= 30).all(-1)
-            valid_frame_mask = torch.logical_and(valid_intri_mask, valid_trans_mask)
+            valid_frame_mask = torch.logical_and(
+                valid_intri_mask, valid_trans_mask
+            )
 
-            if cfg.extract_color:
+            if extract_color:
                 from vggsfm.models.utils import sample_features4d
 
-                pred_track_rgb = sample_features4d(images.squeeze(0), pred_tracks)
+                pred_track_rgb = sample_features4d(
+                    images.squeeze(0), pred_tracks
+                )
                 valid_track_rgb = pred_track_rgb[:, valid_tracks]
 
-                sum_rgb = (BA_inlier_masks.float()[..., None] * valid_track_rgb).sum(dim=0)
+                sum_rgb = (
+                    BA_inlier_masks.float()[..., None] * valid_track_rgb
+                ).sum(dim=0)
                 points3D_rgb = sum_rgb / BA_inlier_masks.sum(dim=0)[:, None]
-                
+
                 if points3D_rgb.shape[0] == max(reconstruction.point3D_ids()):
-                    for point3D_id in reconstruction.points3D: 
-                        color_255 = points3D_rgb[point3D_id-1].cpu().numpy() * 255
-                        reconstruction.points3D[point3D_id].color = np.round(color_255).astype(np.uint8)
+                    for point3D_id in reconstruction.points3D:
+                        color_255 = (
+                            points3D_rgb[point3D_id - 1].cpu().numpy() * 255
+                        )
+                        reconstruction.points3D[point3D_id].color = np.round(
+                            color_255
+                        ).astype(np.uint8)
                 else:
-                    import pdb;pdb.set_trace()
-                    print("Cannot save point rgb colors to colmap reconstruction object. Please file an issue in github. ")
+                    print(
+                        "Cannot save point rgb colors to colmap reconstruction object. Please file an issue in github. "
+                    )
+                    import pdb
+
+                    pdb.set_trace()
             else:
                 points3D_rgb = None
 
-            if cfg.filter_invalid_frame:
-                extrinsics = extrinsics[valid_frame_mask]
-                intrinsics = intrinsics[valid_frame_mask]
-                invalid_ids = torch.nonzero(~valid_frame_mask).squeeze(1)
-                invalid_ids = invalid_ids.cpu().numpy().tolist()
-                if len(invalid_ids) > 0:
-                    for invalid_id in invalid_ids:
-                        reconstruction.deregister_image(invalid_id)
-                        
-            return extrinsics, intrinsics, points3D, points3D_rgb, reconstruction, valid_frame_mask
-
+            return (
+                extrinsics,
+                intrinsics,
+                points3D,
+                points3D_rgb,
+                reconstruction,
+                valid_frame_mask,
+            )
 
     def triangulate_tracks_and_BA(
         self,
@@ -329,7 +355,7 @@ class Triangulator(nn.Module):
         min_valid_track_length,
         max_reproj_error=4,
         shared_camera=False,
-        cfg=None,
+        camera_type="SIMPLE_PINHOLE",
     ):
         """ """
         # Normalize the tracks
@@ -338,8 +364,16 @@ class Triangulator(nn.Module):
         # Conduct triangulation to all the frames
         # We adopt LORANSAC here again
 
-        best_triangulated_points, best_inlier_num, best_inlier_mask = triangulate_tracks(
-            extrinsics, tracks_normalized_refined, track_vis=pred_vis, track_score=pred_score, max_ransac_iters=128
+        (
+            best_triangulated_points,
+            best_inlier_num,
+            best_inlier_mask,
+        ) = triangulate_tracks(
+            extrinsics,
+            tracks_normalized_refined,
+            track_vis=pred_vis,
+            track_score=pred_score,
+            max_ransac_iters=128,
         )
         # Determine valid tracks based on inlier numbers
         valid_tracks = best_inlier_num >= min_valid_track_length
@@ -355,7 +389,7 @@ class Triangulator(nn.Module):
             image_size,
             device,
             shared_camera=shared_camera,
-            camera_type=cfg.camera_type,
+            camera_type=camera_type,
         )
 
         valid_poins3D_mask = filter_all_points3D(

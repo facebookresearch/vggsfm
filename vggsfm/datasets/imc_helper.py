@@ -26,10 +26,18 @@ import struct
 import argparse
 
 
-CameraModel = collections.namedtuple("CameraModel", ["model_id", "model_name", "num_params"])
-Camera = collections.namedtuple("Camera", ["id", "model", "width", "height", "params"])
-BaseImage = collections.namedtuple("Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids"])
-Point3D = collections.namedtuple("Point3D", ["id", "xyz", "rgb", "error", "image_ids", "point2D_idxs"])
+CameraModel = collections.namedtuple(
+    "CameraModel", ["model_id", "model_name", "num_params"]
+)
+Camera = collections.namedtuple(
+    "Camera", ["id", "model", "width", "height", "params"]
+)
+BaseImage = collections.namedtuple(
+    "Image", ["id", "qvec", "tvec", "camera_id", "name", "xys", "point3D_ids"]
+)
+Point3D = collections.namedtuple(
+    "Point3D", ["id", "xyz", "rgb", "error", "image_ids", "point2D_idxs"]
+)
 
 
 class Image(BaseImage):
@@ -50,8 +58,12 @@ CAMERA_MODELS = {
     CameraModel(model_id=9, model_name="RADIAL_FISHEYE", num_params=5),
     CameraModel(model_id=10, model_name="THIN_PRISM_FISHEYE", num_params=12),
 }
-CAMERA_MODEL_IDS = dict([(camera_model.model_id, camera_model) for camera_model in CAMERA_MODELS])
-CAMERA_MODEL_NAMES = dict([(camera_model.model_name, camera_model) for camera_model in CAMERA_MODELS])
+CAMERA_MODEL_IDS = dict(
+    [(camera_model.model_id, camera_model) for camera_model in CAMERA_MODELS]
+)
+CAMERA_MODEL_NAMES = dict(
+    [(camera_model.model_name, camera_model) for camera_model in CAMERA_MODELS]
+)
 
 
 def read_next_bytes(fid, num_bytes, format_char_sequence, endian_character="<"):
@@ -102,7 +114,13 @@ def read_cameras_text(path):
                 width = int(elems[2])
                 height = int(elems[3])
                 params = np.array(tuple(map(float, elems[4:])))
-                cameras[camera_id] = Camera(id=camera_id, model=model, width=width, height=height, params=params)
+                cameras[camera_id] = Camera(
+                    id=camera_id,
+                    model=model,
+                    width=width,
+                    height=height,
+                    params=params,
+                )
     return cameras
 
 
@@ -116,16 +134,26 @@ def read_cameras_binary(path_to_model_file):
     with open(path_to_model_file, "rb") as fid:
         num_cameras = read_next_bytes(fid, 8, "Q")[0]
         for _ in range(num_cameras):
-            camera_properties = read_next_bytes(fid, num_bytes=24, format_char_sequence="iiQQ")
+            camera_properties = read_next_bytes(
+                fid, num_bytes=24, format_char_sequence="iiQQ"
+            )
             camera_id = camera_properties[0]
             model_id = camera_properties[1]
             model_name = CAMERA_MODEL_IDS[camera_properties[1]].model_name
             width = camera_properties[2]
             height = camera_properties[3]
             num_params = CAMERA_MODEL_IDS[model_id].num_params
-            params = read_next_bytes(fid, num_bytes=8 * num_params, format_char_sequence="d" * num_params)
+            params = read_next_bytes(
+                fid,
+                num_bytes=8 * num_params,
+                format_char_sequence="d" * num_params,
+            )
             cameras[camera_id] = Camera(
-                id=camera_id, model=model_name, width=width, height=height, params=np.array(params)
+                id=camera_id,
+                model=model_name,
+                width=width,
+                height=height,
+                params=np.array(params),
             )
         assert len(cameras) == num_cameras
     return cameras
@@ -188,7 +216,12 @@ def read_images_text(path):
                 camera_id = int(elems[8])
                 image_name = elems[9]
                 elems = fid.readline().split()
-                xys = np.column_stack([tuple(map(float, elems[0::3])), tuple(map(float, elems[1::3]))])
+                xys = np.column_stack(
+                    [
+                        tuple(map(float, elems[0::3])),
+                        tuple(map(float, elems[1::3])),
+                    ]
+                )
                 point3D_ids = np.array(tuple(map(int, elems[2::3])))
                 images[image_id] = Image(
                     id=image_id,
@@ -212,7 +245,9 @@ def read_images_binary(path_to_model_file):
     with open(path_to_model_file, "rb") as fid:
         num_reg_images = read_next_bytes(fid, 8, "Q")[0]
         for _ in range(num_reg_images):
-            binary_image_properties = read_next_bytes(fid, num_bytes=64, format_char_sequence="idddddddi")
+            binary_image_properties = read_next_bytes(
+                fid, num_bytes=64, format_char_sequence="idddddddi"
+            )
             image_id = binary_image_properties[0]
             qvec = np.array(binary_image_properties[1:5])
             tvec = np.array(binary_image_properties[5:8])
@@ -222,9 +257,20 @@ def read_images_binary(path_to_model_file):
             while current_char != b"\x00":  # look for the ASCII 0 entry
                 image_name += current_char.decode("utf-8")
                 current_char = read_next_bytes(fid, 1, "c")[0]
-            num_points2D = read_next_bytes(fid, num_bytes=8, format_char_sequence="Q")[0]
-            x_y_id_s = read_next_bytes(fid, num_bytes=24 * num_points2D, format_char_sequence="ddq" * num_points2D)
-            xys = np.column_stack([tuple(map(float, x_y_id_s[0::3])), tuple(map(float, x_y_id_s[1::3]))])
+            num_points2D = read_next_bytes(
+                fid, num_bytes=8, format_char_sequence="Q"
+            )[0]
+            x_y_id_s = read_next_bytes(
+                fid,
+                num_bytes=24 * num_points2D,
+                format_char_sequence="ddq" * num_points2D,
+            )
+            xys = np.column_stack(
+                [
+                    tuple(map(float, x_y_id_s[0::3])),
+                    tuple(map(float, x_y_id_s[1::3])),
+                ]
+            )
             point3D_ids = np.array(tuple(map(int, x_y_id_s[2::3])))
             images[image_id] = Image(
                 id=image_id,
@@ -247,18 +293,28 @@ def write_images_text(images, path):
     if len(images) == 0:
         mean_observations = 0
     else:
-        mean_observations = sum((len(img.point3D_ids) for _, img in images.items())) / len(images)
+        mean_observations = sum(
+            (len(img.point3D_ids) for _, img in images.items())
+        ) / len(images)
     HEADER = (
         "# Image list with two lines of data per image:\n"
         + "#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n"
         + "#   POINTS2D[] as (X, Y, POINT3D_ID)\n"
-        + "# Number of images: {}, mean observations per image: {}\n".format(len(images), mean_observations)
+        + "# Number of images: {}, mean observations per image: {}\n".format(
+            len(images), mean_observations
+        )
     )
 
     with open(path, "w") as fid:
         fid.write(HEADER)
         for _, img in images.items():
-            image_header = [img.id, *img.qvec, *img.tvec, img.camera_id, img.name]
+            image_header = [
+                img.id,
+                *img.qvec,
+                *img.tvec,
+                img.camera_id,
+                img.name,
+            ]
             first_line = " ".join(map(str, image_header))
             fid.write(first_line + "\n")
 
@@ -311,7 +367,12 @@ def read_points3D_text(path):
                 image_ids = np.array(tuple(map(int, elems[8::2])))
                 point2D_idxs = np.array(tuple(map(int, elems[9::2])))
                 points3D[point3D_id] = Point3D(
-                    id=point3D_id, xyz=xyz, rgb=rgb, error=error, image_ids=image_ids, point2D_idxs=point2D_idxs
+                    id=point3D_id,
+                    xyz=xyz,
+                    rgb=rgb,
+                    error=error,
+                    image_ids=image_ids,
+                    point2D_idxs=point2D_idxs,
                 )
     return points3D
 
@@ -326,17 +387,30 @@ def read_points3D_binary(path_to_model_file):
     with open(path_to_model_file, "rb") as fid:
         num_points = read_next_bytes(fid, 8, "Q")[0]
         for _ in range(num_points):
-            binary_point_line_properties = read_next_bytes(fid, num_bytes=43, format_char_sequence="QdddBBBd")
+            binary_point_line_properties = read_next_bytes(
+                fid, num_bytes=43, format_char_sequence="QdddBBBd"
+            )
             point3D_id = binary_point_line_properties[0]
             xyz = np.array(binary_point_line_properties[1:4])
             rgb = np.array(binary_point_line_properties[4:7])
             error = np.array(binary_point_line_properties[7])
-            track_length = read_next_bytes(fid, num_bytes=8, format_char_sequence="Q")[0]
-            track_elems = read_next_bytes(fid, num_bytes=8 * track_length, format_char_sequence="ii" * track_length)
+            track_length = read_next_bytes(
+                fid, num_bytes=8, format_char_sequence="Q"
+            )[0]
+            track_elems = read_next_bytes(
+                fid,
+                num_bytes=8 * track_length,
+                format_char_sequence="ii" * track_length,
+            )
             image_ids = np.array(tuple(map(int, track_elems[0::2])))
             point2D_idxs = np.array(tuple(map(int, track_elems[1::2])))
             points3D[point3D_id] = Point3D(
-                id=point3D_id, xyz=xyz, rgb=rgb, error=error, image_ids=image_ids, point2D_idxs=point2D_idxs
+                id=point3D_id,
+                xyz=xyz,
+                rgb=rgb,
+                error=error,
+                image_ids=image_ids,
+                point2D_idxs=point2D_idxs,
             )
     return points3D
 
@@ -350,11 +424,15 @@ def write_points3D_text(points3D, path):
     if len(points3D) == 0:
         mean_track_length = 0
     else:
-        mean_track_length = sum((len(pt.image_ids) for _, pt in points3D.items())) / len(points3D)
+        mean_track_length = sum(
+            (len(pt.image_ids) for _, pt in points3D.items())
+        ) / len(points3D)
     HEADER = (
         "# 3D point list with one line of data per point:\n"
         + "#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n"
-        + "# Number of points: {}, mean track length: {}\n".format(len(points3D), mean_track_length)
+        + "# Number of points: {}, mean track length: {}\n".format(
+            len(points3D), mean_track_length
+        )
     )
 
     with open(path, "w") as fid:
@@ -478,7 +556,9 @@ def rotmat2qvec(R):
 #################################################################
 
 
-def build_composite_image(image_path1, image_path2, axis=1, margin=0, background=1):
+def build_composite_image(
+    image_path1, image_path2, axis=1, margin=0, background=1
+):
     """
     Load two images and returns a composite image.
 
@@ -521,14 +601,20 @@ def build_composite_image(image_path1, image_path2, axis=1, margin=0, background
     h2, w2, _ = im2.shape
 
     if axis == 1:
-        composite = np.zeros((max(h1, h2), w1 + w2 + margin, 3), dtype=np.uint8) + 255 * background
+        composite = (
+            np.zeros((max(h1, h2), w1 + w2 + margin, 3), dtype=np.uint8)
+            + 255 * background
+        )
         if h1 > h2:
             voff1, voff2 = 0, (h1 - h2) // 2
         else:
             voff1, voff2 = (h2 - h1) // 2, 0
         hoff1, hoff2 = 0, w1 + margin
     else:
-        composite = np.zeros((h1 + h2 + margin, max(w1, w2), 3), dtype=np.uint8) + 255 * background
+        composite = (
+            np.zeros((h1 + h2 + margin, max(w1, w2), 3), dtype=np.uint8)
+            + 255 * background
+        )
         if w1 > w2:
             hoff1, hoff2 = 0, (w1 - w2) // 2
         else:
@@ -558,14 +644,24 @@ def load_h5(filename):
             for key in keys:
                 dict_to_load[key] = f[key][()]
     except Exception as e:
-        print("Following error occured when loading h5 file {}: {}".format(filename, e))
+        print(
+            "Following error occured when loading h5 file {}: {}".format(
+                filename, e
+            )
+        )
     return dict_to_load
 
 
 ##########################################
 
 
-def load_image(image_path, use_color_image=False, input_width=512, crop_center=True, force_rgb=False):
+def load_image(
+    image_path,
+    use_color_image=False,
+    input_width=512,
+    crop_center=True,
+    force_rgb=False,
+):
     """
     Loads image and do preprocessing.
 
@@ -620,7 +716,9 @@ def load_vis(vis_fullpath_list, subset_index=None):
             vis.append(np.loadtxt(vis_file).flatten().astype("float32"))
     else:
         for idx in subset_index:
-            tmp_vis = np.loadtxt(vis_fullpath_list[idx]).flatten().astype("float32")
+            tmp_vis = (
+                np.loadtxt(vis_fullpath_list[idx]).flatten().astype("float32")
+            )
             tmp_vis = tmp_vis[subset_index]
             vis.append(tmp_vis)
     return vis
@@ -632,7 +730,9 @@ def load_calib(calib_fullpath_list, subset_index=None):
     calib = {}
     if subset_index is None:
         for _calib_file in calib_fullpath_list:
-            img_name = os.path.splitext(os.path.basename(_calib_file))[0].replace("calibration_", "")
+            img_name = os.path.splitext(os.path.basename(_calib_file))[
+                0
+            ].replace("calibration_", "")
             # _calib_file.split(
             #     '/')[-1].replace('calibration_', '')[:-3]
             # # Don't know why, but rstrip .h5 also strips
@@ -644,7 +744,9 @@ def load_calib(calib_fullpath_list, subset_index=None):
     else:
         for idx in subset_index:
             _calib_file = calib_fullpath_list[idx]
-            img_name = os.path.splitext(os.path.basename(_calib_file))[0].replace("calibration_", "")
+            img_name = os.path.splitext(os.path.basename(_calib_file))[
+                0
+            ].replace("calibration_", "")
             calib[img_name] = load_h5(_calib_file)
     return calib
 
@@ -685,11 +787,15 @@ def get_eval_path(mode, cfg):
 
 def get_eval_file(mode, cfg, job_id=None):
     if job_id:
-        return os.path.join(get_eval_path(mode, cfg), "{}.{}".format(job_id, mode))
+        return os.path.join(
+            get_eval_path(mode, cfg), "{}.{}".format(job_id, mode)
+        )
     else:
         try:
             file_list = os.listdir(get_eval_path(mode, cfg))
-            valid_file = [file for file in file_list if file.split(".")[-1] == mode]
+            valid_file = [
+                file for file in file_list if file.split(".")[-1] == mode
+            ]
             if len(valid_file) == 0:
                 return None
             elif len(valid_file) == 1:
@@ -712,7 +818,9 @@ def get_data_path(cfg):
     """
 
     # Get data directory for 'set_100'
-    return os.path.join(cfg.path_data, cfg.dataset, cfg.scene, "set_{}".format(cfg.num_max_set))
+    return os.path.join(
+        cfg.path_data, cfg.dataset, cfg.scene, "set_{}".format(cfg.num_max_set)
+    )
 
 
 def get_base_path(cfg):
@@ -720,7 +828,9 @@ def get_base_path(cfg):
 
     if cfg.is_challenge:
         cur_date = "{:%Y%m%d}".format(datetime.now())
-        return os.path.join(cfg.path_results, "challenge", get_uuid(cfg), cfg.dataset, cfg.scene)
+        return os.path.join(
+            cfg.path_results, "challenge", get_uuid(cfg), cfg.dataset, cfg.scene
+        )
     else:
         return os.path.join(cfg.path_results, cfg.dataset, cfg.scene)
 
@@ -733,7 +843,11 @@ def get_feature_path(cfg):
     common = cfg.method_dict["config_common"]
     return os.path.join(
         get_base_path(cfg),
-        "{}_{}_{}".format(common["keypoint"].lower(), common["num_keypoints"], common["descriptor"].lower()),
+        "{}_{}_{}".format(
+            common["keypoint"].lower(),
+            common["num_keypoints"],
+            common["descriptor"].lower(),
+        ),
     )
 
 
@@ -813,17 +927,26 @@ def get_match_name(cfg):
     # filtering
     if matcher["filtering"]["type"] == "none":
         label += ["nofilter"]
-    elif matcher["filtering"]["type"].lower() in ["snn_ratio_pairwise", "snn_ratio_vs_last"]:
+    elif matcher["filtering"]["type"].lower() in [
+        "snn_ratio_pairwise",
+        "snn_ratio_vs_last",
+    ]:
         # Threshold == 1 means no ratio test
         # It just makes writing the config files easier
         if matcher["filtering"]["threshold"] == 1:
             label += ["nofilter"]
         else:
-            label += ["filter-{}-{}".format(matcher["filtering"]["type"], matcher["filtering"]["threshold"])]
+            label += [
+                "filter-{}-{}".format(
+                    matcher["filtering"]["type"],
+                    matcher["filtering"]["threshold"],
+                )
+            ]
     elif matcher["filtering"]["type"].lower() == "fginn_ratio_pairwise":
         label += [
             "filter-fginn-pairwise-{}-{}".format(
-                matcher["filtering"]["threshold"], matcher["filtering"]["fginn_radius"]
+                matcher["filtering"]["threshold"],
+                matcher["filtering"]["fginn_radius"],
             )
         ]
     else:
@@ -889,12 +1012,34 @@ def get_geom_name(cfg):
     method = geom["method"].lower()
 
     # This entry is a temporary fix
-    if method in ["cv2-ransac-f", "cv2-usacdef-f", "cv2-usacmagsac-f", "cv2-usacfast-f", "cv2-usacaccurate-f"]:
+    if method in [
+        "cv2-ransac-f",
+        "cv2-usacdef-f",
+        "cv2-usacmagsac-f",
+        "cv2-usacfast-f",
+        "cv2-usacaccurate-f",
+    ]:
         label = "_".join(
-            [method, "th", str(geom["threshold"]), "conf", str(geom["confidence"]), "maxiter", str(geom["max_iter"])]
+            [
+                method,
+                "th",
+                str(geom["threshold"]),
+                "conf",
+                str(geom["confidence"]),
+                "maxiter",
+                str(geom["max_iter"]),
+            ]
         )
     elif method in ["cv2-ransac-e"]:
-        label = "_".join([method, "th", str(geom["threshold"]), "conf", str(geom["confidence"])])
+        label = "_".join(
+            [
+                method,
+                "th",
+                str(geom["threshold"]),
+                "conf",
+                str(geom["confidence"]),
+            ]
+        )
     elif method in ["cmp-degensac-f", "cmp-degensac-f-laf", "cmp-gc-ransac-e"]:
         label = "_".join(
             [
@@ -913,12 +1058,28 @@ def get_geom_name(cfg):
         )
     elif method in ["cmp-gc-ransac-f", "skimage-ransac-f", "cmp-magsac-f"]:
         label = "_".join(
-            [method, "th", str(geom["threshold"]), "conf", str(geom["confidence"]), "max_iter", str(geom["max_iter"])]
+            [
+                method,
+                "th",
+                str(geom["threshold"]),
+                "conf",
+                str(geom["confidence"]),
+                "max_iter",
+                str(geom["max_iter"]),
+            ]
         )
     elif method in ["cv2-lmeds-e", "cv2-lmeds-f"]:
         label = "_".join([method, "conf", str(geom["confidence"])])
     elif method in ["intel-dfe-f"]:
-        label = "_".join([method, "th", str(geom["threshold"]), "postprocess", str(geom["postprocess"])])
+        label = "_".join(
+            [
+                method,
+                "th",
+                str(geom["threshold"]),
+                "postprocess",
+                str(geom["postprocess"]),
+            ]
+        )
     elif method in ["cv2-7pt", "cv2-8pt"]:
         label = method
     else:
@@ -931,7 +1092,9 @@ def get_geom_path(cfg):
     """Returns where the match results folder is stored."""
 
     geom_name = get_geom_name(cfg)
-    return os.path.join(get_filter_path(cfg), "stereo-fold-{}".format(cfg.run), geom_name)
+    return os.path.join(
+        get_filter_path(cfg), "stereo-fold-{}".format(cfg.run), geom_name
+    )
 
 
 def get_geom_file(cfg):
@@ -955,7 +1118,9 @@ def get_cne_temp_path(cfg):
 
 
 def get_filter_match_file_for_computing_model(cfg):
-    filter_match_file = os.path.join(get_filter_path(cfg), "matches_imported_stereo_{}.h5".format(cfg.run))
+    filter_match_file = os.path.join(
+        get_filter_path(cfg), "matches_imported_stereo_{}.h5".format(cfg.run)
+    )
     if os.path.isfile(filter_match_file):
         return filter_match_file
     else:
@@ -984,68 +1149,96 @@ def get_stereo_pose_file(cfg, th=None):
     """Returns the path to where the stereo pose file."""
 
     label = "" if th is None else "-th-{:s}".format(th)
-    return os.path.join(get_stereo_path(cfg), "stereo_pose_errors{}.h5".format(label))
+    return os.path.join(
+        get_stereo_path(cfg), "stereo_pose_errors{}.h5".format(label)
+    )
 
 
 def get_repeatability_score_file(cfg, th=None):
     """Returns the path to the repeatability file."""
 
     label = "" if th is None else "-th-{:s}".format(th)
-    return os.path.join(get_stereo_path(cfg), "repeatability_score_file{}.h5".format(label))
+    return os.path.join(
+        get_stereo_path(cfg), "repeatability_score_file{}.h5".format(label)
+    )
 
 
 def get_stereo_epipolar_pre_match_file(cfg, th=None):
     """Returns the path to the match file."""
 
     label = "" if th is None else "-th-{:s}".format(th)
-    return os.path.join(get_stereo_path(cfg), "stereo_epipolar_pre_match_errors{}.h5".format(label))
+    return os.path.join(
+        get_stereo_path(cfg),
+        "stereo_epipolar_pre_match_errors{}.h5".format(label),
+    )
 
 
 def get_stereo_epipolar_refined_match_file(cfg, th=None):
     """Returns the path to the filtered match file."""
 
     label = "" if th is None else "-th-{:s}".format(th)
-    return os.path.join(get_stereo_path(cfg), "stereo_epipolar_refined_match_errors{}.h5".format(label))
+    return os.path.join(
+        get_stereo_path(cfg),
+        "stereo_epipolar_refined_match_errors{}.h5".format(label),
+    )
 
 
 def get_stereo_epipolar_final_match_file(cfg, th=None):
     """Returns the path to the match file after RANSAC."""
 
     label = "" if th is None else "-th-{:s}".format(th)
-    return os.path.join(get_stereo_path(cfg), "stereo_epipolar_final_match_errors{}.h5".format(label))
+    return os.path.join(
+        get_stereo_path(cfg),
+        "stereo_epipolar_final_match_errors{}.h5".format(label),
+    )
 
 
 def get_stereo_depth_projection_pre_match_file(cfg, th=None):
     """Returns the path to the errors file for input matches."""
 
     label = "" if th is None else "-th-{:s}".format(th)
-    return os.path.join(get_stereo_path(cfg), "stereo_projection_errors_pre_match{}.h5".format(label))
+    return os.path.join(
+        get_stereo_path(cfg),
+        "stereo_projection_errors_pre_match{}.h5".format(label),
+    )
 
 
 def get_stereo_depth_projection_refined_match_file(cfg, th=None):
     """Returns the path to the errors file for filtered matches."""
 
     label = "" if th is None else "-th-{:s}".format(th)
-    return os.path.join(get_stereo_path(cfg), "stereo_projection_errors_refined_match{}.h5".format(label))
+    return os.path.join(
+        get_stereo_path(cfg),
+        "stereo_projection_errors_refined_match{}.h5".format(label),
+    )
 
 
 def get_stereo_depth_projection_final_match_file(cfg, th=None):
     """Returns the path to the errors file for final matches."""
 
     label = "" if th is None else "-th-{:s}".format(th)
-    return os.path.join(get_stereo_path(cfg), "stereo_projection_errors_final_match{}.h5".format(label))
+    return os.path.join(
+        get_stereo_path(cfg),
+        "stereo_projection_errors_final_match{}.h5".format(label),
+    )
 
 
 def get_colmap_path(cfg):
     """Returns the path to colmap results for individual bag."""
 
-    return os.path.join(get_multiview_path(cfg), "bag_size_{}".format(cfg.bag_size), "bag_id_{:05d}".format(cfg.bag_id))
+    return os.path.join(
+        get_multiview_path(cfg),
+        "bag_size_{}".format(cfg.bag_size),
+        "bag_id_{:05d}".format(cfg.bag_id),
+    )
 
 
 def get_multiview_path(cfg):
     """Returns the path to multiview folder."""
 
-    return os.path.join(get_filter_path(cfg), "multiview-fold-{}".format(cfg.run))
+    return os.path.join(
+        get_filter_path(cfg), "multiview-fold-{}".format(cfg.run)
+    )
 
 
 def get_colmap_mark_file(cfg):
@@ -1125,21 +1318,37 @@ def get_item_name_list(fullpath_list):
 def get_stereo_viz_folder(cfg):
     """Returns the path to the stereo visualizations folder."""
 
-    base = os.path.join(cfg.method_dict["config_common"]["json_label"].lower(), cfg.dataset, cfg.scene, "stereo")
+    base = os.path.join(
+        cfg.method_dict["config_common"]["json_label"].lower(),
+        cfg.dataset,
+        cfg.scene,
+        "stereo",
+    )
 
-    return os.path.join(cfg.path_visualization, "png", base), os.path.join(cfg.path_visualization, "jpg", base)
+    return os.path.join(cfg.path_visualization, "png", base), os.path.join(
+        cfg.path_visualization, "jpg", base
+    )
 
 
 def get_colmap_viz_folder(cfg):
     """Returns the path to the multiview visualizations folder."""
 
-    base = os.path.join(cfg.method_dict["config_common"]["json_label"].lower(), cfg.dataset, cfg.scene, "multiview")
+    base = os.path.join(
+        cfg.method_dict["config_common"]["json_label"].lower(),
+        cfg.dataset,
+        cfg.scene,
+        "multiview",
+    )
 
-    return os.path.join(cfg.path_visualization, "png", base), os.path.join(cfg.path_visualization, "jpg", base)
+    return os.path.join(cfg.path_visualization, "png", base), os.path.join(
+        cfg.path_visualization, "jpg", base
+    )
 
 
 def get_pairs_per_threshold(data_dir):
     pairs = {}
     for th in np.arange(0, 1, 0.1):
-        pairs["{:0.1f}".format(th)] = np.load("{}/new-vis-pairs/keys-th-{:0.1f}.npy".format(data_dir, th))
+        pairs["{:0.1f}".format(th)] = np.load(
+            "{}/new-vis-pairs/keys-th-{:0.1f}.npy".format(data_dir, th)
+        )
     return pairs

@@ -57,25 +57,40 @@ class IMCDataset(Dataset):
         if split == "train":
             raise ValueError("We don't want to train on IMC")
         elif split == "test":
-            bag_names = glob.glob(os.path.join(IMC_DIR, "*/set_100/sub_set/*.txt"))
+            bag_names = glob.glob(
+                os.path.join(IMC_DIR, "*/set_100/sub_set/*.txt")
+            )
 
             if cfg.imc_scene_eight:
                 # In some settings, the scene london_bridge is removed from IMC
-                bag_names = [name for name in bag_names if "london_bridge" not in name]
+                bag_names = [
+                    name for name in bag_names if "london_bridge" not in name
+                ]
 
             for bag_name in bag_names:
-                parts = bag_name.split("/")  # Split the string into parts by '/'
+                parts = bag_name.split(
+                    "/"
+                )  # Split the string into parts by '/'
                 location = parts[-4]  # The location part is at index 5
-                bag_info = parts[-1].split(".")[0]  # The bag info part is the last part, and remove '.txt'
-                new_bag_name = f"{bag_info}_{location}"  # Format the new bag name
+                bag_info = parts[-1].split(".")[
+                    0
+                ]  # The bag info part is the last part, and remove '.txt'
+                new_bag_name = (
+                    f"{bag_info}_{location}"  # Format the new bag name
+                )
 
-                img_filenames = parse_file_to_list(bag_name, "/".join(parts[:-2]))
+                img_filenames = parse_file_to_list(
+                    bag_name, "/".join(parts[:-2])
+                )
                 filtered_data = []
 
                 for img_name in img_filenames:
-                    calib_file = img_name.replace("images", "calibration").replace("jpg", "h5")
+                    calib_file = img_name.replace(
+                        "images", "calibration"
+                    ).replace("jpg", "h5")
                     calib_file = "/".join(
-                        calib_file.rsplit("/", 1)[:-1] + ["calibration_" + calib_file.rsplit("/", 1)[-1]]
+                        calib_file.rsplit("/", 1)[:-1]
+                        + ["calibration_" + calib_file.rsplit("/", 1)[-1]]
                     )
                     calib_dict = load_calib([calib_file])
 
@@ -86,8 +101,12 @@ class IMCDataset(Dataset):
 
                     tvec = torch.from_numpy(np.copy(calib["T"]).reshape((3,)))
 
-                    fl = torch.from_numpy(np.stack([intri[0, 0], intri[1, 1]], axis=0))
-                    pp = torch.from_numpy(np.stack([intri[0, 2], intri[1, 2]], axis=0))
+                    fl = torch.from_numpy(
+                        np.stack([intri[0, 0], intri[1, 1]], axis=0)
+                    )
+                    pp = torch.from_numpy(
+                        np.stack([intri[0, 2], intri[1, 2]], axis=0)
+                    )
 
                     filtered_data.append(
                         {
@@ -112,7 +131,12 @@ class IMCDataset(Dataset):
         self.sort_by_filename = sort_by_filename
 
         if transform is None:
-            self.transform = transforms.Compose([transforms.ToTensor(), transforms.Resize(img_size, antialias=True)])
+            self.transform = transforms.Compose(
+                [
+                    transforms.ToTensor(),
+                    transforms.Resize(img_size, antialias=True),
+                ]
+            )
         else:
             self.transform = transform
 
@@ -138,11 +162,17 @@ class IMCDataset(Dataset):
     def _crop_image(self, image, bbox, white_bg=False):
         if white_bg:
             # Only support PIL Images
-            image_crop = Image.new("RGB", (bbox[2] - bbox[0], bbox[3] - bbox[1]), (255, 255, 255))
+            image_crop = Image.new(
+                "RGB", (bbox[2] - bbox[0], bbox[3] - bbox[1]), (255, 255, 255)
+            )
             image_crop.paste(image, (-bbox[0], -bbox[1]))
         else:
             image_crop = transforms.functional.crop(
-                image, top=bbox[1], left=bbox[0], height=bbox[3] - bbox[1], width=bbox[2] - bbox[0]
+                image,
+                top=bbox[1],
+                left=bbox[0],
+                height=bbox[3] - bbox[1],
+                width=bbox[2] - bbox[0],
             )
         return image_crop
 
@@ -152,7 +182,9 @@ class IMCDataset(Dataset):
         else:
             raise NotImplementedError("Do not train on IMC.")
 
-    def get_data(self, index=None, sequence_name=None, ids=None, return_path=False):
+    def get_data(
+        self, index=None, sequence_name=None, ids=None, return_path=False
+    ):
         if sequence_name is None:
             sequence_name = self.sequence_list[index]
 
@@ -224,18 +256,29 @@ class IMCDataset(Dataset):
             bbox_xywh = torch.FloatTensor(bbox_xyxy_to_xywh(bbox_jitter))
 
             # Cropping images
-            focal_length_cropped, principal_point_cropped = adjust_camera_to_bbox_crop_(
-                focal_lengths[i], principal_points[i], torch.FloatTensor(image.size), bbox_xywh
+            (
+                focal_length_cropped,
+                principal_point_cropped,
+            ) = adjust_camera_to_bbox_crop_(
+                focal_lengths[i],
+                principal_points[i],
+                torch.FloatTensor(image.size),
+                bbox_xywh,
             )
 
-            crop_paras = calculate_crop_parameters(image, bbox_jitter, crop_dim, self.img_size)
+            crop_paras = calculate_crop_parameters(
+                image, bbox_jitter, crop_dim, self.img_size
+            )
             crop_parameters.append(crop_paras)
 
             # Crop image by bbox_jitter
             image = self._crop_image(image, bbox_jitter)
 
             # Resizing images
-            new_focal_length, new_principal_point = adjust_camera_to_image_scale_(
+            (
+                new_focal_length,
+                new_principal_point,
+            ) = adjust_camera_to_image_scale_(
                 focal_length_cropped,
                 principal_point_cropped,
                 torch.FloatTensor(image.size),
@@ -264,7 +307,10 @@ class IMCDataset(Dataset):
         batchT[:, :2] *= -1
 
         cameras = PerspectiveCameras(
-            focal_length=new_fls.float(), principal_point=new_pps.float(), R=batchR.float(), T=batchT.float()
+            focal_length=new_fls.float(),
+            principal_point=new_pps.float(),
+            R=batchR.float(),
+            T=batchT.float(),
         )
 
         if self.normalize_cameras:
@@ -322,6 +368,15 @@ def calculate_crop_parameters(image, bbox_jitter, crop_dim, img_size):
     crop_width = 2 * s * (bbox_jitter[2] - bbox_jitter[0]) / length
     bbox_after = bbox_jitter / crop_dim * img_size
     crop_parameters = torch.tensor(
-        [-cc[0], -cc[1], crop_width, s, bbox_after[0], bbox_after[1], bbox_after[2], bbox_after[3]]
+        [
+            -cc[0],
+            -cc[1],
+            crop_width,
+            s,
+            bbox_after[0],
+            bbox_after[1],
+            bbox_after[2],
+            bbox_after[3],
+        ]
     ).float()
     return crop_parameters

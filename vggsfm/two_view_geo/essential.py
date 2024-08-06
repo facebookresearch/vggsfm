@@ -14,7 +14,11 @@ import torch
 from torch.cuda.amp import autocast
 from kornia.geometry import solvers
 from kornia.core import eye, ones_like, stack, where, zeros
-from kornia.core.check import KORNIA_CHECK, KORNIA_CHECK_SAME_SHAPE, KORNIA_CHECK_SHAPE
+from kornia.core.check import (
+    KORNIA_CHECK,
+    KORNIA_CHECK_SAME_SHAPE,
+    KORNIA_CHECK_SHAPE,
+)
 
 
 from typing import Optional, Tuple
@@ -97,12 +101,22 @@ def cross_product_matrix(x: torch.Tensor) -> torch.Tensor:
 
     # construct the matrix, reshape to 3x3 and return
     zeros = torch.zeros_like(x0)
-    cross_product_matrix_flat = stack([zeros, -x2, x1, x2, zeros, -x0, -x1, x0, zeros], dim=-1)
+    cross_product_matrix_flat = stack(
+        [zeros, -x2, x1, x2, zeros, -x0, -x1, x0, zeros], dim=-1
+    )
     shape_ = x.shape[:-1] + (3, 3)
     return cross_product_matrix_flat.view(*shape_)
 
 
-def estimate_essential(points1, points2, focal_length, principal_point, max_ransac_iters=1024, max_error=4, lo_num=50):
+def estimate_essential(
+    points1,
+    points2,
+    focal_length,
+    principal_point,
+    max_ransac_iters=1024,
+    max_error=4,
+    lo_num=50,
+):
     """
     Estimate essential matrix by 5 point algorithm with LORANSAC
 
@@ -127,17 +141,25 @@ def estimate_essential(points1, points2, focal_length, principal_point, max_rans
         # randomly sample 5 point set by max_ransac_iters times
         # ransac_idx: torch matirx Nx5
         ransac_idx = generate_samples(N, max_ransac_iters, point_per_sample)
-        left = points1[:, ransac_idx].view(B * max_ransac_iters, point_per_sample, 2)
-        right = points2[:, ransac_idx].view(B * max_ransac_iters, point_per_sample, 2)
+        left = points1[:, ransac_idx].view(
+            B * max_ransac_iters, point_per_sample, 2
+        )
+        right = points2[:, ransac_idx].view(
+            B * max_ransac_iters, point_per_sample, 2
+        )
 
         # 5p algorithm will provide 10 potential answers
         # so the shape of emat_ransac is
         # B x (max_ransac_iters*10) x 3 x 3
         ####################################################################################
         emat_ransac = run_5point(left, right)
-        emat_ransac = emat_ransac.reshape(B, max_ransac_iters, 10, 3, 3).reshape(B, max_ransac_iters * 10, 3, 3)
+        emat_ransac = emat_ransac.reshape(
+            B, max_ransac_iters, 10, 3, 3
+        ).reshape(B, max_ransac_iters * 10, 3, 3)
 
-        residuals = sampson_epipolar_distance_batched(points1, points2, emat_ransac, squared=True)
+        residuals = sampson_epipolar_distance_batched(
+            points1, points2, emat_ransac, squared=True
+        )
 
         inlier_mask = residuals <= max_thres
         inlier_num = inlier_mask.sum(dim=-1)
@@ -147,16 +169,28 @@ def estimate_essential(points1, points2, focal_length, principal_point, max_rans
         # Local Refinement by
         # 5p algorithm with inliers
         emat_lo = local_refinement(
-            run_5point, points1, points2, inlier_mask, sorted_indices, lo_num=lo_num, essential=True
+            run_5point,
+            points1,
+            points2,
+            inlier_mask,
+            sorted_indices,
+            lo_num=lo_num,
+            essential=True,
         )
 
         emat_lo = emat_lo.reshape(B, 10 * lo_num, 3, 3)
 
         # choose the one with the higher inlier number and smallest (valid) residual
         all_emat = torch.cat([emat_ransac, emat_lo], dim=1)
-        residuals_all = sampson_epipolar_distance_batched(points1, points2, all_emat, squared=True)
+        residuals_all = sampson_epipolar_distance_batched(
+            points1, points2, all_emat, squared=True
+        )
 
-        residual_indicator, inlier_num_all, inlier_mask_all = calculate_residual_indicator(residuals_all, max_thres)
+        (
+            residual_indicator,
+            inlier_num_all,
+            inlier_mask_all,
+        ) = calculate_residual_indicator(residuals_all, max_thres)
 
         batch_index = torch.arange(B).unsqueeze(-1).expand(-1, lo_num)
         best_e_indices = torch.argmax(residual_indicator, dim=1)
@@ -206,7 +240,9 @@ def run_5point(
         # build equations system and find null space.
         # [x * x', x * y', x, y * x', y * y', y, x', y', 1]
         # BxNx9
-        X = torch.cat([x1 * x2, x1 * y2, x1, y1 * x2, y1 * y2, y1, x2, y2, ones], dim=-1)
+        X = torch.cat(
+            [x1 * x2, x1 * y2, x1, y1 * x2, y1 * y2, y1, x2, y2, ones], dim=-1
+        )
 
         # if masks is not valid, force the cooresponding rows (points) to all zeros
         if masks is not None:
@@ -243,18 +279,30 @@ def null_to_Nister_solution(V, batch_size):
 
     coeffs[:, 9] = (
         solvers.multiply_deg_two_one_poly(
-            solvers.multiply_deg_one_poly(fun_select(null_, 0, 1), fun_select(null_, 1, 2))
-            - solvers.multiply_deg_one_poly(fun_select(null_, 0, 2), fun_select(null_, 1, 1)),
+            solvers.multiply_deg_one_poly(
+                fun_select(null_, 0, 1), fun_select(null_, 1, 2)
+            )
+            - solvers.multiply_deg_one_poly(
+                fun_select(null_, 0, 2), fun_select(null_, 1, 1)
+            ),
             fun_select(null_, 2, 0),
         )
         + solvers.multiply_deg_two_one_poly(
-            solvers.multiply_deg_one_poly(fun_select(null_, 0, 2), fun_select(null_, 1, 0))
-            - solvers.multiply_deg_one_poly(fun_select(null_, 0, 0), fun_select(null_, 1, 2)),
+            solvers.multiply_deg_one_poly(
+                fun_select(null_, 0, 2), fun_select(null_, 1, 0)
+            )
+            - solvers.multiply_deg_one_poly(
+                fun_select(null_, 0, 0), fun_select(null_, 1, 2)
+            ),
             fun_select(null_, 2, 1),
         )
         + solvers.multiply_deg_two_one_poly(
-            solvers.multiply_deg_one_poly(fun_select(null_, 0, 0), fun_select(null_, 1, 1))
-            - solvers.multiply_deg_one_poly(fun_select(null_, 0, 1), fun_select(null_, 1, 0)),
+            solvers.multiply_deg_one_poly(
+                fun_select(null_, 0, 0), fun_select(null_, 1, 1)
+            )
+            - solvers.multiply_deg_one_poly(
+                fun_select(null_, 0, 1), fun_select(null_, 1, 0)
+            ),
             fun_select(null_, 2, 2),
         )
     )
@@ -265,13 +313,23 @@ def null_to_Nister_solution(V, batch_size):
     for i in range(3):
         for j in range(3):
             d[:, indices[i, j] : indices[i, j] + 10] = (
-                solvers.multiply_deg_one_poly(fun_select(null_, i, 0), fun_select(null_, j, 0))
-                + solvers.multiply_deg_one_poly(fun_select(null_, i, 1), fun_select(null_, j, 1))
-                + solvers.multiply_deg_one_poly(fun_select(null_, i, 2), fun_select(null_, j, 2))
+                solvers.multiply_deg_one_poly(
+                    fun_select(null_, i, 0), fun_select(null_, j, 0)
+                )
+                + solvers.multiply_deg_one_poly(
+                    fun_select(null_, i, 1), fun_select(null_, j, 1)
+                )
+                + solvers.multiply_deg_one_poly(
+                    fun_select(null_, i, 2), fun_select(null_, j, 2)
+                )
             )
 
     for i in range(10):
-        t = 0.5 * (d[:, indices[0, 0] + i] + d[:, indices[1, 1] + i] + d[:, indices[2, 2] + i])
+        t = 0.5 * (
+            d[:, indices[0, 0] + i]
+            + d[:, indices[1, 1] + i]
+            + d[:, indices[2, 2] + i]
+        )
         d[:, indices[0, 0] + i] -= t
         d[:, indices[1, 1] + i] -= t
         d[:, indices[2, 2] + i] -= t
@@ -280,9 +338,18 @@ def null_to_Nister_solution(V, batch_size):
     for i in range(3):
         for j in range(3):
             row = (
-                solvers.multiply_deg_two_one_poly(d[:, indices[i, 0] : indices[i, 0] + 10], fun_select(null_, 0, j))
-                + solvers.multiply_deg_two_one_poly(d[:, indices[i, 1] : indices[i, 1] + 10], fun_select(null_, 1, j))
-                + solvers.multiply_deg_two_one_poly(d[:, indices[i, 2] : indices[i, 2] + 10], fun_select(null_, 2, j))
+                solvers.multiply_deg_two_one_poly(
+                    d[:, indices[i, 0] : indices[i, 0] + 10],
+                    fun_select(null_, 0, j),
+                )
+                + solvers.multiply_deg_two_one_poly(
+                    d[:, indices[i, 1] : indices[i, 1] + 10],
+                    fun_select(null_, 1, j),
+                )
+                + solvers.multiply_deg_two_one_poly(
+                    d[:, indices[i, 2] : indices[i, 2] + 10],
+                    fun_select(null_, 2, j),
+                )
             )
             coeffs[:, cnt] = row
             cnt += 1
@@ -291,18 +358,29 @@ def null_to_Nister_solution(V, batch_size):
 
     # NOTE Some operations are filtered here
     singular_filter = torch.linalg.matrix_rank(coeffs[:, :, :10]) >= torch.max(
-        torch.linalg.matrix_rank(coeffs), ones_like(torch.linalg.matrix_rank(coeffs[:, :, :10])) * 10
+        torch.linalg.matrix_rank(coeffs),
+        ones_like(torch.linalg.matrix_rank(coeffs[:, :, :10])) * 10,
     )
 
     if len(singular_filter) == 0:
-        return torch.eye(3, dtype=coeffs.dtype, device=coeffs.device)[None].expand(batch_size, 10, -1, -1).clone()
+        return (
+            torch.eye(3, dtype=coeffs.dtype, device=coeffs.device)[None]
+            .expand(batch_size, 10, -1, -1)
+            .clone()
+        )
 
-    eliminated_mat = torch.linalg.solve(coeffs[singular_filter, :, :10], b[singular_filter])
+    eliminated_mat = torch.linalg.solve(
+        coeffs[singular_filter, :, :10], b[singular_filter]
+    )
 
-    coeffs_ = torch.cat((coeffs[singular_filter, :, :10], eliminated_mat), dim=-1)
+    coeffs_ = torch.cat(
+        (coeffs[singular_filter, :, :10], eliminated_mat), dim=-1
+    )
 
     batch_size_filtered = coeffs_.shape[0]
-    A = zeros(batch_size_filtered, 3, 13, device=coeffs_.device, dtype=coeffs_.dtype)
+    A = zeros(
+        batch_size_filtered, 3, 13, device=coeffs_.device, dtype=coeffs_.dtype
+    )
 
     for i in range(3):
         A[:, i, 0] = 0.0
@@ -362,18 +440,26 @@ def null_to_Nister_solution(V, batch_size):
 
     xzs = torch.matmul(torch.inverse(Bs[:, :, 0:2, 0:2]), bs[:, :, 0:2])
 
-    mask = (abs(Bs[:, 2].unsqueeze(1) @ xzs - bs[:, 2].unsqueeze(1)) > 1e-3).flatten()
+    mask = (
+        abs(Bs[:, 2].unsqueeze(1) @ xzs - bs[:, 2].unsqueeze(1)) > 1e-3
+    ).flatten()
 
     # mask: bx10x1x1
     mask = (
-        abs(torch.matmul(Bs[:, :, 2, :].unsqueeze(2), xzs) - bs[:, :, 2, :].unsqueeze(2)) > 1e-3
+        abs(
+            torch.matmul(Bs[:, :, 2, :].unsqueeze(2), xzs)
+            - bs[:, :, 2, :].unsqueeze(2)
+        )
+        > 1e-3
     )  # .flatten(start_dim=1)
     # bx10
     mask = mask.squeeze(3).squeeze(2)
 
     if torch.any(mask):
         q_batch, r_batch = torch.linalg.qr(Bs[mask])
-        xyz_to_feed = torch.linalg.solve(r_batch, torch.matmul(q_batch.transpose(-1, -2), bs[mask]))
+        xyz_to_feed = torch.linalg.solve(
+            r_batch, torch.matmul(q_batch.transpose(-1, -2), bs[mask])
+        )
         xzs[mask] = xyz_to_feed
 
     nullSpace_filtered = nullSpace[singular_filter]
@@ -385,11 +471,20 @@ def null_to_Nister_solution(V, batch_size):
         + nullSpace_filtered[:, 3:4]
     )
 
-    inv = 1.0 / torch.sqrt((-xzs[:, :, 0]) ** 2 + (-xzs[:, :, 1]) ** 2 + roots.unsqueeze(-1) ** 2 + 1.0)
+    inv = 1.0 / torch.sqrt(
+        (-xzs[:, :, 0]) ** 2
+        + (-xzs[:, :, 1]) ** 2
+        + roots.unsqueeze(-1) ** 2
+        + 1.0
+    )
     Es *= inv
 
     Es = Es.view(batch_size_filtered, -1, 3, 3).transpose(-1, -2)
-    E_return = torch.eye(3, dtype=Es.dtype, device=Es.device)[None].expand(batch_size, 10, -1, -1).clone()
+    E_return = (
+        torch.eye(3, dtype=Es.dtype, device=Es.device)[None]
+        .expand(batch_size, 10, -1, -1)
+        .clone()
+    )
     E_return[singular_filter] = Es
 
     return E_return
