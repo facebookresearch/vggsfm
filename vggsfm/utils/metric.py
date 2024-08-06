@@ -8,7 +8,10 @@ import random
 import numpy as np
 import torch
 
-from minipytorch3d.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
+from minipytorch3d.rotation_conversions import (
+    matrix_to_quaternion,
+    quaternion_to_matrix,
+)
 
 
 def quaternion_from_matrix(matrix, isprecise=False):
@@ -121,19 +124,29 @@ def camera_to_rel_deg(pred_cameras, gt_cameras, device, batch_size):
         pred_se3 = pred_cameras.get_world_to_view_transform().get_matrix()
 
         # Generate pairwise indices to compute relative poses
-        pair_idx_i1, pair_idx_i2 = batched_all_pairs(batch_size, gt_se3.shape[0] // batch_size)
+        pair_idx_i1, pair_idx_i2 = batched_all_pairs(
+            batch_size, gt_se3.shape[0] // batch_size
+        )
         pair_idx_i1 = pair_idx_i1.to(device)
 
         # Compute relative camera poses between pairs
         # We use closed_form_inverse to avoid potential numerical loss by torch.inverse()
         # This is possible because of SE3
-        relative_pose_gt = closed_form_inverse(gt_se3[pair_idx_i1]).bmm(gt_se3[pair_idx_i2])
-        relative_pose_pred = closed_form_inverse(pred_se3[pair_idx_i1]).bmm(pred_se3[pair_idx_i2])
+        relative_pose_gt = closed_form_inverse(gt_se3[pair_idx_i1]).bmm(
+            gt_se3[pair_idx_i2]
+        )
+        relative_pose_pred = closed_form_inverse(pred_se3[pair_idx_i1]).bmm(
+            pred_se3[pair_idx_i2]
+        )
 
         # Compute the difference in rotation and translation
         # between the ground truth and predicted relative camera poses
-        rel_rangle_deg = rotation_angle(relative_pose_gt[:, :3, :3], relative_pose_pred[:, :3, :3])
-        rel_tangle_deg = translation_angle(relative_pose_gt[:, 3, :3], relative_pose_pred[:, 3, :3])
+        rel_rangle_deg = rotation_angle(
+            relative_pose_gt[:, :3, :3], relative_pose_pred[:, :3, :3]
+        )
+        rel_tangle_deg = translation_angle(
+            relative_pose_gt[:, 3, :3], relative_pose_pred[:, 3, :3]
+        )
 
     return rel_rangle_deg, rel_tangle_deg
 
@@ -188,22 +201,31 @@ def calculate_auc(r_error, t_error, max_threshold=30, return_list=False):
     bins = torch.arange(max_threshold + 1)
 
     # Calculate histogram of maximum error values
-    histogram = torch.histc(max_errors, bins=max_threshold + 1, min=0, max=max_threshold)
+    histogram = torch.histc(
+        max_errors, bins=max_threshold + 1, min=0, max=max_threshold
+    )
 
     # Normalize the histogram
     num_pairs = float(max_errors.size(0))
     normalized_histogram = histogram / num_pairs
 
     if return_list:
-        return torch.cumsum(normalized_histogram, dim=0).mean(), normalized_histogram
+        return (
+            torch.cumsum(normalized_histogram, dim=0).mean(),
+            normalized_histogram,
+        )
     # Compute and return the cumulative sum of the normalized histogram
     return torch.cumsum(normalized_histogram, dim=0).mean()
 
 
 def batched_all_pairs(B, N):
     # B, N = se3.shape[:2]
-    i1_, i2_ = torch.combinations(torch.arange(N), 2, with_replacement=False).unbind(-1)
-    i1, i2 = [(i[None] + torch.arange(B)[:, None] * N).reshape(-1) for i in [i1_, i2_]]
+    i1_, i2_ = torch.combinations(
+        torch.arange(N), 2, with_replacement=False
+    ).unbind(-1)
+    i1, i2 = [
+        (i[None] + torch.arange(B)[:, None] * N).reshape(-1) for i in [i1_, i2_]
+    ]
 
     return i1, i2
 

@@ -34,14 +34,22 @@ from scipy.spatial.transform import Rotation as sciR
 from minipytorch3d.cameras import CamerasBase, PerspectiveCameras
 
 
-def average_camera_prediction(camera_predictor, reshaped_image, batch_size, repeat_times = 5, query_indices=None):
+def average_camera_prediction(
+    camera_predictor,
+    reshaped_image,
+    batch_size,
+    repeat_times=5,
+    query_indices=None,
+):
     # Use different frames as query for camera prediction
     # since camera_predictor is super fast,
     # this is almost a free-lunch
-    
+
     # Ensure function is only used for inference with batch_size 1
-    assert batch_size == 1, "This function is designed for inference with batch_size=1."
-    
+    assert (
+        batch_size == 1
+    ), "This function is designed for inference with batch_size=1."
+
     # Determine the number of frames in the input image
     num_frames = len(reshaped_image)
     device = reshaped_image.device
@@ -49,7 +57,7 @@ def average_camera_prediction(camera_predictor, reshaped_image, batch_size, repe
     if query_indices is None:
         # Adjust repeat_times if there are fewer frames than requested repeats
         repeat_times = min(repeat_times, num_frames)
-    
+
         # Randomly select query indices, ensuring the first frame is always included
         query_indices = random.sample(range(num_frames), repeat_times)
         if 0 not in query_indices:
@@ -60,18 +68,24 @@ def average_camera_prediction(camera_predictor, reshaped_image, batch_size, repe
     translations = []
     focal_lengths = []
 
-    for query_index in query_indices: 
+    for query_index in query_indices:
         # Create a new order to place the query frame at the first position
-        new_order = calculate_index_mappings(query_index, num_frames, device=device)
-        reshaped_image_ordered = switch_tensor_order([reshaped_image], new_order, dim=0)[0]
-        
+        new_order = calculate_index_mappings(
+            query_index, num_frames, device=device
+        )
+        reshaped_image_ordered = switch_tensor_order(
+            [reshaped_image], new_order, dim=0
+        )[0]
+
         # Predict camera parameters using the reordered image
         # NOTE the output has been in OPENCV format instead of PyTorch3D
-        pred_cameras = camera_predictor(reshaped_image_ordered, batch_size=batch_size)["pred_cameras"]
+        pred_cameras = camera_predictor(
+            reshaped_image_ordered, batch_size=batch_size
+        )["pred_cameras"]
 
         R = pred_cameras.R
         abs_T = pred_cameras.T
-        
+
         extrinsics_4x4 = torch.eye(4, 4).to(R.dtype).to(R.device)
         extrinsics_4x4 = extrinsics_4x4[None].repeat(len(R), 1, 1)
 
@@ -80,10 +94,7 @@ def average_camera_prediction(camera_predictor, reshaped_image, batch_size, repe
 
         # Get rotation and focal length from predictions
         extrinsics_4x4, focal_length = switch_tensor_order(
-            [extrinsics_4x4, 
-             pred_cameras.focal_length], 
-            new_order, 
-            dim=0
+            [extrinsics_4x4, pred_cameras.focal_length], new_order, dim=0
         )
 
         rel_transform = closed_form_inverse_OpenCV(extrinsics_4x4[0:1])
@@ -108,22 +119,30 @@ def average_camera_prediction(camera_predictor, reshaped_image, batch_size, repe
     focal_lengths = torch.concat(focal_lengths)
 
     # Average the rotation matrices using a helper function
-    avg_rotation_matrices = average_batch_rotation_matrices(rotation_matrices.cpu().numpy())
+    avg_rotation_matrices = average_batch_rotation_matrices(
+        rotation_matrices.cpu().numpy()
+    )
     avg_rotation_matrices = torch.from_numpy(avg_rotation_matrices).to(device)
-    
+
     # Compute the average translation and focal length
     avg_translation = translations.mean(0)
     avg_focal_length = focal_lengths.mean(0)
-    
+
     # Create and return the averaged camera prediction
     avg_predicted_camera = PerspectiveCameras(
-        focal_length=avg_focal_length, 
-        R=avg_rotation_matrices, 
-        T=avg_translation, 
-        device=device
+        focal_length=avg_focal_length,
+        R=avg_rotation_matrices,
+        T=avg_translation,
+        device=device,
     )
 
     return avg_predicted_camera
+
+
+def seed_all_random_engines(seed: int) -> None:
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
 
 
 def average_batch_rotation_matrices(batch_rotation_matrices):
@@ -134,30 +153,27 @@ def average_batch_rotation_matrices(batch_rotation_matrices):
     :return: Averaged rotation matrices of shape (N, 3, 3).
     """
     B, N, _, _ = batch_rotation_matrices.shape
-    
+
     # Reshape batch matrices to a single array for vectorized operations
     reshaped_matrices = batch_rotation_matrices.reshape(B * N, 3, 3)
-    
+
     # Convert matrices to quaternions using vectorized operation
     quaternions = sciR.from_matrix(reshaped_matrices).as_quat()
-    
+
     # Reshape quaternions to (B, N, 4) for easier averaging
     quaternions = quaternions.reshape(B, N, 4)
-    
+
     # Compute the mean quaternion for each set of N matrices
     mean_quaternions = np.mean(quaternions, axis=0)
-    
+
     # import pdb;pdb.set_trace()
     # Normalize the resulting quaternions
     mean_quaternions /= np.linalg.norm(mean_quaternions, axis=1, keepdims=True)
-    
 
     # Convert back to rotation matrices using vectorized operation
     average_rotation_matrices = sciR.from_quat(mean_quaternions).as_matrix()
-    
+
     return average_rotation_matrices
-
-
 
 
 def calculate_index_mappings(query_index, S, device=None):
@@ -177,12 +193,17 @@ def switch_tensor_order(tensors, order, dim=1):
     """
     Switch the tensor among the specific dimension
     """
-    return [torch.index_select(tensor, dim, order) if tensor is not None else None for tensor in tensors]
+    return [
+        torch.index_select(tensor, dim, order) if tensor is not None else None
+        for tensor in tensors
+    ]
 
 
 def set_seed_and_print(seed):
     accelerate_set_seed(seed, device_specific=True)
-    print(f"----------Seed is set to {np.random.get_state()[1][0]} now----------")
+    print(
+        f"----------Seed is set to {np.random.get_state()[1][0]} now----------"
+    )
 
 
 def transform_camera_relative_to_first(pred_cameras, batch_size):
@@ -199,7 +220,9 @@ def transform_camera_relative_to_first(pred_cameras, batch_size):
     return pred_cameras
 
 
-def farthest_point_sampling(distance_matrix, num_samples, most_common_frame_index=0):
+def farthest_point_sampling(
+    distance_matrix, num_samples, most_common_frame_index=0
+):
     # Number of points
     distance_matrix = distance_matrix.clamp(min=0)
 
@@ -239,7 +262,55 @@ def generate_rank_by_interval(N, k):
     return result
 
 
-def visual_query_points(images, query_index, query_points, save_name="image_cv2.png"):
+def generate_rank_by_dino(
+    reshaped_image, camera_predictor, query_frame_num, image_size=336
+):
+    # Downsample image to image_size x image_size
+    # because we found it is unnecessary to use high resolution
+    rgbs = F.interpolate(
+        reshaped_image,
+        (image_size, image_size),
+        mode="bilinear",
+        align_corners=True,
+    )
+    rgbs = camera_predictor._resnet_normalize_image(rgbs)
+
+    # Get the image features (patch level)
+    frame_feat = camera_predictor.backbone(rgbs, is_training=True)
+    frame_feat = frame_feat["x_norm_patchtokens"]
+    frame_feat_norm = F.normalize(frame_feat, p=2, dim=1)
+
+    # Compute the similiarty matrix
+    frame_feat_norm = frame_feat_norm.permute(1, 0, 2)
+    similarity_matrix = torch.bmm(
+        frame_feat_norm, frame_feat_norm.transpose(-1, -2)
+    )
+    similarity_matrix = similarity_matrix.mean(dim=0)
+    distance_matrix = 100 - similarity_matrix.clone()
+
+    # Ignore self-pairing
+    similarity_matrix.fill_diagonal_(-100)
+
+    similarity_sum = similarity_matrix.sum(dim=1)
+
+    # Find the most common frame
+    most_common_frame_index = torch.argmax(similarity_sum).item()
+
+    # Conduct FPS sampling
+    # Starting from the most_common_frame_index,
+    # try to find the farthest frame,
+    # then the farthest to the last found frame
+    # (frames are not allowed to be found twice)
+    fps_idx = farthest_point_sampling(
+        distance_matrix, query_frame_num, most_common_frame_index
+    )
+
+    return fps_idx
+
+
+def visual_query_points(
+    images, query_index, query_points, save_name="image_cv2.png"
+):
     """
     Processes an image by converting it to BGR color space, drawing circles at specified points,
     and saving the image to a file.
@@ -252,7 +323,11 @@ def visual_query_points(images, query_index, query_points, save_name="image_cv2.
     """
     # Convert the image from RGB to BGR
     image_cv2 = cv2.cvtColor(
-        (images[:, query_index].squeeze().permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8), cv2.COLOR_RGB2BGR
+        (
+            images[:, query_index].squeeze().permute(1, 2, 0).cpu().numpy()
+            * 255
+        ).astype(np.uint8),
+        cv2.COLOR_RGB2BGR,
     )
 
     # Draw circles at the specified query points
@@ -265,7 +340,9 @@ def visual_query_points(images, query_index, query_points, save_name="image_cv2.
 
 def read_array(path):
     with open(path, "rb") as fid:
-        width, height, channels = np.genfromtxt(fid, delimiter="&", max_rows=1, usecols=(0, 1, 2), dtype=int)
+        width, height, channels = np.genfromtxt(
+            fid, delimiter="&", max_rows=1, usecols=(0, 1, 2), dtype=int
+        )
         fid.seek(0)
         num_delimiter = 0
         byte = fid.read(1)
@@ -308,16 +385,17 @@ def write_array(array, path):
         data_list = data_1d.tolist()
         endian_character = "<"
         format_char_sequence = "".join(["f"] * len(data_list))
-        byte_data = struct.pack(endian_character + format_char_sequence, *data_list)
+        byte_data = struct.pack(
+            endian_character + format_char_sequence, *data_list
+        )
         fid.write(byte_data)
-
 
 
 def filter_invisible_reprojections(uvs_int, depths):
     """
     Filters out invisible 3D points when projecting them to 2D.
 
-    When reprojecting 3D points to 2D, multiple 3D points may map to the same 2D pixel due to occlusion or close proximity. 
+    When reprojecting 3D points to 2D, multiple 3D points may map to the same 2D pixel due to occlusion or close proximity.
     This function filters out the reprojections of invisible 3D points based on their depths.
 
     Parameters:
@@ -327,9 +405,11 @@ def filter_invisible_reprojections(uvs_int, depths):
     Returns:
     np.ndarray: A boolean mask with shape (n). True indicates the point is kept, False means it is removed.
     """
-    
+
     # Find unique rows and their indices
-    _, inverse_indices, counts = np.unique(uvs_int, axis=0, return_inverse=True, return_counts=True)
+    _, inverse_indices, counts = np.unique(
+        uvs_int, axis=0, return_inverse=True, return_counts=True
+    )
 
     # Initialize mask with True (keep all points initially)
     mask = np.ones(uvs_int.shape[0], dtype=bool)
@@ -337,36 +417,53 @@ def filter_invisible_reprojections(uvs_int, depths):
     # Set the mask to False for non-unique points and keep the one with the smallest depth
     for i in np.where(counts > 1)[0]:
         duplicate_indices = np.where(inverse_indices == i)[0]
-        min_depth_index = duplicate_indices[np.argmin(depths[duplicate_indices])]
+        min_depth_index = duplicate_indices[
+            np.argmin(depths[duplicate_indices])
+        ]
         mask[duplicate_indices] = False
         mask[min_depth_index] = True
 
     return mask
 
 
-def create_video_with_reprojections(output_path, fname_prefix, video_size, reconstruction, 
-                                    image_paths, 
-                                    sparse_depth, sparse_point,
-                                    draw_radius=3, cmap = "gist_rainbow", fps=1, color_mode="dis_to_center"):
-    import matplotlib
+def create_video_with_reprojections(
+    output_path,
+    fname_prefix,
+    video_size,
+    reconstruction,
+    image_paths,
+    sparse_depth,
+    sparse_point,
+    draw_radius=3,
+    cmap="gist_rainbow",
+    fps=1,
+    color_mode="dis_to_center",
+):
     print("Generating reprojection video")
-    
+
     video_size_rev = video_size[::-1]
 
-    video_writer = cv2.VideoWriter(output_path, 
-                                   cv2.VideoWriter_fourcc(*'mp4v'), fps, video_size)
-    
+    video_writer = cv2.VideoWriter(
+        output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, video_size
+    )
+
     colormap = matplotlib.colormaps.get_cmap(cmap)
-    
+
     if color_mode == "dis_to_center":
-        points3D = np.array([point.xyz for point in reconstruction.points3D.values()])
+        points3D = np.array(
+            [point.xyz for point in reconstruction.points3D.values()]
+        )
         median_point = np.median(points3D, axis=0)
         distances = np.linalg.norm(points3D - median_point, axis=1)
         min_dis = distances.min()
         # max_dis = distances.max()
-        max_dis = np.percentile(distances, 99)  # 99th percentile distance to avoid extreme values
+        max_dis = np.percentile(
+            distances, 99
+        )  # 99th percentile distance to avoid extreme values
     elif color_mode == "dis_to_origin":
-        points3D = np.array([point.xyz for point in reconstruction.points3D.values()])
+        points3D = np.array(
+            [point.xyz for point in reconstruction.points3D.values()]
+        )
         distances = np.linalg.norm(points3D, axis=1)
         min_dis = distances.min()
         max_dis = distances.max()
@@ -374,37 +471,44 @@ def create_video_with_reprojections(output_path, fname_prefix, video_size, recon
         max_point3D_idx = max(reconstruction.point3D_ids())
     else:
         raise NotImplementedError
-        
-    for fname in sorted(image_paths):  
+
+    for fname in sorted(image_paths):
         img_with_circles = cv2.imread(os.path.join(fname_prefix, fname))
-        
+
         uvds = np.array(sparse_depth[fname])
         uvs, uv_depth = uvds[:, :2], uvds[:, -1]
         uvs_int = np.round(uvs).astype(int)
-    
+
         if color_mode == "dis_to_center":
             point3D_xyz = np.array(sparse_point[fname])[:, :3]
-            dis = np.linalg.norm(point3D_xyz-median_point, axis=1)
-            color_indices = (dis - min_dis) / (max_dis-min_dis) # 0-1
+            dis = np.linalg.norm(point3D_xyz - median_point, axis=1)
+            color_indices = (dis - min_dis) / (max_dis - min_dis)  # 0-1
         elif color_mode == "dis_to_origin":
             point3D_xyz = np.array(sparse_point[fname])[:, :3]
             dis = np.linalg.norm(point3D_xyz, axis=1)
-            color_indices = (dis - min_dis) / (max_dis-min_dis) # 0-1
+            color_indices = (dis - min_dis) / (max_dis - min_dis)  # 0-1
         elif color_mode == "point_order":
             point3D_idxes = np.array(sparse_point[fname])[:, -1]
-            color_indices = point3D_idxes / max_point3D_idx # 0-1
+            color_indices = point3D_idxes / max_point3D_idx  # 0-1
         else:
             raise NotImplementedError
 
         colors = (colormap(color_indices)[:, :3] * 255).astype(int)
-        
+
         # Filter out occluded points
         vis_reproj_mask = filter_invisible_reprojections(uvs_int, uv_depth)
 
-        for (x, y), color in zip(uvs_int[vis_reproj_mask], colors[vis_reproj_mask]): 
-            cv2.circle(img_with_circles, (x, y), radius=draw_radius, 
-                       color=(int(color[0]), int(color[1]), int(color[2])), 
-                       thickness=-1, lineType=cv2.LINE_AA)
+        for (x, y), color in zip(
+            uvs_int[vis_reproj_mask], colors[vis_reproj_mask]
+        ):
+            cv2.circle(
+                img_with_circles,
+                (x, y),
+                radius=draw_radius,
+                color=(int(color[0]), int(color[1]), int(color[2])),
+                thickness=-1,
+                lineType=cv2.LINE_AA,
+            )
 
         if img_with_circles.shape[:2] != video_size_rev:
             # Center Pad
@@ -414,27 +518,37 @@ def create_video_with_reprojections(output_path, fname_prefix, video_size, recon
             bottom_pad = target_h - h - top_pad
             left_pad = (target_w - w) // 2
             right_pad = target_w - w - left_pad
-            img_with_circles = cv2.copyMakeBorder(img_with_circles, top_pad, bottom_pad, left_pad, right_pad, 
-                                                  cv2.BORDER_CONSTANT, value=[0, 0, 0])
+            img_with_circles = cv2.copyMakeBorder(
+                img_with_circles,
+                top_pad,
+                bottom_pad,
+                left_pad,
+                right_pad,
+                cv2.BORDER_CONSTANT,
+                value=[0, 0, 0],
+            )
         video_writer.write(img_with_circles)
 
     video_writer.release()
     print("Finished generating reprojection video")
 
 
-
-def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
-    import matplotlib
-
+def create_depth_map_visual(depth_map, raw_img, output_filename):
     # Normalize the depth map to the range 0-255
-    depth_map_visual = (depth_map - depth_map.min()) / (depth_map.max() - depth_map.min()) * 255.0
+    depth_map_visual = (
+        (depth_map - depth_map.min())
+        / (depth_map.max() - depth_map.min())
+        * 255.0
+    )
     depth_map_visual = depth_map_visual.astype(np.uint8)
 
     # Get the colormap
     cmap = matplotlib.colormaps.get_cmap("Spectral_r")
 
     # Apply the colormap and convert to uint8
-    depth_map_visual = (cmap(depth_map_visual)[:, :, :3] * 255)[:, :, ::-1].astype(np.uint8)
+    depth_map_visual = (cmap(depth_map_visual)[:, :, :3] * 255)[
+        :, :, ::-1
+    ].astype(np.uint8)
 
     # Create a white split region
     split_region = np.ones((raw_img.shape[0], 50, 3), dtype=np.uint8) * 255
@@ -443,37 +557,31 @@ def create_depth_map_visual(depth_map, raw_img, img_fname, outdir):
     combined_result = cv2.hconcat([raw_img, split_region, depth_map_visual])
 
     # Save the result to a file
-    output_filename = outdir + f"/depth_{os.path.basename(img_fname)}.png"
     cv2.imwrite(output_filename, combined_result)
 
     return output_filename
 
 
-def extract_dense_depth_maps_and_save(depth_dir, image_paths, device, cfg):
+def extract_dense_depth_maps_and_save(depth_model, depth_dir, image_paths):
     """
     Extract dense depth maps from a list of image paths and save them to a specified directory.
     """
     try:
-        from dependency.depth_any_v2.depth_anything_v2.dpt import DepthAnythingV2
+        from dependency.depth_any_v2.depth_anything_v2.dpt import (
+            DepthAnythingV2,
+        )
+
         print("DepthAnythingV2 is available")
     except:
         print("DepthAnythingV2 is not installed. Please disable dense_depth")
 
     print("Extracting dense depth maps")
-    
+
     os.makedirs(depth_dir, exist_ok=True)
 
-    # Build DepthAnythingV2 model
-    model_config = {"encoder": "vitl", "features": 256, "out_channels": [256, 512, 1024, 1024]}
-    depth_model = DepthAnythingV2(**model_config)
-    _DEPTH_ANYTHING_V2_URL = (
-        "https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth"
-    )
-    checkpoint = torch.hub.load_state_dict_from_url(_DEPTH_ANYTHING_V2_URL)
-    depth_model.load_state_dict(checkpoint)
-    depth_model = depth_model.to(device).eval()
-
-    for idx in tqdm(range(len(image_paths)), desc="Predicting monocular depth maps"):
+    for idx in tqdm(
+        range(len(image_paths)), desc="Predicting monocular depth maps"
+    ):
         img_fname = image_paths[idx]
         raw_img = cv2.imread(img_fname)
         # raw resolution
@@ -481,13 +589,22 @@ def extract_dense_depth_maps_and_save(depth_dir, image_paths, device, cfg):
             raw_img, min(1024, max(raw_img.shape[:2]))
         )  # HxW raw depth_map map in numpy
 
-        if cfg.visual_depths:
-            create_depth_map_visual(disp_map, raw_img, img_fname, depth_dir)
-        write_array(disp_map, img_fname.replace("images", "depths") + ".bin")
+        out_fname = os.path.join(depth_dir, os.path.basename(img_fname))
+
+        name_wo_extension = os.path.splitext(out_fname)[0]
+        out_fname_with_bin = name_wo_extension + ".bin"
+        write_array(disp_map, out_fname_with_bin)
+
     print("Monocular depth maps complete. Depth alignment to be conducted.")
 
 
-def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg):
+def align_dense_depth_maps_and_save(
+    reconstruction,
+    sparse_depth,
+    depth_dir,
+    image_dir_prefix,
+    visual_dense_point_cloud=False,
+):
     # For dense depth estimation
     from sklearn.linear_model import RANSACRegressor
     from sklearn.linear_model import LinearRegression
@@ -499,11 +616,19 @@ def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg
     depth_min = 1 / disparity_max
 
     unproj_dense_points3D = {}
-    fname_to_id = {reconstruction.images[imgid].name: imgid for imgid in reconstruction.images}
+    fname_to_id = {
+        reconstruction.images[imgid].name: imgid
+        for imgid in reconstruction.images
+    }
 
     for img_name in tqdm(sparse_depth, desc="Load monocular depth and Align"):
         sparse_uvd = np.array(sparse_depth[img_name])
-        disp_map = read_array(os.path.join(depth_dir, img_name + ".bin"))
+
+        out_fname = os.path.join(depth_dir, os.path.basename(img_name))
+        name_wo_extension = os.path.splitext(out_fname)[0]
+        out_fname_with_bin = name_wo_extension + ".bin"
+
+        disp_map = read_array(out_fname_with_bin)
 
         ww, hh = disp_map.shape
         # Filter out the projections outside the image
@@ -558,43 +683,51 @@ def align_dense_depth_maps_and_save(reconstruction, sparse_depth, depth_dir, cfg
         depth_map[depth_map == np.inf] = 0
         depth_map = depth_map.astype(np.float32)
 
-        write_array(depth_map, os.path.join(depth_dir, img_name) + ".bin")
+        write_array(depth_map, out_fname_with_bin)
 
-        if cfg.visual_dense_point_cloud:
+        if visual_dense_point_cloud:
             # TODO: remove the dirty codes here
             pyimg = reconstruction.images[fname_to_id[img_name]]
             pycam = reconstruction.cameras[pyimg.camera_id]
 
             # Generate the x and y coordinates
-            x_coords = np.arange(hh)  
-            y_coords = np.arange(ww)  
+            x_coords = np.arange(hh)
+            y_coords = np.arange(ww)
             xx, yy = np.meshgrid(x_coords, y_coords)
 
             valid_depth_mask_hw = np.copy(valid_depth_mask)
-            sampled_points2d = np.column_stack(( xx.ravel(), yy.ravel()))
+            sampled_points2d = np.column_stack((xx.ravel(), yy.ravel()))
             # sampled_points2d = sampled_points2d + 0.5 # TODO figure it out if we still need +0.5
-                    
+
             depth_values = depth_map.reshape(-1)
             valid_depth_mask = valid_depth_mask.reshape(-1)
-            
-            sampled_points2d = sampled_points2d[valid_depth_mask] 
+
+            sampled_points2d = sampled_points2d[valid_depth_mask]
             depth_values = depth_values[valid_depth_mask]
-            
+
             unproject_points = pycam.cam_from_img(sampled_points2d)
-            unproject_points_homo = np.hstack((unproject_points,  np.ones((unproject_points.shape[0], 1))))
-            unproject_points_withz = unproject_points_homo * depth_values.reshape(-1, 1)
-            unproject_points_world = pyimg.cam_from_world.inverse() * unproject_points_withz
-            
-            bgr = cv2.imread(os.path.join(cfg.SCENE_DIR, "images", img_name))
-            
+            unproject_points_homo = np.hstack(
+                (unproject_points, np.ones((unproject_points.shape[0], 1)))
+            )
+            unproject_points_withz = (
+                unproject_points_homo * depth_values.reshape(-1, 1)
+            )
+            unproject_points_world = (
+                pyimg.cam_from_world.inverse() * unproject_points_withz
+            )
+
+            bgr = cv2.imread(os.path.join(image_dir_prefix, img_name))
+
             rgb_image = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
             rgb_image = rgb_image / 255
             rgb = rgb_image.reshape(-1, 3)
             rgb = rgb[valid_depth_mask]
-                
-            unproj_dense_points3D[img_name] = np.array([unproject_points_world, rgb])
-    
-    if not cfg.visual_dense_point_cloud:
+
+            unproj_dense_points3D[img_name] = np.array(
+                [unproject_points_world, rgb]
+            )
+
+    if not visual_dense_point_cloud:
         unproj_dense_points3D = None
-        
+
     return unproj_dense_points3D

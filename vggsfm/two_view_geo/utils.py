@@ -18,10 +18,16 @@ from kornia.core import Tensor, concatenate, ones_like, stack, where, zeros
 from kornia.core.check import KORNIA_CHECK_SHAPE, KORNIA_CHECK_IS_TENSOR
 
 # Importing Kornia geometry functionalities
-from kornia.geometry.conversions import convert_points_from_homogeneous, convert_points_to_homogeneous
+from kornia.geometry.conversions import (
+    convert_points_from_homogeneous,
+    convert_points_to_homogeneous,
+)
 from kornia.geometry.linalg import transform_points
 from kornia.geometry.solvers import solve_cubic
-from kornia.geometry.epipolar.fundamental import normalize_points, normalize_transformation
+from kornia.geometry.epipolar.fundamental import (
+    normalize_points,
+    normalize_transformation,
+)
 
 # Importing PyTorch functionalities
 from torch.cuda.amp import autocast
@@ -42,7 +48,9 @@ def generate_samples(N, target_num, sample_num, expand_ratio=2):
     Returns:
     np.array: An array of indices without duplicates.
     """
-    sample_idx = np.random.randint(0, N, size=(target_num * expand_ratio, sample_num))
+    sample_idx = np.random.randint(
+        0, N, size=(target_num * expand_ratio, sample_num)
+    )
     sorted_array = np.sort(sample_idx, axis=1)
     diffs = np.diff(sorted_array, axis=1)
     has_duplicates = (diffs == 0).any(axis=1)
@@ -52,7 +60,9 @@ def generate_samples(N, target_num, sample_num, expand_ratio=2):
     return sample_idx_safe
 
 
-def calculate_residual_indicator(residuals, max_residual, debug=False, check=False, nanvalue=1e6):
+def calculate_residual_indicator(
+    residuals, max_residual, debug=False, check=False, nanvalue=1e6
+):
     with autocast(dtype=torch.double):
         B, S, N = residuals.shape
         inlier_mask = residuals <= max_residual
@@ -64,7 +74,9 @@ def calculate_residual_indicator(residuals, max_residual, debug=False, check=Fal
         # the average residual for inliers
         residual_indicator = residual_indicator.sum(dim=-1) / inlier_num
         # remove zero dividing
-        residual_indicator = torch.nan_to_num(residual_indicator, nan=nanvalue, posinf=nanvalue, neginf=nanvalue)
+        residual_indicator = torch.nan_to_num(
+            residual_indicator, nan=nanvalue, posinf=nanvalue, neginf=nanvalue
+        )
         # we want the min average one, but don't want it to change the choice of inlier num
         thres = residual_indicator.max() + 1e-6
 
@@ -76,7 +88,13 @@ def calculate_residual_indicator(residuals, max_residual, debug=False, check=Fal
 
 
 def sampson_epipolar_distance_batched(
-    pts1: Tensor, pts2: Tensor, Fm: Tensor, squared: bool = True, eps: float = 1e-8, debug=False, evaluation=False
+    pts1: Tensor,
+    pts2: Tensor,
+    Fm: Tensor,
+    squared: bool = True,
+    eps: float = 1e-8,
+    debug=False,
+    evaluation=False,
 ) -> Tensor:
     """Return Sampson distance for correspondences given the fundamental matrices.
 
@@ -112,22 +130,34 @@ def sampson_epipolar_distance_batched(
         B, K, _, _ = Fm.shape
         N = pts1.shape[1]
 
-        pts1_expanded = pts1[:, None, :, :].expand(-1, K, -1, -1)  # Shape: (B, K, N, 3)
-        pts2_expanded = pts2[:, None, :, :].expand(-1, K, -1, -1)  # Shape: (B, K, N, 3)
+        pts1_expanded = pts1[:, None, :, :].expand(
+            -1, K, -1, -1
+        )  # Shape: (B, K, N, 3)
+        pts2_expanded = pts2[:, None, :, :].expand(
+            -1, K, -1, -1
+        )  # Shape: (B, K, N, 3)
 
         Fm = Fm.to(efficient_dtype)
         F_t = Fm.transpose(-2, -1)  # Shape: (B, K, 3, 3)
 
         # pts1_expanded @ F_t
-        line1_in_2 = torch.einsum("bkij,bkjn->bkin", pts1_expanded, F_t)  # Shape: (B, K, N, 3)
+        line1_in_2 = torch.einsum(
+            "bkij,bkjn->bkin", pts1_expanded, F_t
+        )  # Shape: (B, K, N, 3)
         if evaluation:
             torch.cuda.empty_cache()
-        line2_in_1 = torch.einsum("bkij,bkjn->bkin", pts2_expanded, Fm)  # Shape: (B, K, N, 3)
+        line2_in_1 = torch.einsum(
+            "bkij,bkjn->bkin", pts2_expanded, Fm
+        )  # Shape: (B, K, N, 3)
         if evaluation:
             torch.cuda.empty_cache()
 
-        numerator = (pts2_expanded * line1_in_2).sum(dim=-1).pow(2)  # Shape: (B, K, N)
-        denominator = line1_in_2[..., :2].norm(2, dim=-1).pow(2) + line2_in_1[..., :2].norm(2, dim=-1).pow(
+        numerator = (
+            (pts2_expanded * line1_in_2).sum(dim=-1).pow(2)
+        )  # Shape: (B, K, N)
+        denominator = line1_in_2[..., :2].norm(2, dim=-1).pow(2) + line2_in_1[
+            ..., :2
+        ].norm(2, dim=-1).pow(
             2
         )  # Shape: (B, K, N)
 
@@ -157,13 +187,17 @@ def normalize_points_masked(
         Tuple containing the normalized points in the shape (B, N, 2) and the transformation matrix in the shape (B, 3, 3).
     """
     if len(points.shape) != 3 or points.shape[-1] != 2:
-        raise ValueError(f"Expected points with shape (B, N, 2), got {points.shape}")
+        raise ValueError(
+            f"Expected points with shape (B, N, 2), got {points.shape}"
+        )
 
     if masks is None:
         masks = ones_like(points[..., 0])
 
     if masks.shape != points.shape[:-1]:
-        raise ValueError(f"Expected masks with shape {points.shape[:-1]}, got {masks.shape}")
+        raise ValueError(
+            f"Expected masks with shape {points.shape[:-1]}, got {masks.shape}"
+        )
 
     # Convert masks to float and apply it
     mask_f = masks.float().unsqueeze(-1)  # BxNx1
@@ -171,19 +205,29 @@ def normalize_points_masked(
 
     # Compute mean only over masked (non-zero) points
     num_valid_points = mask_f.sum(dim=1, keepdim=True)  # Bx1x1
-    x_mean = masked_points.sum(dim=1, keepdim=True) / (num_valid_points + eps)  # Bx1x2
+    x_mean = masked_points.sum(dim=1, keepdim=True) / (
+        num_valid_points + eps
+    )  # Bx1x2
 
-    diffs = masked_points - x_mean  # BxNx2, Apply mask before subtraction to zero-out invalid points
+    diffs = (
+        masked_points - x_mean
+    )  # BxNx2, Apply mask before subtraction to zero-out invalid points
 
     if colmap_style:
-        sum_squared_diffs = (diffs**2).sum(dim=-1).sum(dim=-1)  # Shape: (B, N)
-        mean_squared_diffs = sum_squared_diffs / (num_valid_points[:, 0, 0] + eps)  # Shape: (B,)
+        sum_squared_diffs = (
+            (diffs**2).sum(dim=-1).sum(dim=-1)
+        )  # Shape: (B, N)
+        mean_squared_diffs = sum_squared_diffs / (
+            num_valid_points[:, 0, 0] + eps
+        )  # Shape: (B,)
         rms_mean_dist = torch.sqrt(mean_squared_diffs)  # Shape: (B,)
         rms_mean_dist = torch.clamp(rms_mean_dist, min=eps)
         scale = torch.sqrt(torch.tensor(2.0)) / rms_mean_dist  # Shape: (B,)
     else:
         # Compute scale only over masked points
-        scale = (diffs.norm(dim=-1, p=2) * masks).sum(dim=-1) / (num_valid_points[:, 0, 0] + eps)  # B
+        scale = (diffs.norm(dim=-1, p=2) * masks).sum(dim=-1) / (
+            num_valid_points[:, 0, 0] + eps
+        )  # B
         scale = torch.sqrt(torch.tensor(2.0)) / (scale + eps)  # B
 
     # Prepare transformation matrix components
@@ -191,7 +235,18 @@ def normalize_points_masked(
     zeros = torch.zeros_like(scale)
 
     transform = stack(
-        [scale, zeros, -scale * x_mean[..., 0, 0], zeros, scale, -scale * x_mean[..., 0, 1], zeros, zeros, ones], dim=-1
+        [
+            scale,
+            zeros,
+            -scale * x_mean[..., 0, 0],
+            zeros,
+            scale,
+            -scale * x_mean[..., 0, 1],
+            zeros,
+            zeros,
+            ones,
+        ],
+        dim=-1,
     )  # Bx3x3
 
     transform = transform.view(-1, 3, 3)  # Bx3x3
@@ -201,7 +256,14 @@ def normalize_points_masked(
 
 
 def local_refinement(
-    local_estimator, points1, points2, inlier_mask, sorted_indices, lo_num=50, essential=False, skip_resize=False
+    local_estimator,
+    points1,
+    points2,
+    inlier_mask,
+    sorted_indices,
+    lo_num=50,
+    essential=False,
+    skip_resize=False,
 ):
     # Running local refinement by local_estimator based on inlier_mask
     # as in LORANSAC
@@ -250,7 +312,9 @@ def inlier_by_fundamental(fmat, tracks, max_error=0.5):
 
     max_thres = max_error**2
 
-    residuals = sampson_epipolar_distance_batched(left, right, fmat[:, None], squared=True)
+    residuals = sampson_epipolar_distance_batched(
+        left, right, fmat[:, None], squared=True
+    )
 
     residuals = residuals[:, 0]
 
@@ -260,15 +324,21 @@ def inlier_by_fundamental(fmat, tracks, max_error=0.5):
     return inlier_mask
 
 
-def remove_cheirality(R, t, points1, points2, focal_length=None, principal_point=None):
+def remove_cheirality(
+    R, t, points1, points2, focal_length=None, principal_point=None
+):
     # TODO: merge this function with triangulation utils
     with autocast(dtype=torch.double):
         if focal_length is not None:
             principal_point = principal_point.unsqueeze(1)
             focal_length = focal_length.unsqueeze(1)
 
-            points1 = (points1 - principal_point[..., :2]) / focal_length[..., :2]
-            points2 = (points2 - principal_point[..., 2:]) / focal_length[..., 2:]
+            points1 = (points1 - principal_point[..., :2]) / focal_length[
+                ..., :2
+            ]
+            points2 = (points2 - principal_point[..., 2:]) / focal_length[
+                ..., 2:
+            ]
 
         B, cheirality_dim, _, _ = R.shape
         Bche = B * cheirality_dim
@@ -279,7 +349,10 @@ def remove_cheirality(R, t, points1, points2, focal_length=None, principal_point
         points2_expand = points2_expand.reshape(Bche, N, 2)
 
         cheirality_num, points3D = check_cheirality_batch(
-            R.reshape(Bche, 3, 3), t.reshape(Bche, 3), points1_expand, points2_expand
+            R.reshape(Bche, 3, 3),
+            t.reshape(Bche, 3),
+            points1_expand,
+            points2_expand,
         )
         cheirality_num = cheirality_num.reshape(B, cheirality_dim)
 
@@ -298,10 +371,22 @@ def triangulate_point_batch(cam1_from_world, cam2_from_world, points1, points2):
     B, N, _ = points1.shape
     A = torch.zeros(B, N, 4, 4, dtype=points1.dtype, device=points1.device)
 
-    A[:, :, 0, :] = points1[:, :, 0, None] * cam1_from_world[:, None, 2, :] - cam1_from_world[:, None, 0, :]
-    A[:, :, 1, :] = points1[:, :, 1, None] * cam1_from_world[:, None, 2, :] - cam1_from_world[:, None, 1, :]
-    A[:, :, 2, :] = points2[:, :, 0, None] * cam2_from_world[:, None, 2, :] - cam2_from_world[:, None, 0, :]
-    A[:, :, 3, :] = points2[:, :, 1, None] * cam2_from_world[:, None, 2, :] - cam2_from_world[:, None, 1, :]
+    A[:, :, 0, :] = (
+        points1[:, :, 0, None] * cam1_from_world[:, None, 2, :]
+        - cam1_from_world[:, None, 0, :]
+    )
+    A[:, :, 1, :] = (
+        points1[:, :, 1, None] * cam1_from_world[:, None, 2, :]
+        - cam1_from_world[:, None, 1, :]
+    )
+    A[:, :, 2, :] = (
+        points2[:, :, 0, None] * cam2_from_world[:, None, 2, :]
+        - cam2_from_world[:, None, 0, :]
+    )
+    A[:, :, 3, :] = (
+        points2[:, :, 1, None] * cam2_from_world[:, None, 2, :]
+        - cam2_from_world[:, None, 1, :]
+    )
 
     # Perform SVD on A
     _, _, Vh = torch.linalg.svd(A.view(-1, 4, 4), full_matrices=True)
@@ -318,7 +403,13 @@ def calculate_depth_batch(proj_matrices, points3D):
     # proj_matrices: Bx3x4
     # points3D: BxNx3
     B, N, _ = points3D.shape
-    points3D_homo = torch.cat((points3D, torch.ones(B, N, 1, dtype=points3D.dtype, device=points3D.device)), dim=-1)
+    points3D_homo = torch.cat(
+        (
+            points3D,
+            torch.ones(B, N, 1, dtype=points3D.dtype, device=points3D.device),
+        ),
+        dim=-1,
+    )
     points2D_homo = torch.einsum("bij,bkj->bki", proj_matrices, points3D_homo)
     return points2D_homo[..., 2]
 
@@ -329,20 +420,31 @@ def check_cheirality_batch(R, t, points1, points2):
     B, N, _ = points1.shape
     assert points1.shape == points2.shape
 
-    proj_matrix1 = torch.eye(3, 4, dtype=R.dtype, device=R.device).expand(B, -1, -1)
+    proj_matrix1 = torch.eye(3, 4, dtype=R.dtype, device=R.device).expand(
+        B, -1, -1
+    )
     proj_matrix2 = torch.zeros(B, 3, 4, dtype=R.dtype, device=R.device)
     proj_matrix2[:, :, :3] = R
     proj_matrix2[:, :, 3] = t
 
     kMinDepth = torch.finfo(R.dtype).eps
-    max_depth = 1000.0 * torch.linalg.norm(R.transpose(-2, -1) @ t[:, :, None], dim=1)
+    max_depth = 1000.0 * torch.linalg.norm(
+        R.transpose(-2, -1) @ t[:, :, None], dim=1
+    )
 
-    points3D = triangulate_point_batch(proj_matrix1, proj_matrix2, points1, points2)
+    points3D = triangulate_point_batch(
+        proj_matrix1, proj_matrix2, points1, points2
+    )
 
     depths1 = calculate_depth_batch(proj_matrix1, points3D)
     depths2 = calculate_depth_batch(proj_matrix2, points3D)
 
-    valid_depths = (depths1 > kMinDepth) & (depths1 < max_depth) & (depths2 > kMinDepth) & (depths2 < max_depth)
+    valid_depths = (
+        (depths1 > kMinDepth)
+        & (depths1 < max_depth)
+        & (depths2 > kMinDepth)
+        & (depths2 < max_depth)
+    )
 
     valid_nums = valid_depths.sum(dim=-1)
     return valid_nums, points3D
@@ -352,7 +454,12 @@ def check_cheirality_batch(R, t, points1, points2):
 
 
 def sampson_epipolar_distance_forloop_wrapper(
-    pts1: Tensor, pts2: Tensor, Fm: Tensor, squared: bool = True, eps: float = 1e-8, debug=False
+    pts1: Tensor,
+    pts2: Tensor,
+    Fm: Tensor,
+    squared: bool = True,
+    eps: float = 1e-8,
+    debug=False,
 ) -> Tensor:
     """Wrapper function for sampson_epipolar_distance_batched to loop over B dimension.
 
@@ -392,7 +499,13 @@ def get_default_intri(width, height, device, dtype, ratio=1.0):
     principal_point = [width / 2, height / 2]
 
     K = torch.tensor(
-        [[focal_length, 0, width / 2], [0, focal_length, height / 2], [0, 0, 1]], device=device, dtype=dtype
+        [
+            [focal_length, 0, width / 2],
+            [0, focal_length, height / 2],
+            [0, 0, 1],
+        ],
+        device=device,
+        dtype=dtype,
     )
 
     return (
@@ -420,7 +533,11 @@ def _torch_svd_cast(input: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
 
 
 def oneway_transfer_error_batched(
-    pts1: Tensor, pts2: Tensor, H: Tensor, squared: bool = True, eps: float = 1e-8
+    pts1: Tensor,
+    pts2: Tensor,
+    H: Tensor,
+    squared: bool = True,
+    eps: float = 1e-8,
 ) -> Tensor:
     r"""Return transfer error in image 2 for correspondences given the homography matrix.
 
@@ -446,14 +563,18 @@ def oneway_transfer_error_batched(
     B, K, _, _ = H.shape
     N = pts1.shape[1]
 
-    pts1_expanded = pts1[:, None, :, :].expand(-1, K, -1, -1)  # Shape: (B, K, N, 3)
+    pts1_expanded = pts1[:, None, :, :].expand(
+        -1, K, -1, -1
+    )  # Shape: (B, K, N, 3)
 
     H_transpose = H.permute(0, 1, 3, 2)
 
     pts1_in_2_h = torch.einsum("bkij,bkjn->bkin", pts1_expanded, H_transpose)
 
     pts1_in_2 = convert_points_from_homogeneous(pts1_in_2_h)
-    pts2_expanded = pts2[:, None, :, :].expand(-1, K, -1, -1)  # Shape: (B, K, N, 2)
+    pts2_expanded = pts2[:, None, :, :].expand(
+        -1, K, -1, -1
+    )  # Shape: (B, K, N, 2)
 
     error_squared = (pts1_in_2 - pts2_expanded).pow(2).sum(dim=-1)
 

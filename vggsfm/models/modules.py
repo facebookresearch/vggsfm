@@ -41,22 +41,41 @@ class ResidualBlock(nn.Module):
     ResidualBlock: construct a block of two conv layers with residual connections
     """
 
-    def __init__(self, in_planes, planes, norm_fn="group", stride=1, kernel_size=3):
+    def __init__(
+        self, in_planes, planes, norm_fn="group", stride=1, kernel_size=3
+    ):
         super(ResidualBlock, self).__init__()
 
         self.conv1 = nn.Conv2d(
-            in_planes, planes, kernel_size=kernel_size, padding=1, stride=stride, padding_mode="zeros"
+            in_planes,
+            planes,
+            kernel_size=kernel_size,
+            padding=1,
+            stride=stride,
+            padding_mode="zeros",
         )
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=kernel_size, padding=1, padding_mode="zeros")
+        self.conv2 = nn.Conv2d(
+            planes,
+            planes,
+            kernel_size=kernel_size,
+            padding=1,
+            padding_mode="zeros",
+        )
         self.relu = nn.ReLU(inplace=True)
 
         num_groups = planes // 8
 
         if norm_fn == "group":
-            self.norm1 = nn.GroupNorm(num_groups=num_groups, num_channels=planes)
-            self.norm2 = nn.GroupNorm(num_groups=num_groups, num_channels=planes)
+            self.norm1 = nn.GroupNorm(
+                num_groups=num_groups, num_channels=planes
+            )
+            self.norm2 = nn.GroupNorm(
+                num_groups=num_groups, num_channels=planes
+            )
             if not stride == 1:
-                self.norm3 = nn.GroupNorm(num_groups=num_groups, num_channels=planes)
+                self.norm3 = nn.GroupNorm(
+                    num_groups=num_groups, num_channels=planes
+                )
 
         elif norm_fn == "batch":
             self.norm1 = nn.BatchNorm2d(planes)
@@ -81,7 +100,10 @@ class ResidualBlock(nn.Module):
         if stride == 1:
             self.downsample = None
         else:
-            self.downsample = nn.Sequential(nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride), self.norm3)
+            self.downsample = nn.Sequential(
+                nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride),
+                self.norm3,
+            )
 
     def forward(self, x):
         y = x
@@ -113,7 +135,9 @@ class Mlp(nn.Module):
         hidden_features = hidden_features or in_features
         bias = to_2tuple(bias)
         drop_probs = to_2tuple(drop)
-        linear_layer = partial(nn.Conv2d, kernel_size=1) if use_conv else nn.Linear
+        linear_layer = (
+            partial(nn.Conv2d, kernel_size=1) if use_conv else nn.Linear
+        )
 
         self.fc1 = linear_layer(in_features, hidden_features, bias=bias[0])
         self.act = act_layer()
@@ -143,14 +167,25 @@ class AttnBlock(nn.Module):
         Self attention block
         """
         super().__init__()
-        self.norm1 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
-        self.norm2 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.norm1 = nn.LayerNorm(
+            hidden_size, elementwise_affine=False, eps=1e-6
+        )
+        self.norm2 = nn.LayerNorm(
+            hidden_size, elementwise_affine=False, eps=1e-6
+        )
 
-        self.attn = attn_class(embed_dim=hidden_size, num_heads=num_heads, batch_first=True, **block_kwargs)
+        self.attn = attn_class(
+            embed_dim=hidden_size,
+            num_heads=num_heads,
+            batch_first=True,
+            **block_kwargs
+        )
 
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
 
-        self.mlp = Mlp(in_features=hidden_size, hidden_features=mlp_hidden_dim, drop=0)
+        self.mlp = Mlp(
+            in_features=hidden_size, hidden_features=mlp_hidden_dim, drop=0
+        )
 
     def forward(self, x, mask=None):
         # Prepare the mask for PyTorch's attention (it expects a different format)
@@ -170,22 +205,38 @@ class AttnBlock(nn.Module):
 
 
 class CrossAttnBlock(nn.Module):
-    def __init__(self, hidden_size, context_dim, num_heads=1, mlp_ratio=4.0, **block_kwargs):
+    def __init__(
+        self,
+        hidden_size,
+        context_dim,
+        num_heads=1,
+        mlp_ratio=4.0,
+        **block_kwargs
+    ):
         """
         Cross attention block
         """
         super().__init__()
-        self.norm1 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.norm1 = nn.LayerNorm(
+            hidden_size, elementwise_affine=False, eps=1e-6
+        )
         self.norm_context = nn.LayerNorm(hidden_size)
-        self.norm2 = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.norm2 = nn.LayerNorm(
+            hidden_size, elementwise_affine=False, eps=1e-6
+        )
 
         self.cross_attn = nn.MultiheadAttention(
-            embed_dim=hidden_size, num_heads=num_heads, batch_first=True, **block_kwargs
+            embed_dim=hidden_size,
+            num_heads=num_heads,
+            batch_first=True,
+            **block_kwargs
         )
 
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
 
-        self.mlp = Mlp(in_features=hidden_size, hidden_features=mlp_hidden_dim, drop=0)
+        self.mlp = Mlp(
+            in_features=hidden_size, hidden_features=mlp_hidden_dim, drop=0
+        )
 
     def forward(self, x, context, mask=None):
         # Normalize inputs

@@ -14,7 +14,10 @@ import math
 
 from minipytorch3d.cameras import PerspectiveCameras
 from minipytorch3d.transform3d import Rotate, Translate
-from minipytorch3d.rotation_conversions import matrix_to_quaternion, quaternion_to_matrix
+from minipytorch3d.rotation_conversions import (
+    matrix_to_quaternion,
+    quaternion_to_matrix,
+)
 
 # from pytorch3d.renderer.cameras import CamerasBase, PerspectiveCameras
 # from pytorch3d.transforms import Rotate, Translate
@@ -27,8 +30,12 @@ def bbox_xyxy_to_xywh(xyxy):
     return xywh
 
 
-def adjust_camera_to_bbox_crop_(fl, pp, image_size_wh: torch.Tensor, clamp_bbox_xywh: torch.Tensor):
-    focal_length_px, principal_point_px = _convert_ndc_to_pixels(fl, pp, image_size_wh)
+def adjust_camera_to_bbox_crop_(
+    fl, pp, image_size_wh: torch.Tensor, clamp_bbox_xywh: torch.Tensor
+):
+    focal_length_px, principal_point_px = _convert_ndc_to_pixels(
+        fl, pp, image_size_wh
+    )
 
     principal_point_px_cropped = principal_point_px - clamp_bbox_xywh[:2]
 
@@ -39,12 +46,20 @@ def adjust_camera_to_bbox_crop_(fl, pp, image_size_wh: torch.Tensor, clamp_bbox_
     return focal_length, principal_point_cropped
 
 
-def adjust_camera_to_image_scale_(fl, pp, original_size_wh: torch.Tensor, new_size_wh: torch.LongTensor):
-    focal_length_px, principal_point_px = _convert_ndc_to_pixels(fl, pp, original_size_wh)
+def adjust_camera_to_image_scale_(
+    fl, pp, original_size_wh: torch.Tensor, new_size_wh: torch.LongTensor
+):
+    focal_length_px, principal_point_px = _convert_ndc_to_pixels(
+        fl, pp, original_size_wh
+    )
 
     # now scale and convert from pixels to NDC
     image_size_wh_output = new_size_wh.float()
-    scale = (image_size_wh_output / original_size_wh).min(dim=-1, keepdim=True).values
+    scale = (
+        (image_size_wh_output / original_size_wh)
+        .min(dim=-1, keepdim=True)
+        .values
+    )
     focal_length_px_scaled = focal_length_px * scale
     principal_point_px_scaled = principal_point_px * scale
 
@@ -54,7 +69,11 @@ def adjust_camera_to_image_scale_(fl, pp, original_size_wh: torch.Tensor, new_si
     return focal_length_scaled, principal_point_scaled
 
 
-def _convert_ndc_to_pixels(focal_length: torch.Tensor, principal_point: torch.Tensor, image_size_wh: torch.Tensor):
+def _convert_ndc_to_pixels(
+    focal_length: torch.Tensor,
+    principal_point: torch.Tensor,
+    image_size_wh: torch.Tensor,
+):
     half_image_size = image_size_wh / 2
     rescale = half_image_size.min()
     principal_point_px = half_image_size - principal_point * rescale
@@ -63,7 +82,9 @@ def _convert_ndc_to_pixels(focal_length: torch.Tensor, principal_point: torch.Te
 
 
 def _convert_pixels_to_ndc(
-    focal_length_px: torch.Tensor, principal_point_px: torch.Tensor, image_size_wh: torch.Tensor
+    focal_length_px: torch.Tensor,
+    principal_point_px: torch.Tensor,
+    image_size_wh: torch.Tensor,
 ):
     half_image_size = image_size_wh / 2
     rescale = half_image_size.min()
@@ -73,7 +94,13 @@ def _convert_pixels_to_ndc(
 
 
 def normalize_cameras(
-    cameras, compute_optical=True, first_camera=True, normalize_trans=True, scale=1.0, points=None, max_norm=False
+    cameras,
+    compute_optical=True,
+    first_camera=True,
+    normalize_trans=True,
+    scale=1.0,
+    points=None,
+    max_norm=False,
 ):
     """
     Normalizes cameras such that
@@ -89,13 +116,17 @@ def normalize_cameras(
     new_cameras = cameras.clone()
 
     if compute_optical:
-        new_cameras, points = compute_optical_transform(new_cameras, points=points)
+        new_cameras, points = compute_optical_transform(
+            new_cameras, points=points
+        )
 
     if first_camera:
         new_cameras, points = first_camera_transform(new_cameras, points=points)
 
     if normalize_trans:
-        new_cameras, points = normalize_translation(new_cameras, points=points, max_norm=max_norm)
+        new_cameras, points = normalize_translation(
+            new_cameras, points=points, max_norm=max_norm
+        )
 
     return new_cameras, points
 
@@ -106,7 +137,13 @@ def compute_optical_transform(new_cameras, points=None):
     """
 
     new_transform = new_cameras.get_world_to_view_transform()
-    p_intersect, dist, p_line_intersect, pp, r = compute_optical_axis_intersection(new_cameras)
+    (
+        p_intersect,
+        dist,
+        p_line_intersect,
+        pp,
+        r,
+    ) = compute_optical_axis_intersection(new_cameras)
     t = Translate(p_intersect)
     scale = dist.squeeze()[0]
 
@@ -134,7 +171,9 @@ def compute_optical_axis_intersection(cameras):
     one_vec = torch.ones((len(cameras), 1))
     optical_axis = torch.cat((principal_points, one_vec), -1)
 
-    pp = cameras.unproject_points(optical_axis, from_ndc=True, world_coordinates=True)
+    pp = cameras.unproject_points(
+        optical_axis, from_ndc=True, world_coordinates=True
+    )
 
     pp2 = pp[torch.arange(pp.shape[0]), torch.arange(pp.shape[0])]
 
@@ -142,7 +181,9 @@ def compute_optical_axis_intersection(cameras):
     centers = centers.unsqueeze(0).unsqueeze(0)
     directions = directions.unsqueeze(0).unsqueeze(0)
 
-    p_intersect, p_line_intersect, _, r = intersect_skew_line_groups(p=centers, r=directions, mask=None)
+    p_intersect, p_line_intersect, _, r = intersect_skew_line_groups(
+        p=centers, r=directions, mask=None
+    )
 
     p_intersect = p_intersect.squeeze().unsqueeze(0)
     dist = (p_intersect - centers).norm(dim=-1)
@@ -154,8 +195,12 @@ def intersect_skew_line_groups(p, r, mask):
     # p, r both of shape (B, N, n_intersected_lines, 3)
     # mask of shape (B, N, n_intersected_lines)
     p_intersect, r = intersect_skew_lines_high_dim(p, r, mask=mask)
-    _, p_line_intersect = _point_line_distance(p, r, p_intersect[..., None, :].expand_as(p))
-    intersect_dist_squared = ((p_line_intersect - p_intersect[..., None, :]) ** 2).sum(dim=-1)
+    _, p_line_intersect = _point_line_distance(
+        p, r, p_intersect[..., None, :].expand_as(p)
+    )
+    intersect_dist_squared = (
+        (p_line_intersect - p_intersect[..., None, :]) ** 2
+    ).sum(dim=-1)
     return p_intersect, p_line_intersect, intersect_dist_squared, r
 
 
@@ -170,7 +215,9 @@ def intersect_skew_lines_high_dim(p, r, mask=None):
     eye = torch.eye(dim, device=p.device, dtype=p.dtype)[None, None]
     I_min_cov = (eye - (r[..., None] * r[..., None, :])) * mask[..., None, None]
     sum_proj = I_min_cov.matmul(p[..., None]).sum(dim=-3)
-    p_intersect = torch.linalg.lstsq(I_min_cov.sum(dim=-3), sum_proj).solution[..., 0]
+    p_intersect = torch.linalg.lstsq(I_min_cov.sum(dim=-3), sum_proj).solution[
+        ..., 0
+    ]
 
     if torch.any(torch.isnan(p_intersect)):
         print(p_intersect)

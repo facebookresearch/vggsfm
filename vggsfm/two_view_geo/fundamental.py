@@ -16,7 +16,10 @@ from torch.cuda.amp import autocast
 from kornia.core.check import KORNIA_CHECK_SHAPE
 from kornia.geometry.solvers import solve_cubic
 
-from kornia.geometry.epipolar.fundamental import normalize_points, normalize_transformation
+from kornia.geometry.epipolar.fundamental import (
+    normalize_points,
+    normalize_transformation,
+)
 from kornia.core import Tensor, concatenate, ones_like, stack, where, zeros
 
 import numpy as np
@@ -66,15 +69,21 @@ def estimate_fundamental(
     # randomly sample 7 point set by max_ransac_iters times
     # ransac_idx: torch matirx Nx7
     ransac_idx = generate_samples(N, max_ransac_iters, point_per_sample)
-    left = points1[:, ransac_idx].view(B * max_ransac_iters, point_per_sample, 2)
-    right = points2[:, ransac_idx].view(B * max_ransac_iters, point_per_sample, 2)
+    left = points1[:, ransac_idx].view(
+        B * max_ransac_iters, point_per_sample, 2
+    )
+    right = points2[:, ransac_idx].view(
+        B * max_ransac_iters, point_per_sample, 2
+    )
 
     # Note that, we have (B*max_ransac_iters) 7-point sets
     # Each 7-point set will lead to 3 potential answers by 7p algorithm (check run_7point for details)
     # Therefore the number of 3x3 matrix fmat_ransac is (B*max_ransac_iters*3)
     # We reshape it to B x (max_ransac_iters*3) x 3 x3
     fmat_ransac = run_7point(left, right)
-    fmat_ransac = fmat_ransac.reshape(B, max_ransac_iters, 3, 3, 3).reshape(B, max_ransac_iters * 3, 3, 3)
+    fmat_ransac = fmat_ransac.reshape(B, max_ransac_iters, 3, 3, 3).reshape(
+        B, max_ransac_iters * 3, 3, 3
+    )
 
     # Not sure why but the computation of sampson errors takes a lot of GPU memory
     # Since it is very fast, users can use a for loop to reduce the peak GPU usage
@@ -98,13 +107,17 @@ def estimate_fundamental(
     # and sort the candidate fmats based on it
     inlier_mask = residuals <= max_thres
     inlier_num = inlier_mask.sum(dim=-1)
-    sorted_values, sorted_indices = torch.sort(inlier_num, dim=1, descending=True)
+    sorted_values, sorted_indices = torch.sort(
+        inlier_num, dim=1, descending=True
+    )
 
     # Conduct local refinement by 8p algorithm
     # Basically, for a well-conditioned candidate fmat from 7p algorithm
     # we can compute all of its inliers
     # and then feed these inliers to 8p algorithm
-    fmat_lo = local_refinement(run_8point, points1, points2, inlier_mask, sorted_indices, lo_num=lo_num)
+    fmat_lo = local_refinement(
+        run_8point, points1, points2, inlier_mask, sorted_indices, lo_num=lo_num
+    )
     if loopresidual:
         torch.cuda.empty_cache()
     residuals_lo = sampson_fn(points1, points2, fmat_lo, squared=squared)
@@ -117,13 +130,22 @@ def estimate_fundamental(
         lo_more = lo_num // 2
         inlier_mask_lo = residuals_lo <= max_thres
         inlier_num_lo = inlier_mask_lo.sum(dim=-1)
-        sorted_values_lo, sorted_indices_lo = torch.sort(inlier_num_lo, dim=1, descending=True)
+        sorted_values_lo, sorted_indices_lo = torch.sort(
+            inlier_num_lo, dim=1, descending=True
+        )
         fmat_lo_second = local_refinement(
-            run_8point, points1, points2, inlier_mask_lo, sorted_indices_lo, lo_num=lo_more
+            run_8point,
+            points1,
+            points2,
+            inlier_mask_lo,
+            sorted_indices_lo,
+            lo_num=lo_more,
         )
         if loopresidual:
             torch.cuda.empty_cache()
-        residuals_lo_second = sampson_fn(points1, points2, fmat_lo_second, squared=squared)
+        residuals_lo_second = sampson_fn(
+            points1, points2, fmat_lo_second, squared=squared
+        )
         if loopresidual:
             torch.cuda.empty_cache()
         fmat_lo = torch.cat([fmat_lo, fmat_lo_second], dim=1)
@@ -131,7 +153,9 @@ def estimate_fundamental(
         lo_num += lo_more
 
     if valid_mask is not None:
-        valid_mask_tmp = valid_mask[:, None].expand(-1, residuals_lo.shape[1], -1)
+        valid_mask_tmp = valid_mask[:, None].expand(
+            -1, residuals_lo.shape[1], -1
+        )
         residuals_lo[~valid_mask_tmp] = 1e6
 
     # Get all the predicted fmats
@@ -140,9 +164,11 @@ def estimate_fundamental(
     all_fmat = torch.cat([fmat_ransac, fmat_lo], dim=1)
     residuals_all = torch.cat([residuals, residuals_lo], dim=1)
 
-    residual_indicator, inlier_num_all, inlier_mask_all = calculate_residual_indicator(
-        residuals_all, max_thres, debug=True
-    )
+    (
+        residual_indicator,
+        inlier_num_all,
+        inlier_mask_all,
+    ) = calculate_residual_indicator(residuals_all, max_thres, debug=True)
 
     batch_index = torch.arange(B).unsqueeze(-1).expand(-1, lo_num)
 
@@ -191,8 +217,12 @@ def essential_from_fundamental(
             principal_point = principal_point.unsqueeze(1)
             focal_length = focal_length.unsqueeze(1)
 
-            points1 = (points1 - principal_point[..., :2]) / focal_length[..., :2]
-            points2 = (points2 - principal_point[..., 2:]) / focal_length[..., 2:]
+            points1 = (points1 - principal_point[..., :2]) / focal_length[
+                ..., :2
+            ]
+            points2 = (points2 - principal_point[..., 2:]) / focal_length[
+                ..., 2:
+            ]
 
             max_error = max_error / focal_length.mean(dim=-1, keepdim=True)
 
@@ -224,7 +254,10 @@ def essential_from_fundamental(
 
 
 def run_8point(
-    points1: Tensor, points2: Tensor, masks: Optional[Tensor] = None, weights: Optional[Tensor] = None
+    points1: Tensor,
+    points2: Tensor,
+    masks: Optional[Tensor] = None,
+    weights: Optional[Tensor] = None,
 ) -> Tensor:
     r"""Compute the fundamental matrix using the DLT formulation.
 
@@ -250,7 +283,9 @@ def run_8point(
         if points1.shape[1] < 8:
             raise AssertionError(points1.shape)
         if weights is not None:
-            if not (len(weights.shape) == 2 and weights.shape[1] == points1.shape[1]):
+            if not (
+                len(weights.shape) == 2 and weights.shape[1] == points1.shape[1]
+            ):
                 raise AssertionError(weights.shape)
 
         if masks is None:
@@ -267,7 +302,9 @@ def run_8point(
         # build equations system and solve DLT
         # [x * x', x * y', x, y * x', y * y', y, x', y', 1]
 
-        X = torch.cat([x2 * x1, x2 * y1, x2, y2 * x1, y2 * y1, y2, x1, y1, ones], dim=-1)  # BxNx9
+        X = torch.cat(
+            [x2 * x1, x2 * y1, x2, y2 * x1, y2 * y1, y2, x1, y1, ones], dim=-1
+        )  # BxNx9
 
         # if masks is not valid, force the cooresponding rows (points) to all zeros
         if masks is not None:
@@ -286,9 +323,13 @@ def run_8point(
 
         # reconstruct and force the matrix to have rank2
         U, S, V = _torch_svd_cast(F_mat)
-        rank_mask = torch.tensor([1.0, 1.0, 0.0], device=F_mat.device, dtype=F_mat.dtype)
+        rank_mask = torch.tensor(
+            [1.0, 1.0, 0.0], device=F_mat.device, dtype=F_mat.dtype
+        )
 
-        F_projected = U @ (torch.diag_embed(S * rank_mask) @ V.transpose(-2, -1))
+        F_projected = U @ (
+            torch.diag_embed(S * rank_mask) @ V.transpose(-2, -1)
+        )
         F_est = transform2.transpose(-2, -1) @ (F_projected @ transform1)
 
         return normalize_transformation(F_est)  # , points1_norm, points2_norm
@@ -335,7 +376,9 @@ def run_7point(points1: Tensor, points2: Tensor) -> Tensor:
         ones = ones_like(x1)
         # form a linear system: which represents
         # the equation (x2[i], 1)*F*(x1[i], 1) = 0
-        X = concatenate([x2 * x1, x2 * y1, x2, y2 * x1, y2 * y1, y2, x1, y1, ones], -1)  # BxNx9
+        X = concatenate(
+            [x2 * x1, x2 * y1, x2, y2 * x1, y2 * y1, y2, x1, y1, ones], -1
+        )  # BxNx9
 
         # X * fmat = 0 is singular (7 equations for 9 variables)
         # solving for nullspace of X to get two F
@@ -375,24 +418,31 @@ def run_7point(points1: Tensor, points2: Tensor) -> Tensor:
         roots = solve_cubic(coeffs)
 
         fmatrix = zeros((batch_size, 3, 3, 3), device=v.device, dtype=v.dtype)
-        valid_root_mask = (torch.count_nonzero(roots, dim=1) < 3) | (torch.count_nonzero(roots, dim=1) > 1)
+        valid_root_mask = (torch.count_nonzero(roots, dim=1) < 3) | (
+            torch.count_nonzero(roots, dim=1) > 1
+        )
 
         _lambda = roots
         _mu = torch.ones_like(_lambda)
 
-        _s = f1[valid_root_mask, 2, 2].unsqueeze(dim=1) * roots[valid_root_mask] + f2[valid_root_mask, 2, 2].unsqueeze(
-            dim=1
+        _s = f1[valid_root_mask, 2, 2].unsqueeze(dim=1) * roots[
+            valid_root_mask
+        ] + f2[valid_root_mask, 2, 2].unsqueeze(dim=1)
+        _s_non_zero_mask = ~torch.isclose(
+            _s, torch.tensor(0.0, device=v.device, dtype=v.dtype)
         )
-        _s_non_zero_mask = ~torch.isclose(_s, torch.tensor(0.0, device=v.device, dtype=v.dtype))
 
         _mu[_s_non_zero_mask] = 1.0 / _s[_s_non_zero_mask]
-        _lambda[_s_non_zero_mask] = _lambda[_s_non_zero_mask] * _mu[_s_non_zero_mask]
+        _lambda[_s_non_zero_mask] = (
+            _lambda[_s_non_zero_mask] * _mu[_s_non_zero_mask]
+        )
 
         f1_expanded = f1.unsqueeze(1).expand(batch_size, 3, 3, 3)
         f2_expanded = f2.unsqueeze(1).expand(batch_size, 3, 3, 3)
 
         fmatrix[valid_root_mask] = (
-            f1_expanded[valid_root_mask] * _lambda[valid_root_mask, :, None, None]
+            f1_expanded[valid_root_mask]
+            * _lambda[valid_root_mask, :, None, None]
             + f2_expanded[valid_root_mask] * _mu[valid_root_mask, :, None, None]
         )
 
@@ -401,10 +451,21 @@ def run_7point(points1: Tensor, points2: Tensor) -> Tensor:
         fmatrix[_s_non_zero_mask, mat_ind] = 1.0
         fmatrix[~_s_non_zero_mask, mat_ind] = 0.0
 
-        trans1_exp = transform1[valid_root_mask].unsqueeze(1).expand(-1, fmatrix.shape[2], -1, -1)
-        trans2_exp = transform2[valid_root_mask].unsqueeze(1).expand(-1, fmatrix.shape[2], -1, -1)
+        trans1_exp = (
+            transform1[valid_root_mask]
+            .unsqueeze(1)
+            .expand(-1, fmatrix.shape[2], -1, -1)
+        )
+        trans2_exp = (
+            transform2[valid_root_mask]
+            .unsqueeze(1)
+            .expand(-1, fmatrix.shape[2], -1, -1)
+        )
 
-        bf16_happy = torch.matmul(trans2_exp.transpose(-2, -1), torch.matmul(fmatrix[valid_root_mask], trans1_exp))
+        bf16_happy = torch.matmul(
+            trans2_exp.transpose(-2, -1),
+            torch.matmul(fmatrix[valid_root_mask], trans1_exp),
+        )
         fmatrix[valid_root_mask] = bf16_happy.float()
 
         return normalize_transformation(fmatrix)
