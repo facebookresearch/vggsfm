@@ -407,7 +407,9 @@ class VGGSfMRunner:
         # Visualize tracks as a video if enabled
         if self.cfg.visual_tracks:
             vis = Visualizer(save_dir=visual_dir, linewidth=1)
-            vis.visualize(images * 255, pred_track, pred_vis[..., None], filename="track")
+            vis.visualize(
+                images * 255, pred_track, pred_vis[..., None], filename="track"
+            )
 
         torch.cuda.empty_cache()
 
@@ -849,7 +851,7 @@ def comple_nonvis_frames(
     have enough 2D matches or a final trial is reached.
 
     Args:
-        query_method (str): The methods to use for querying points 
+        query_method (str): The methods to use for querying points
                             (e.g., "sp", "sift", "aliked", or "sp+sift).
         max_query_pts (int): The maximum number of query points to use.
         track_predictor (object): The track predictor model.
@@ -928,7 +930,7 @@ def get_query_points(
 
     Args:
         query_image (torch.Tensor): A tensor of shape (B, C, H, W) representing the query image.
-        seg_invalid_mask (torch.Tensor, optional): 
+        seg_invalid_mask (torch.Tensor, optional):
                         A tensor of shape (B, 1, H, W) representing the segmentation invalid mask.
         query_method (str): The method(s) to use for extracting query points
                             (e.g., "sp", "sift", "aliked", or combinations like "sp+sift").
@@ -937,7 +939,7 @@ def get_query_points(
         bound_bbox (torch.Tensor, optional): A tensor of shape (B, 4) representing bounding boxes for the images.
 
     Returns:
-        torch.Tensor: A tensor of shape (B, N, 2) representing the extracted query points, 
+        torch.Tensor: A tensor of shape (B, N, 2) representing the extracted query points,
                         where N is the number of query points.
     """
 
