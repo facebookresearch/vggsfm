@@ -17,8 +17,7 @@ from vggsfm.utils.utils import seed_all_random_engines
 @hydra.main(config_path="cfgs/", config_name="demo")
 def demo_fn(cfg: DictConfig):
     """
-    Main function to run the VGGSfM demo.
-    The keys functions are inside VGGSfMRunner().
+    Main function to run the VGGSfM demo. VGGSfMRunner is the main controller.
     """
 
     OmegaConf.set_struct(cfg, False)
