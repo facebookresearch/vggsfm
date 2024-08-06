@@ -22,6 +22,8 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 - [Aug 6, 2024]
   - VGGSfM is now available as a Python package, making it easier to integrate into other codebases!
   - Introduced a new `VGGSfMRunner` class that serves as a central controller for all functionalities.
+  - Added support for gradio visualization, controlled by ```gr_visualize```.
+
 
 - [Jul 28, 2024]
   - Added support for filtering out dynamic objects using ```masks```. We will add an example soon but you can check `demo_loader.py` for a quick view.
@@ -80,7 +82,7 @@ The reconstruction result (camera parameters and 3D points) will be automaticall
 If you want to visualize it more easily, we also provide visualization options using [Visdom](https://github.com/fossasia/visdom) and [Gradio](https://github.com/gradio-app/gradio).
 
 
-#### Visdom Visualization
+#### 3.1 Visdom Visualization
 
 To begin using Visdom, start the server by entering ```visdom``` in the command line. Once the server is running, access Visdom by navigating to ```http://localhost:8097``` in your web browser. Now every reconstruction can be visualized and saved to the Visdom server by enabling ```viz_visualize=True```:
 
@@ -94,7 +96,7 @@ You should see an interface like this:
 
 
 
-#### Gradio Visualization
+#### 3.2 Gradio Visualization
 
 For a serverless option, use Gradio by setting `gr_visualize` to True. This will generate a link accessible from any browser (but it may take seconds to load).
 
@@ -103,12 +105,17 @@ For a serverless option, use Gradio by setting `gr_visualize` to True. This will
 python demo.py gr_visualize=True ...(other flags)
 ```
 
-#### [Beta] Additional Visualizations
+#### 3.3 Additional Visualizations
 
 - **2D Reprojections:**
   - To visualize the 2D reprojections of reconstructed 3D points, set the `make_reproj_video` flag to `True`. This will generate a video named `reproj.mp4` in the `SCENE_DIR/visuals` directory. For example:
 
-<img src="https://github.com/vggsfm/vggsfm.github.io/blob/main/resources/reproj.gif" width="500" alt="reproj">
+<!-- <img src="https://github.com/vggsfm/vggsfm.github.io/blob/main/resources/reproj.gif" width="500" alt="reproj"> -->
+
+  <p align="center">
+    <img src="https://github.com/vggsfm/vggsfm.github.io/blob/main/resources/reproj.gif" width="500" alt="reproj">
+  </p>
+
 
 - **Track Predictions:**
   - To visualize the raw predictions from our track predictor, enable ```visual_tracks=True``` to generate ```track.mp4```. In this video, transparent points indicate low visibility or confidence. 
