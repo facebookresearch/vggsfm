@@ -22,7 +22,9 @@ BA_iters: 1
 camera_type: "SIMPLE_PINHOLE"
 
 load_gt: False
-visualize: False
+viz_visualize: False
+gr_visualize: False
+
 fmat_thres: 4.0
 max_reproj_error: 4.0
 init_max_reproj_error: 4.0

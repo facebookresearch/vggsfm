@@ -732,8 +732,3 @@ def align_dense_depth_maps_and_save(
 
     return unproj_dense_points3D
 
-
-
-
-
-

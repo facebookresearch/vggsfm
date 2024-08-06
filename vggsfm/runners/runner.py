@@ -78,7 +78,7 @@ class VGGSfMRunner:
         if cfg.dense_depth:
             self.build_monocular_depth_model()
 
-        if cfg.visualize:
+        if cfg.viz_visualize:
             self.build_visdom()
 
         # Set up mixed precision
@@ -225,7 +225,7 @@ class VGGSfMRunner:
                 seq_name=seq_name,
                 output_dir=output_dir,
             )
-
+            
             # Save the sparse reconstruction results
             self.save_sparse_reconstruction(predictions, seq_name, output_dir)
 
@@ -252,10 +252,14 @@ class VGGSfMRunner:
                 )
 
             # Visualize the 3D reconstruction if enabled
-            if self.cfg.visualize:
+            if self.cfg.viz_visualize:
                 self.visualize_3D_in_visdom(predictions, seq_name, output_dir)
 
+            if self.cfg.gr_visualize:
+                self.visualize_3D_in_gradio(predictions, seq_name, output_dir)
+                
             return predictions
+
 
     def sparse_reconstruct(
         self,
@@ -728,6 +732,26 @@ class VGGSfMRunner:
         print(f"Visualizing the scene by visdom at env: {env_name}")
 
         self.viz.plotlyplot(fig, env=env_name, win="3D")
+        
+        
+    def visualize_3D_in_gradio(self, predictions, seq_name=None, output_dir=None):
+        from vggsfm.utils.gradio import vggsfm_predictions_to_glb, visualize_by_gradio
+        
+        # Convert predictions to GLB scene
+        glbscene = vggsfm_predictions_to_glb(predictions)
+        
+        # Define the output file path for the GLB file
+        sparse_glb_file = os.path.join(output_dir, "visuals", "sparse.glb")
+        
+        # Export the GLB scene to the specified file
+        glbscene.export(file_obj=sparse_glb_file)
+        
+        # Visualize the GLB file using Gradio
+        visualize_by_gradio(sparse_glb_file)
+        
+        unproj_dense_points3D = predictions["unproj_dense_points3D"]
+        if unproj_dense_points3D is not None:
+            print("Dense point cloud visualization in Gradio is not supported due to time constraints.")
 
 
 ################################################ Helper Functions
