@@ -12,6 +12,7 @@ import torch
 import datetime
 
 import numpy as np
+from visdom import Visdom
 from torch.cuda.amp import autocast
 from hydra.utils import instantiate
 from lightglue import SuperPoint, SIFT, ALIKED
