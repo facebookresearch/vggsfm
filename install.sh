@@ -25,7 +25,7 @@ conda install pytorch3d=0.7.5 -c pytorch3d
 
 # Install pip packages
 pip install hydra-core --upgrade
-pip install omegaconf opencv-python einops visdom tqdm scipy plotly scikit-learn imageio[ffmpeg]
+pip install omegaconf opencv-python einops visdom tqdm scipy plotly scikit-learn imageio[ffmpeg] gradio trimesh
 pip install accelerate==0.24.0
 
 # Install LightGlue
