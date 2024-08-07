@@ -511,7 +511,8 @@ class VGGSfMRunner:
                 pycamera.width = real_image_size[0]
                 pycamera.height = real_image_size[1]
 
-            resize_ratio = resize_ratio.item()
+                resize_ratio = resize_ratio.item()
+    
             if self.cfg.shift_point2d_to_original_res:
                 # Also shift the point2D to original resolution
                 top_left = crop_params[0, pyimageid][-4:-2].abs().cpu().numpy()
@@ -740,9 +741,12 @@ class VGGSfMRunner:
         # Convert predictions to GLB scene
         glbscene = vggsfm_predictions_to_glb(predictions)
         
-        # Define the output file path for the GLB file
-        sparse_glb_file = os.path.join(output_dir, "visuals", "sparse.glb")
-        
+        visual_dir = os.path.join(output_dir, "visuals")
+
+        os.makedirs(visual_dir, exist_ok=True)
+
+        sparse_glb_file = os.path.join(visual_dir, "sparse.glb")
+
         # Export the GLB scene to the specified file
         glbscene.export(file_obj=sparse_glb_file)
         
