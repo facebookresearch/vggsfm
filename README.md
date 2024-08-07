@@ -74,7 +74,7 @@ python demo.py SCENE_DIR=TO/YOUR/PATH max_query_pts=1024 query_frame_num=6
 ```
 
 
-The reconstruction result (camera parameters and 3D points) will be automatically saved in the COLMAP format at ```output/seq_name```. This format is widely supported by the recent NeRF/Gaussian Splatting codebases. You can use [COLMAP GUI](https://colmap.github.io/gui.html) or [viser](https://github.com/nerfstudio-project/viser) to view the reconstruction. 
+The reconstruction result (camera parameters and 3D points) will be automatically saved under ```SCENE_DIR``` in the COLMAP format, as ```cameras.bin```, ```images.bin```, and ```points3D.bin```. This format is widely supported by the recent NeRF/Gaussian Splatting codebases. You can use [COLMAP GUI](https://colmap.github.io/gui.html) or [viser](https://github.com/nerfstudio-project/viser) to view the reconstruction. 
 
 
 ### 3. Visualization
