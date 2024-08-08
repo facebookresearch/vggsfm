@@ -5,10 +5,12 @@ try:
     import numpy as np
     import matplotlib
     from scipy.spatial.transform import Rotation
+
     print("Successfully imported the packages for Gradio visualization")
 except:
-    print(f"Failed to import packages for Gradio visualization. Please disable gradio visualization")
-
+    print(
+        f"Failed to import packages for Gradio visualization. Please disable gradio visualization"
+    )
 
 
 def visualize_by_gradio(glbfile):
@@ -18,6 +20,7 @@ def visualize_by_gradio(glbfile):
     Args:
         glbfile (str): Path to the GLB file to be visualized.
     """
+
     def load_glb_file(glb_path):
         # Check if the file exists and return the path or error message
         if os.path.exists(glb_path):
@@ -31,17 +34,17 @@ def visualize_by_gradio(glbfile):
     # Create the Gradio interface
     with gr.Blocks() as demo:
         gr.Markdown("# GLB File Viewer")
-        
+
         # 3D Model viewer component
-        model_viewer = gr.Model3D(label="3D Model Viewer", height=600, value=initial_model)
-        
+        model_viewer = gr.Model3D(
+            label="3D Model Viewer", height=600, value=initial_model
+        )
+
         # Textbox for log output
         log_output = gr.Textbox(label="Log", lines=2, value=log_message)
 
     # Launch the Gradio interface
     demo.launch(share=True)
-
-
 
 
 def vggsfm_predictions_to_glb(predictions) -> trimesh.Scene:
@@ -56,7 +59,9 @@ def vggsfm_predictions_to_glb(predictions) -> trimesh.Scene:
     """
     # Convert predictions to numpy arrays
     vertices_3d = predictions["points3D"].cpu().numpy()
-    colors_rgb = (predictions["points3D_rgb"].cpu().numpy() * 255).astype(np.uint8)
+    colors_rgb = (predictions["points3D_rgb"].cpu().numpy() * 255).astype(
+        np.uint8
+    )
     camera_matrices = predictions["extrinsics_opencv"].cpu().numpy()
 
     # Calculate the 5th and 95th percentiles along each axis
@@ -72,7 +77,9 @@ def vggsfm_predictions_to_glb(predictions) -> trimesh.Scene:
     scene_3d = trimesh.Scene()
 
     # Add point cloud data to the scene
-    point_cloud_data = trimesh.PointCloud(vertices=vertices_3d, colors=colors_rgb)
+    point_cloud_data = trimesh.PointCloud(
+        vertices=vertices_3d, colors=colors_rgb
+    )
     scene_3d.add_geometry(point_cloud_data)
 
     # Prepare 4x4 matrices for camera extrinsics
@@ -88,7 +95,9 @@ def vggsfm_predictions_to_glb(predictions) -> trimesh.Scene:
         rgba_color = colormap(i / num_cameras)
         current_color = tuple(int(255 * x) for x in rgba_color[:3])
 
-        integrate_camera_into_scene(scene_3d, camera_to_world, current_color, scene_scale)
+        integrate_camera_into_scene(
+            scene_3d, camera_to_world, current_color, scene_scale
+        )
 
     # Align scene to the observation of the first camera
     scene_3d = apply_scene_alignment(scene_3d, extrinsics_matrices)
@@ -96,7 +105,9 @@ def vggsfm_predictions_to_glb(predictions) -> trimesh.Scene:
     return scene_3d
 
 
-def apply_scene_alignment(scene_3d: trimesh.Scene, extrinsics_matrices: np.ndarray) -> trimesh.Scene:
+def apply_scene_alignment(
+    scene_3d: trimesh.Scene, extrinsics_matrices: np.ndarray
+) -> trimesh.Scene:
     """
     Aligns the 3D scene based on the extrinsics of the first camera.
 
@@ -112,15 +123,26 @@ def apply_scene_alignment(scene_3d: trimesh.Scene, extrinsics_matrices: np.ndarr
 
     # Rotation matrix for alignment (180 degrees around the y-axis)
     align_rotation = np.eye(4)
-    align_rotation[:3, :3] = Rotation.from_euler('y', 180, degrees=True).as_matrix()
+    align_rotation[:3, :3] = Rotation.from_euler(
+        "y", 180, degrees=True
+    ).as_matrix()
 
     # Apply transformation
-    initial_transformation = np.linalg.inv(extrinsics_matrices[0]) @ opengl_conversion_matrix @ align_rotation
+    initial_transformation = (
+        np.linalg.inv(extrinsics_matrices[0])
+        @ opengl_conversion_matrix
+        @ align_rotation
+    )
     scene_3d.apply_transform(initial_transformation)
     return scene_3d
 
 
-def integrate_camera_into_scene(scene: trimesh.Scene, transform: np.ndarray, face_colors: tuple, scene_scale: float):
+def integrate_camera_into_scene(
+    scene: trimesh.Scene,
+    transform: np.ndarray,
+    face_colors: tuple,
+    scene_scale: float,
+):
     """
     Integrates a fake camera mesh into the 3D scene.
 
@@ -130,13 +152,15 @@ def integrate_camera_into_scene(scene: trimesh.Scene, transform: np.ndarray, fac
         face_colors (tuple): Color of the camera face.
         scene_scale (float): Scale of the scene.
     """
-    
+
     cam_width = scene_scale * 0.05
     cam_height = scene_scale * 0.1
 
     # Create cone shape for camera
     rot_45_degree = np.eye(4)
-    rot_45_degree[:3, :3] = Rotation.from_euler('z', 45, degrees=True).as_matrix()
+    rot_45_degree[:3, :3] = Rotation.from_euler(
+        "z", 45, degrees=True
+    ).as_matrix()
     rot_45_degree[2, 3] = -cam_height
 
     opengl_transform = get_opengl_conversion_matrix()
@@ -146,19 +170,27 @@ def integrate_camera_into_scene(scene: trimesh.Scene, transform: np.ndarray, fac
 
     # Generate mesh for the camera
     slight_rotation = np.eye(4)
-    slight_rotation[:3, :3] = Rotation.from_euler('z', 2, degrees=True).as_matrix()
+    slight_rotation[:3, :3] = Rotation.from_euler(
+        "z", 2, degrees=True
+    ).as_matrix()
 
-    vertices_combined = np.concatenate([
-        camera_cone_shape.vertices,
-        0.95 * camera_cone_shape.vertices,
-        transform_points(slight_rotation, camera_cone_shape.vertices)
-    ])
-    vertices_transformed = transform_points(complete_transform, vertices_combined)
+    vertices_combined = np.concatenate(
+        [
+            camera_cone_shape.vertices,
+            0.95 * camera_cone_shape.vertices,
+            transform_points(slight_rotation, camera_cone_shape.vertices),
+        ]
+    )
+    vertices_transformed = transform_points(
+        complete_transform, vertices_combined
+    )
 
     mesh_faces = compute_camera_faces(camera_cone_shape)
 
     # Add the camera mesh to the scene
-    camera_mesh = trimesh.Trimesh(vertices=vertices_transformed, faces=mesh_faces)
+    camera_mesh = trimesh.Trimesh(
+        vertices=vertices_transformed, faces=mesh_faces
+    )
     camera_mesh.visual.face_colors[:, :3] = face_colors
     scene.add_geometry(camera_mesh)
 
@@ -184,16 +216,24 @@ def compute_camera_faces(cone_shape: trimesh.Trimesh) -> np.ndarray:
         v1_offset, v2_offset, v3_offset = face + num_vertices_cone
         v1_offset_2, v2_offset_2, v3_offset_2 = face + 2 * num_vertices_cone
 
-        faces_list.extend([
-            (v1, v2, v2_offset), (v1, v1_offset, v3), (v3_offset, v2, v3),
-            (v1, v2, v2_offset_2), (v1, v1_offset_2, v3), (v3_offset_2, v2, v3)
-        ])
+        faces_list.extend(
+            [
+                (v1, v2, v2_offset),
+                (v1, v1_offset, v3),
+                (v3_offset, v2, v3),
+                (v1, v2, v2_offset_2),
+                (v1, v1_offset_2, v3),
+                (v3_offset_2, v2, v3),
+            ]
+        )
 
     faces_list += [(v3, v2, v1) for v1, v2, v3 in faces_list]
     return np.array(faces_list)
 
 
-def transform_points(transformation: np.ndarray, points: np.ndarray, dim: int = None) -> np.ndarray:
+def transform_points(
+    transformation: np.ndarray, points: np.ndarray, dim: int = None
+) -> np.ndarray:
     """
     Applies a 4x4 transformation to a set of points.
 
@@ -210,7 +250,9 @@ def transform_points(transformation: np.ndarray, points: np.ndarray, dim: int = 
     dim = dim or points.shape[-1]
 
     # Apply transformation
-    transformation = transformation.swapaxes(-1, -2)  # Transpose the transformation matrix
+    transformation = transformation.swapaxes(
+        -1, -2
+    )  # Transpose the transformation matrix
     points = points @ transformation[..., :-1, :] + transformation[..., -1:, :]
 
     # Reshape the result

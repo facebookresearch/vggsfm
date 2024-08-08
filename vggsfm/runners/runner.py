@@ -104,17 +104,22 @@ class VGGSfMRunner:
         Initializes the VGGSfM model and loads the weights from a checkpoint.
         The model is then moved to the appropriate device and set to evaluation mode.
         """
-        
+
         print("Building VGGSfM")
-        
+
         if self.cfg.auto_download_ckpt:
-            model = build_vggsfm_hf(model_name=self.cfg.model_name, config=self.cfg)
+            vggsfm = instantiate(
+                self.cfg.MODEL, _recursive_=False, cfg=self.cfg
+            )
+            vggsfm.from_pretrained(self.cfg.model_name)
         else:
-            model = instantiate(self.cfg.MODEL, _recursive_=False, cfg=self.cfg)
+            vggsfm = instantiate(
+                self.cfg.MODEL, _recursive_=False, cfg=self.cfg
+            )
             checkpoint = torch.load(self.cfg.resume_ckpt)
-            model.load_state_dict(checkpoint, strict=True)
-            
-        self.vggsfm_model = model.to(self.device).eval()
+            vggsfm.load_state_dict(checkpoint, strict=True)
+
+        self.vggsfm_model = vggsfm.to(self.device).eval()
         print("VGGSfM built successfully")
 
     def build_monocular_depth_model(self):
@@ -221,7 +226,7 @@ class VGGSfMRunner:
                 seq_name=seq_name,
                 output_dir=output_dir,
             )
-            
+
             # Save the sparse reconstruction results
             self.save_sparse_reconstruction(predictions, seq_name, output_dir)
 
@@ -253,9 +258,8 @@ class VGGSfMRunner:
 
             if self.cfg.gr_visualize:
                 self.visualize_3D_in_gradio(predictions, seq_name, output_dir)
-                
-            return predictions
 
+            return predictions
 
     def sparse_reconstruct(
         self,
@@ -508,7 +512,7 @@ class VGGSfMRunner:
                 pycamera.height = real_image_size[1]
 
                 resize_ratio = resize_ratio.item()
-    
+
             if self.cfg.shift_point2d_to_original_res:
                 # Also shift the point2D to original resolution
                 top_left = crop_params[0, pyimageid][-4:-2].abs().cpu().numpy()
@@ -729,14 +733,18 @@ class VGGSfMRunner:
         print(f"Visualizing the scene by visdom at env: {env_name}")
 
         self.viz.plotlyplot(fig, env=env_name, win="3D")
-        
-        
-    def visualize_3D_in_gradio(self, predictions, seq_name=None, output_dir=None):
-        from vggsfm.utils.gradio import vggsfm_predictions_to_glb, visualize_by_gradio
-        
+
+    def visualize_3D_in_gradio(
+        self, predictions, seq_name=None, output_dir=None
+    ):
+        from vggsfm.utils.gradio import (
+            vggsfm_predictions_to_glb,
+            visualize_by_gradio,
+        )
+
         # Convert predictions to GLB scene
         glbscene = vggsfm_predictions_to_glb(predictions)
-        
+
         visual_dir = os.path.join(output_dir, "visuals")
 
         os.makedirs(visual_dir, exist_ok=True)
@@ -745,13 +753,15 @@ class VGGSfMRunner:
 
         # Export the GLB scene to the specified file
         glbscene.export(file_obj=sparse_glb_file)
-        
+
         # Visualize the GLB file using Gradio
         visualize_by_gradio(sparse_glb_file)
-        
+
         unproj_dense_points3D = predictions["unproj_dense_points3D"]
         if unproj_dense_points3D is not None:
-            print("Dense point cloud visualization in Gradio is not supported due to time constraints.")
+            print(
+                "Dense point cloud visualization in Gradio is not supported due to time constraints."
+            )
 
 
 ################################################ Helper Functions
@@ -1019,25 +1029,3 @@ def get_query_points(
         query_points = query_points[:, random_point_indices, :]
 
     return query_points
-
-
-
-def build_vggsfm_hf(model_name, config):
-    # TODO when config is stable, also host it on huggingface
-    
-    model = instantiate(config.MODEL, _recursive_=False, cfg=config)
-    
-    try:
-        from huggingface_hub import hf_hub_download
-        ckpt_path = hf_hub_download(repo_id="facebook/VGGSfM", filename=model_name+".bin")
-        checkpoint = torch.load(ckpt_path)
-    except:
-        # In case the model is not hosted on huggingface or the user does not install huggingface_hub
-        _VGGSFM_URL = "https://huggingface.co/facebook/VGGSfM/resolve/main/vggsfm_v2_0_0.bin"
-        checkpoint = torch.hub.load_state_dict_from_url(_VGGSFM_URL)
-        
-    model.load_state_dict(checkpoint, strict=True)
-    
-    return model
-
-    
