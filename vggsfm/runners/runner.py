@@ -104,20 +104,16 @@ class VGGSfMRunner:
         Initializes the VGGSfM model and loads the weights from a checkpoint.
         The model is then moved to the appropriate device and set to evaluation mode.
         """
-
+        
         print("Building VGGSfM")
-        # Instantiate the model using the configuration
-        model = instantiate(self.cfg.MODEL, _recursive_=False, cfg=self.cfg)
-
-        # Load the checkpoint, either from a URL or a local file
+        
         if self.cfg.auto_download_ckpt:
-            _VGGSFM_URL = "https://huggingface.co/facebook/VGGSfM/resolve/main/vggsfm_v2_0_0.bin"
-            checkpoint = torch.hub.load_state_dict_from_url(_VGGSFM_URL)
+            model = build_vggsfm_hf(model_name=self.cfg.model_name, config=self.cfg)
         else:
+            model = instantiate(self.cfg.MODEL, _recursive_=False, cfg=self.cfg)
             checkpoint = torch.load(self.cfg.resume_ckpt)
-
-        # Load the state dict and move the model to the appropriate device
-        model.load_state_dict(checkpoint, strict=True)
+            model.load_state_dict(checkpoint, strict=True)
+            
         self.vggsfm_model = model.to(self.device).eval()
         print("VGGSfM built successfully")
 
@@ -1023,3 +1019,25 @@ def get_query_points(
         query_points = query_points[:, random_point_indices, :]
 
     return query_points
+
+
+
+def build_vggsfm_hf(model_name, config):
+    # TODO when config is stable, also host it on huggingface
+    
+    model = instantiate(config.MODEL, _recursive_=False, cfg=config)
+    
+    try:
+        from huggingface_hub import hf_hub_download
+        ckpt_path = hf_hub_download(repo_id="facebook/VGGSfM", filename=model_name+".bin")
+        checkpoint = torch.load(ckpt_path)
+    except:
+        # In case the model is not hosted on huggingface or the user does not install huggingface_hub
+        _VGGSFM_URL = "https://huggingface.co/facebook/VGGSfM/resolve/main/vggsfm_v2_0_0.bin"
+        checkpoint = torch.hub.load_state_dict_from_url(_VGGSFM_URL)
+        
+    model.load_state_dict(checkpoint, strict=True)
+    
+    return model
+
+    

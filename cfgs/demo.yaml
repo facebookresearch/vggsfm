@@ -2,6 +2,9 @@ hydra:
     run:
         dir: .
 
+
+model_name: "vggsfm_v2_0_0"
+
 seed: 0
 img_size: 1024
 
