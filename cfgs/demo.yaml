@@ -38,6 +38,7 @@ dense_depth: False
 avg_pose: True
 shared_camera: False
 
+save_to_disk: True
 SCENE_DIR: examples/kitchen
 
 resume_ckpt:  ckpt/vggsfm_v2_0_0.bin
@@ -55,10 +56,6 @@ make_reproj_video: False
 visual_tracks: False
 visual_query_points: False
 visual_dense_point_cloud: False
-
-
-
-
 
 
 
@@ -99,6 +96,6 @@ MODEL:
 
 
     TRIANGULAE:
-        _target_: vggsfm.models.Triangulator
-    
+        _target_: vggsfm.models.Triangulator    
+
 

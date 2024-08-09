@@ -221,16 +221,22 @@ class DemoLoader(Dataset):
             image_paths (list): List of image paths for the sequence.
 
         Returns:
-            dict: Batch of data containing transformed images, masks, crop parameters, and other relevant information.
+            dict: Batch of data containing transformed images, masks, crop parameters, original images, and other relevant information.
         """
         batch = {"seq_name": sequence_name, "frame_num": len(metadata)}
         crop_parameters, images_transformed, masks_transformed = [], [], []
+        original_images = {}  # Dictionary to store original images before any transformations
 
         if self.load_gt:
             new_fls, new_pps = [], []
 
         for i, (anno, image) in enumerate(zip(annos, images)):
             mask = masks[i] if self.have_mask else None
+            
+            # Store the original image in the dictionary with the basename of the image path as the key
+            original_images[os.path.basename(image_paths[i])] = np.array(image)
+            
+            # Transform the image and mask, and get crop parameters and bounding box
             image_transformed, mask_transformed, crop_paras, bbox = pad_and_resize_image(
                 image, self.crop_longest, self.img_size, mask=mask, transform=self.transform
             )
@@ -261,6 +267,7 @@ class DemoLoader(Dataset):
             "crop_params": torch.stack(crop_parameters),
             "scene_dir": os.path.dirname(os.path.dirname(image_paths[0])),
             "masks": masks.clamp(0, 1) if self.have_mask else None,
+            "original_images": original_images,  # A dict with the image path as the key and the original np image as the value
         })
         
         return batch

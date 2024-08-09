@@ -5,34 +5,22 @@
 # LICENSE file in the root directory of this source tree.
 
 
-import json
-import warnings
-
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 
-from accelerate.utils import set_seed as accelerate_set_seed
 
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-
-
 import os
 import cv2
 import random
 import struct
-
 from tqdm import tqdm
 from .metric import closed_form_inverse, closed_form_inverse_OpenCV
 
-
 from scipy.spatial.transform import Rotation as sciR
-
 from minipytorch3d.cameras import CamerasBase, PerspectiveCameras
-
 
 def average_camera_prediction(
     camera_predictor,
@@ -199,12 +187,6 @@ def switch_tensor_order(tensors, order, dim=1):
     ]
 
 
-def set_seed_and_print(seed):
-    accelerate_set_seed(seed, device_specific=True)
-    print(
-        f"----------Seed is set to {np.random.get_state()[1][0]} now----------"
-    )
-
 
 def transform_camera_relative_to_first(pred_cameras, batch_size):
     pred_se3 = pred_cameras.get_world_to_view_transform().get_matrix()
@@ -319,7 +301,6 @@ def visual_query_points(
     query_index (int): The index of the image in the batch to process.
     query_points (list of tuples): List of (x, y) tuples where circles should be drawn.
     Returns:
-    None
     """
     # Convert the image from RGB to BGR
     image_cv2 = cv2.cvtColor(
@@ -434,64 +415,82 @@ def create_video_with_reprojections(
     image_paths,
     sparse_depth,
     sparse_point,
+    original_images=None,
     draw_radius=3,
     cmap="gist_rainbow",
     fps=1,
     color_mode="dis_to_center",
+    save_video=True,
 ):
+    """
+    Generates a video with reprojections of 3D points onto 2D images.
+
+    Args:
+        output_path (str): Path to save the output video.
+        fname_prefix (str): Prefix for image file names.
+        video_size (tuple): Size of the video (width, height).
+        reconstruction (object): 3D reconstruction object containing points3D.
+        image_paths (list): List of image file paths.
+        sparse_depth (dict): Dictionary of sparse depth information for each image.
+        sparse_point (dict): Dictionary of sparse 3D points for each image.
+        original_images (dict, optional): Dictionary of original images. Defaults to None.
+        draw_radius (int, optional): Radius of the circles to draw. Defaults to 3.
+        cmap (str, optional): Colormap to use for drawing. Defaults to "gist_rainbow".
+        fps (int, optional): Frames per second for the video. Defaults to 1.
+        color_mode (str, optional): Mode for coloring points. Defaults to "dis_to_center".
+        save_video (bool, optional): Flag to save the video. Defaults to True.
+
+    Returns:
+        list: List of images with drawn circles.
+    """
     print("Generating reprojection video")
 
     video_size_rev = video_size[::-1]
-
-    video_writer = cv2.VideoWriter(
-        output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, video_size
-    )
-
     colormap = matplotlib.colormaps.get_cmap(cmap)
 
-    if color_mode == "dis_to_center":
-        points3D = np.array(
-            [point.xyz for point in reconstruction.points3D.values()]
+    if save_video:
+        video_writer = cv2.VideoWriter(
+            output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, video_size
         )
+
+    points3D = np.array([point.xyz for point in reconstruction.points3D.values()])
+
+    if color_mode == "dis_to_center":
         median_point = np.median(points3D, axis=0)
         distances = np.linalg.norm(points3D - median_point, axis=1)
-        min_dis = distances.min()
-        # max_dis = distances.max()
-        max_dis = np.percentile(
-            distances, 99
-        )  # 99th percentile distance to avoid extreme values
+        min_dis, max_dis = distances.min(), np.percentile(distances, 99)
     elif color_mode == "dis_to_origin":
-        points3D = np.array(
-            [point.xyz for point in reconstruction.points3D.values()]
-        )
         distances = np.linalg.norm(points3D, axis=1)
-        min_dis = distances.min()
-        max_dis = distances.max()
+        min_dis, max_dis = distances.min(), distances.max()
     elif color_mode == "point_order":
         max_point3D_idx = max(reconstruction.point3D_ids())
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Color mode '{color_mode}' is not implemented.")
 
-    for fname in sorted(image_paths):
-        img_with_circles = cv2.imread(os.path.join(fname_prefix, fname))
+    img_with_circles_list = []
 
-        uvds = np.array(sparse_depth[fname])
+    for img_basename in sorted(image_paths):
+        if original_images is not None:
+            img_with_circles = original_images[img_basename]
+            img_with_circles = cv2.cvtColor(img_with_circles, cv2.COLOR_RGB2BGR)
+        else:
+            img_with_circles = cv2.imread(os.path.join(fname_prefix, img_basename))
+
+        uvds = np.array(sparse_depth[img_basename])
         uvs, uv_depth = uvds[:, :2], uvds[:, -1]
         uvs_int = np.round(uvs).astype(int)
 
         if color_mode == "dis_to_center":
-            point3D_xyz = np.array(sparse_point[fname])[:, :3]
+            point3D_xyz = np.array(sparse_point[img_basename])[:, :3]
             dis = np.linalg.norm(point3D_xyz - median_point, axis=1)
             color_indices = (dis - min_dis) / (max_dis - min_dis)  # 0-1
         elif color_mode == "dis_to_origin":
-            point3D_xyz = np.array(sparse_point[fname])[:, :3]
+            point3D_xyz = np.array(sparse_point[img_basename])[:, :3]
             dis = np.linalg.norm(point3D_xyz, axis=1)
             color_indices = (dis - min_dis) / (max_dis - min_dis)  # 0-1
         elif color_mode == "point_order":
-            point3D_idxes = np.array(sparse_point[fname])[:, -1]
-            color_indices = point3D_idxes / max_point3D_idx  # 0-1
-        else:
-            raise NotImplementedError
+            point3D_idxes = np.array(sparse_point[img_basename])[:, -1]
+            color_indices = point3D_idxes / max_point3D_idx
 
         colors = (colormap(color_indices)[:, :3] * 255).astype(int)
 
@@ -509,7 +508,7 @@ def create_video_with_reprojections(
                 thickness=-1,
                 lineType=cv2.LINE_AA,
             )
-
+        
         if img_with_circles.shape[:2] != video_size_rev:
             # Center Pad
             target_h, target_w = video_size_rev
@@ -527,11 +526,15 @@ def create_video_with_reprojections(
                 cv2.BORDER_CONSTANT,
                 value=[0, 0, 0],
             )
-        video_writer.write(img_with_circles)
-
-    video_writer.release()
+            
+        img_with_circles_list.append(img_with_circles)
+        if save_video:
+            video_writer.write(img_with_circles)
+            
+    if save_video:
+        video_writer.release()
     print("Finished generating reprojection video")
-
+    return img_with_circles_list
 
 def create_depth_map_visual(depth_map, raw_img, output_filename):
     # Normalize the depth map to the range 0-255
@@ -562,47 +565,42 @@ def create_depth_map_visual(depth_map, raw_img, output_filename):
     return output_filename
 
 
-def extract_dense_depth_maps_and_save(depth_model, depth_dir, image_paths):
+def extract_dense_depth_maps(depth_model, image_paths, original_images=None):
     """
-    Extract dense depth maps from a list of image paths and save them to a specified directory.
+    Extract dense depth maps from a list of image paths
+    Note that the monocular depth model outputs disp instead of real depth map
     """
-    try:
-        from dependency.depth_any_v2.depth_anything_v2.dpt import (
-            DepthAnythingV2,
-        )
-
-        print("DepthAnythingV2 is available")
-    except:
-        print("DepthAnythingV2 is not installed. Please disable dense_depth")
-
+    
     print("Extracting dense depth maps")
-
-    os.makedirs(depth_dir, exist_ok=True)
+    disp_dict = {}
 
     for idx in tqdm(
         range(len(image_paths)), desc="Predicting monocular depth maps"
     ):
         img_fname = image_paths[idx]
-        raw_img = cv2.imread(img_fname)
+        basename = os.path.basename(img_fname)
+
+        if original_images is not None:
+            raw_img = original_images[basename]
+            raw_img = cv2.cvtColor(raw_img, cv2.COLOR_RGB2BGR)
+        else:
+            raw_img = cv2.imread(img_fname)
+            
         # raw resolution
         disp_map = depth_model.infer_image(
             raw_img, min(1024, max(raw_img.shape[:2]))
-        )  # HxW raw depth_map map in numpy
+        ) 
 
-        out_fname = os.path.join(depth_dir, os.path.basename(img_fname))
-
-        name_wo_extension = os.path.splitext(out_fname)[0]
-        out_fname_with_bin = name_wo_extension + ".bin"
-        write_array(disp_map, out_fname_with_bin)
+        disp_dict[basename] = disp_map
 
     print("Monocular depth maps complete. Depth alignment to be conducted.")
+    return disp_dict
 
-
-def align_dense_depth_maps_and_save(
+def align_dense_depth_maps(
     reconstruction,
     sparse_depth,
-    depth_dir,
-    image_dir_prefix,
+    disp_dict,
+    original_images,
     visual_dense_point_cloud=False,
 ):
     # For dense depth estimation
@@ -615,20 +613,17 @@ def align_dense_depth_maps_and_save(
     depth_max = 1 / disparity_min
     depth_min = 1 / disparity_max
 
+    depth_dict = {}
     unproj_dense_points3D = {}
     fname_to_id = {
         reconstruction.images[imgid].name: imgid
         for imgid in reconstruction.images
     }
 
-    for img_name in tqdm(sparse_depth, desc="Load monocular depth and Align"):
-        sparse_uvd = np.array(sparse_depth[img_name])
-
-        out_fname = os.path.join(depth_dir, os.path.basename(img_name))
-        name_wo_extension = os.path.splitext(out_fname)[0]
-        out_fname_with_bin = name_wo_extension + ".bin"
-
-        disp_map = read_array(out_fname_with_bin)
+    for img_basename in tqdm(sparse_depth, desc="Load monocular depth and Align"):
+        sparse_uvd = np.array(sparse_depth[img_basename])
+        
+        disp_map = disp_dict[img_basename]
 
         ww, hh = disp_map.shape
         # Filter out the projections outside the image
@@ -667,7 +662,7 @@ def align_dense_depth_maps_and_save(
         ransac.fit(X, y)
         scale = ransac.estimator_.coef_[0]
         shift = ransac.estimator_.intercept_
-        inlier_mask = ransac.inlier_mask_
+        # inlier_mask = ransac.inlier_mask_
 
         nonzero_mask = disp_map != 0
 
@@ -683,11 +678,11 @@ def align_dense_depth_maps_and_save(
         depth_map[depth_map == np.inf] = 0
         depth_map = depth_map.astype(np.float32)
 
-        write_array(depth_map, out_fname_with_bin)
+        depth_dict[img_basename] = depth_map
 
         if visual_dense_point_cloud:
             # TODO: remove the dirty codes here
-            pyimg = reconstruction.images[fname_to_id[img_name]]
+            pyimg = reconstruction.images[fname_to_id[img_basename]]
             pycam = reconstruction.cameras[pyimg.camera_id]
 
             # Generate the x and y coordinates
@@ -695,7 +690,7 @@ def align_dense_depth_maps_and_save(
             y_coords = np.arange(ww)
             xx, yy = np.meshgrid(x_coords, y_coords)
 
-            valid_depth_mask_hw = np.copy(valid_depth_mask)
+            # valid_depth_mask_hw = np.copy(valid_depth_mask)
             sampled_points2d = np.column_stack((xx.ravel(), yy.ravel()))
             # sampled_points2d = sampled_points2d + 0.5 # TODO figure it out if we still need +0.5
 
@@ -716,18 +711,15 @@ def align_dense_depth_maps_and_save(
                 pyimg.cam_from_world.inverse() * unproject_points_withz
             )
 
-            bgr = cv2.imread(os.path.join(image_dir_prefix, img_name))
-
-            rgb_image = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            rgb_image = rgb_image / 255
+            rgb_image = original_images[img_basename] / 255.0
             rgb = rgb_image.reshape(-1, 3)
             rgb = rgb[valid_depth_mask]
 
-            unproj_dense_points3D[img_name] = np.array(
+            unproj_dense_points3D[img_basename] = np.array(
                 [unproject_points_world, rgb]
             )
 
     if not visual_dense_point_cloud:
         unproj_dense_points3D = None
 
-    return unproj_dense_points3D
+    return depth_dict, unproj_dense_points3D

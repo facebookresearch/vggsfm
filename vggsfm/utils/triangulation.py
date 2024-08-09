@@ -1057,7 +1057,7 @@ def iterative_global_BA(
 
     if lastBA:
         # probably not necessary
-        if camera_type is not "SIMPLE_RADIAL":
+        if camera_type != "SIMPLE_RADIAL":
             reconstruction = batch_matrix_to_pycolmap(
                 points3D_opt,
                 extrinsics,

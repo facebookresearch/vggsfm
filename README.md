@@ -43,7 +43,7 @@ source install.sh
 python -m pip install -e .
 ```
 
-This script installs official ```pytorch3d```, ```accelerate```, ```lightglue```, ```pycolmap```, ```poselib```, and ```visdom```. If you cannot install ```pytorch3d``` on your machine, feel free to comment the line, because now we only use it for visdom visualization (i.e., ```cfg.viz_visualize=True```). 
+This script installs official ```pytorch3d```, ```lightglue```, ```pycolmap```, ```poselib```, and ```visdom```. If you cannot install ```pytorch3d``` on your machine, feel free to comment the line, because now we only use it for visdom visualization (i.e., ```cfg.viz_visualize=True```). 
 
 
 ## Demo 
