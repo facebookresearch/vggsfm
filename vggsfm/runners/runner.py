@@ -400,6 +400,7 @@ class VGGSfMRunner:
                 masks,
                 fmaps_for_tracker,
                 query_frame_indexes,
+                self.cfg.fine_tracking,
                 bound_bboxes,
             )
 
@@ -413,6 +414,7 @@ class VGGSfMRunner:
                     masks,
                     fmaps_for_tracker,
                     [pred_track, pred_vis, pred_score],
+                    self.cfg.fine_tracking,
                     bound_bboxes,
                 )
 
@@ -813,6 +815,7 @@ def predict_tracks(
     masks,
     fmaps_for_tracker,
     query_frame_indexes,
+    fine_tracking,
     bound_bboxes=None,
 ):
     """
@@ -829,6 +832,7 @@ def predict_tracks(
         masks (torch.Tensor): A tensor of shape (B, T, 1, H, W) representing masks for the images. 1 indicates ignored.
         fmaps_for_tracker (torch.Tensor): A tensor of feature maps for the tracker.
         query_frame_indexes (list): A list of indices representing the query frames.
+        fine_tracking (bool): Whether to perform fine tracking.
         bound_bboxes (torch.Tensor, optional): A tensor of shape (B, T, 4) representing bounding boxes for the images.
 
     Returns:
@@ -877,7 +881,7 @@ def predict_tracks(
 
         # Feed into track predictor
         fine_pred_track, _, pred_vis, pred_score = track_predictor(
-            images_feed, query_points, fmaps=fmaps_feed
+            images_feed, query_points, fmaps=fmaps_feed, fine_tracking=fine_tracking
         )
 
         # Switch back the predictions
@@ -905,6 +909,7 @@ def comple_nonvis_frames(
     masks,
     fmaps_for_tracker,
     preds,
+    fine_tracking,
     bound_bboxes=None,
     min_vis=500,
 ):
@@ -924,6 +929,7 @@ def comple_nonvis_frames(
         masks (torch.Tensor): A tensor of shape (B, T, 1, H, W) representing masks for the images.
         fmaps_for_tracker (torch.Tensor): Feature maps for the tracker.
         preds (tuple): A tuple containing predicted tracks, visibility, and scores.
+        fine_tracking (bool): Whether to perform fine tracking.
         bound_bboxes (torch.Tensor, optional): Bounding boxes for the images.
         min_vis (int, optional): The minimum number of visible inliers required. Default is 500.
     Returns:
@@ -960,6 +966,7 @@ def comple_nonvis_frames(
             masks,
             fmaps_for_tracker,
             non_vis_query_list,
+            fine_tracking,
             bound_bboxes,
         )
 

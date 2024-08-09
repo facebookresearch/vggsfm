@@ -63,9 +63,13 @@ python demo.py SCENE_DIR=examples/statue shared_camera=True query_method=sp+sift
 python demo.py SCENE_DIR=examples/kitchen query_method=aliked
 
 python demo.py SCENE_DIR=examples/british_museum max_query_pts=4096 
+
+# If you want a fast reconstruction without fine tracking
+python demo.py SCENE_DIR=examples/kitchen fine_tracking=False
 ```
 
-All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage. To enforce a shared camera model for a scene, set ```shared_camera=True```. To use query points from different methods, set ```query_method``` to ```sp```, ```sift```, ```aliked```, or any combination like ```sp+sift```.
+All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage. To enforce a shared camera model for a scene, set ```shared_camera=True```. To use query points from different methods, set ```query_method``` to ```sp```, ```sift```, ```aliked```, or any combination like ```sp+sift```. ```fine_tracking``` is set to True by default. Set it to False to switch to coarse mode for faster inference. 
+
 
 To run reconstruction on a scene with ```100``` frames on a ```32 GB``` GPU, you can start from the setting below:
 

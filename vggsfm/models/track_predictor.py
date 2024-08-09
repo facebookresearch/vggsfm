@@ -59,14 +59,20 @@ class TrackerPredictor(nn.Module):
         self.fine_predictor = instantiate(
             FINE.PREDICTOR, _recursive_=False, stride=1, cfg=cfg
         )
-
     def forward(
-        self, images, query_points, fmaps=None, coarse_iters=6, inference=True
+        self, images, query_points, fmaps=None, coarse_iters=6, inference=True, fine_tracking=True,
     ):
         """
-        images: images as rgb, in the range of [0, 1], with a shape of B x S x 3 x H x W
-        query_points: 2D xy of query points, relative to top left, with a shape of B x N x 2
+        Args:
+            images (torch.Tensor): Images as RGB, in the range of [0, 1], with a shape of B x S x 3 x H x W.
+            query_points (torch.Tensor): 2D xy of query points, relative to top left, with a shape of B x N x 2.
+            fmaps (torch.Tensor, optional): Precomputed feature maps. Defaults to None.
+            coarse_iters (int, optional): Number of iterations for coarse prediction. Defaults to 6.
+            inference (bool, optional): Whether to perform inference. Defaults to True.
+            fine_tracking (bool, optional): Whether to perform fine tracking. Defaults to True.
 
+        Returns:
+            tuple: A tuple containing fine_pred_track, coarse_pred_track, pred_vis, and pred_score.
         """
 
         if fmaps is None:
@@ -75,7 +81,7 @@ class TrackerPredictor(nn.Module):
         if inference:
             torch.cuda.empty_cache()
 
-        # coarse prediction
+        # Coarse prediction
         coarse_pred_track_lists, pred_vis = self.coarse_predictor(
             query_points=query_points,
             fmaps=fmaps,
@@ -87,20 +93,25 @@ class TrackerPredictor(nn.Module):
         if inference:
             torch.cuda.empty_cache()
 
-        # refine the coarse prediction
-        fine_pred_track, pred_score = refine_track(
-            images,
-            self.fine_fnet,
-            self.fine_predictor,
-            coarse_pred_track,
-            compute_score=True,
-            cfg=self.cfg,
-        )
+        if fine_tracking:
+            # Refine the coarse prediction
+            fine_pred_track, pred_score = refine_track(
+                images,
+                self.fine_fnet,
+                self.fine_predictor,
+                coarse_pred_track,
+                compute_score=True,
+                cfg=self.cfg,
+            )
 
-        if inference:
-            torch.cuda.empty_cache()
+            if inference:
+                torch.cuda.empty_cache()
+        else:
+            fine_pred_track = coarse_pred_track
+            pred_score = torch.ones_like(pred_vis)
 
         return fine_pred_track, coarse_pred_track, pred_vis, pred_score
+
 
     def process_images_to_fmaps(self, images):
         """

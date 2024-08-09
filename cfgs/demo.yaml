@@ -22,6 +22,7 @@ query_frame_num: 3
 robust_refine: 2
 BA_iters: 1
 
+fine_tracking: True
 camera_type: "SIMPLE_PINHOLE"
 
 load_gt: False
