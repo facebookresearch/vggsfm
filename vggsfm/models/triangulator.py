@@ -24,7 +24,7 @@ from ..utils.triangulation import (
     global_BA,
     iterative_global_BA,
 )
-from ..utils.triangulation_helpers import filter_all_points3D
+from ..utils.triangulation_helpers import filter_all_points3D, cam_from_img
 
 
 class Triangulator(nn.Module):
@@ -33,7 +33,11 @@ class Triangulator(nn.Module):
         """
         The module for triangulation and BA adjustment 
         
-        NOTE After VGGSfM v1.1, we remove the learnable parameters of Triangulator
+        NOTE After VGGSfM v1.1, we remove the learnable parameters of Triangulator.
+        Now this uses RANSAC DLT to triangulate and bundle adjust.
+        We plan to bring back deep Triangulator in v2.1
+        Check this for more details: 
+        https://github.com/facebookresearch/vggsfm/issues/47
         """
         self.cfg = cfg
 
@@ -103,7 +107,11 @@ class Triangulator(nn.Module):
                 intrinsics[:, 0, 0] = fx
                 intrinsics[:, 1, 1] = fy
 
-            tracks_normalized = normalize_tracks(pred_tracks, intrinsics)
+            extra_params = None
+            if camera_type == "SIMPLE_RADIAL":
+                extra_params = torch.zeros_like(extrinsics[:, 0, 0:1])
+
+            tracks_normalized = cam_from_img(pred_tracks, intrinsics)
             # Visibility inlier
             inlier_vis = pred_vis > 0.05  # TODO: avoid hardcoded
             inlier_vis = inlier_vis[1:]
@@ -124,42 +132,26 @@ class Triangulator(nn.Module):
             # Check which point cloud can provide sufficient inliers
             # that pass the triangulation angle and cheirality check
             # Pick the highest inlier_geo_vis one as the initial point cloud
-            trial_count = 0
-            while trial_count < 5:
-                # If no success, relax the constraint
-                # try at most 5 times
-                triangle_mask = triangle_value_pair >= init_tri_angle_thres
-                inlier_total = torch.logical_and(
-                    inlier_geo_vis, cheirality_mask_pair
-                )
-                inlier_total = torch.logical_and(inlier_total, triangle_mask)
-                inlier_num_per_frame = inlier_total.sum(dim=-1)
-
-                max_num_inlier = inlier_num_per_frame.max()
-                max_num_inlier_ratio = max_num_inlier / N
-
-                # We accept a pair only when the numer of inliers and the ratio
-                # is higher than a thres
-                if (max_num_inlier >= 100) and (max_num_inlier_ratio >= 0.25):
-                    break
-
-                if init_tri_angle_thres < 2:
-                    break
-
-                init_tri_angle_thres = init_tri_angle_thres // 2
-                trial_count += 1
+            inlier_total, valid_tri_angle_thres = find_best_initial_pair(
+                inlier_geo_vis,
+                cheirality_mask_pair,
+                triangle_value_pair,
+                init_tri_angle_thres,
+            )
 
             # Conduct BA on the init point cloud and init pair
             (
                 points3D_init,
                 extrinsics,
                 intrinsics,
+                extra_params,
                 track_init_mask,
                 reconstruction,
                 init_idx,
             ) = init_BA(
                 extrinsics,
                 intrinsics,
+                extra_params,
                 pred_tracks,
                 points_3d_pair,
                 inlier_total,
@@ -175,9 +167,15 @@ class Triangulator(nn.Module):
             # Basically it is a bundle adjustment without optmizing 3D points
             # It is fine even this step fails
 
-            extrinsics, intrinsics, valid_intri_mask = init_refine_pose(
+            (
                 extrinsics,
                 intrinsics,
+                extra_params,
+                valid_param_mask,
+            ) = init_refine_pose(
+                extrinsics,
+                intrinsics,
+                extra_params,
                 inlier_geo_vis,
                 points3D_init,
                 pred_tracks,
@@ -192,16 +190,17 @@ class Triangulator(nn.Module):
                 points3D,
                 extrinsics,
                 intrinsics,
+                extra_params,
                 valid_tracks,
                 reconstruction,
             ) = self.triangulate_tracks_and_BA(
                 pred_tracks,
                 intrinsics,
                 extrinsics,
+                extra_params,
                 pred_vis,
                 pred_score,
                 image_size,
-                device,
                 min_valid_track_length,
                 max_reproj_error,
                 shared_camera=shared_camera,
@@ -215,9 +214,15 @@ class Triangulator(nn.Module):
 
                     force_estimate = refine_idx == (robust_refine - 1)
 
-                    extrinsics, intrinsics, valid_intri_mask = refine_pose(
+                    (
                         extrinsics,
                         intrinsics,
+                        extra_params,
+                        valid_param_mask,
+                    ) = refine_pose(
+                        extrinsics,
+                        intrinsics,
+                        extra_params,
                         inlier_vis_all,
                         points3D,
                         pred_tracks,
@@ -232,16 +237,17 @@ class Triangulator(nn.Module):
                         points3D,
                         extrinsics,
                         intrinsics,
+                        extra_params,
                         valid_tracks,
                         reconstruction,
                     ) = self.triangulate_tracks_and_BA(
                         pred_tracks,
                         intrinsics,
                         extrinsics,
+                        extra_params,
                         pred_vis,
                         pred_score,
                         image_size,
-                        device,
                         min_valid_track_length,
                         max_reproj_error,
                         shared_camera=shared_camera,
@@ -264,6 +270,7 @@ class Triangulator(nn.Module):
                         points3D,
                         extrinsics,
                         intrinsics,
+                        extra_params,
                         valid_tracks,
                         BA_inlier_masks,
                         reconstruction,
@@ -277,6 +284,7 @@ class Triangulator(nn.Module):
                         points3D,
                         image_size,
                         lastBA=lastBA,
+                        extra_params=extra_params,
                         shared_camera=shared_camera,
                         min_valid_track_length=min_valid_track_length,
                         max_reproj_error=max_reproj_error,
@@ -294,13 +302,19 @@ class Triangulator(nn.Module):
 
             # find the invalid predictions
             scale = image_size.max()
-            valid_intri_mask = torch.logical_and(
+            valid_param_mask = torch.logical_and(
                 intrinsics[:, 0, 0] >= 0.1 * scale,
                 intrinsics[:, 0, 0] <= 30 * scale,
             )
+            if extra_params is not None:
+                valid_extra_params_mask = (extra_params.abs() <= 0.2).all(-1)
+                valid_param_mask = torch.logical_and(
+                    valid_param_mask, valid_extra_params_mask
+                )
+
             valid_trans_mask = (trans_BA.abs() <= 30).all(-1)
             valid_frame_mask = torch.logical_and(
-                valid_intri_mask, valid_trans_mask
+                valid_param_mask, valid_trans_mask
             )
 
             if extract_color:
@@ -337,6 +351,7 @@ class Triangulator(nn.Module):
             return (
                 extrinsics,
                 intrinsics,
+                extra_params,
                 points3D,
                 points3D_rgb,
                 reconstruction,
@@ -348,10 +363,10 @@ class Triangulator(nn.Module):
         pred_tracks,
         intrinsics,
         extrinsics,
+        extra_params,
         pred_vis,
         pred_score,
         image_size,
-        device,
         min_valid_track_length,
         max_reproj_error=4,
         shared_camera=False,
@@ -359,11 +374,13 @@ class Triangulator(nn.Module):
     ):
         """ """
         # Normalize the tracks
-        tracks_normalized_refined = normalize_tracks(pred_tracks, intrinsics)
+
+        tracks_normalized_refined = cam_from_img(
+            pred_tracks, intrinsics, extra_params
+        )
 
         # Conduct triangulation to all the frames
         # We adopt LORANSAC here again
-
         (
             best_triangulated_points,
             best_inlier_num,
@@ -375,19 +392,26 @@ class Triangulator(nn.Module):
             track_score=pred_score,
             max_ransac_iters=128,
         )
+
         # Determine valid tracks based on inlier numbers
         valid_tracks = best_inlier_num >= min_valid_track_length
 
         # Perform global bundle adjustment
-        points3D, extrinsics, intrinsics, reconstruction = global_BA(
+        (
+            points3D,
+            extrinsics,
+            intrinsics,
+            extra_params,
+            reconstruction,
+        ) = global_BA(
             best_triangulated_points,
             valid_tracks,
             pred_tracks,
             best_inlier_mask,
             extrinsics,
             intrinsics,
+            extra_params,
             image_size,
-            device,
             shared_camera=shared_camera,
             camera_type=camera_type,
         )
@@ -397,6 +421,7 @@ class Triangulator(nn.Module):
             pred_tracks[:, valid_tracks],
             extrinsics,
             intrinsics,
+            extra_params,
             check_triangle=False,
             max_reproj_error=max_reproj_error,
         )
@@ -406,19 +431,48 @@ class Triangulator(nn.Module):
         valid_tracks_tmp[valid_tracks] = valid_poins3D_mask
         valid_tracks = valid_tracks_tmp.clone()
 
-        return points3D, extrinsics, intrinsics, valid_tracks, reconstruction
+        return (
+            points3D,
+            extrinsics,
+            intrinsics,
+            extra_params,
+            valid_tracks,
+            reconstruction,
+        )
 
 
-def normalize_tracks(pred_tracks, intrinsics):
+def find_best_initial_pair(
+    inlier_geo_vis,
+    cheirality_mask_pair,
+    triangle_value_pair,
+    init_tri_angle_thres,
+):
     """
-    Normalize predicted tracks based on camera intrinsics.
-    Args:
-    intrinsics (torch.Tensor): The camera intrinsics tensor of shape [batch_size, 3, 3].
-    pred_tracks (torch.Tensor): The predicted tracks tensor of shape [batch_size, num_tracks, 2].
-    Returns:
-    torch.Tensor: Normalized tracks tensor.
+    Find the initial point cloud by checking which point cloud can provide sufficient inliers
+    that pass the triangulation angle and cheirality check.
     """
-    principal_point = intrinsics[:, [0, 1], [2, 2]].unsqueeze(-2)
-    focal_length = intrinsics[:, [0, 1], [0, 1]].unsqueeze(-2)
-    tracks_normalized = (pred_tracks - principal_point) / focal_length
-    return tracks_normalized
+    trial_count = 0
+    N = inlier_geo_vis.shape[-1]
+    while trial_count < 5:
+        # If no success, relax the constraint
+        # try at most 5 times
+        triangle_mask = triangle_value_pair >= init_tri_angle_thres
+        inlier_total = torch.logical_and(inlier_geo_vis, cheirality_mask_pair)
+        inlier_total = torch.logical_and(inlier_total, triangle_mask)
+        inlier_num_per_frame = inlier_total.sum(dim=-1)
+
+        max_num_inlier = inlier_num_per_frame.max()
+        max_num_inlier_ratio = max_num_inlier / N
+
+        # We accept a pair only when the number of inliers and the ratio
+        # is higher than a threshold
+        if (max_num_inlier >= 100) and (max_num_inlier_ratio >= 0.25):
+            break
+
+        if init_tri_angle_thres < 2:
+            break
+
+        init_tri_angle_thres = init_tri_angle_thres // 2
+        trial_count += 1
+
+    return inlier_total, init_tri_angle_thres

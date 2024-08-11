@@ -23,7 +23,8 @@ robust_refine: 2
 BA_iters: 1
 
 fine_tracking: True
-camera_type: "SIMPLE_PINHOLE"
+
+camera_type: "SIMPLE_PINHOLE"   # optional: ["SIMPLE_PINHOLE", "SIMPLE_RADIAL"]
 
 load_gt: False
 viz_visualize: False

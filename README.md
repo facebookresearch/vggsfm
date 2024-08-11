@@ -54,15 +54,21 @@ The checkpoint will be automatically downloaded from [Hugging Face](https://hugg
 
 ### 2. Run the Demo 
 
-Now time to enjoy your 3D reconstruction! You can start by our provided examples, such as:
+Now it's time to enjoy your 3D reconstruction! You can start with our provided examples:
 
 ```bash
+# Use default settings
+python demo.py SCENE_DIR=examples/kitchen 
 
-python demo.py SCENE_DIR=examples/statue shared_camera=True query_method=sp+sift
+# Specify query method: sp+sift (default: aliked)
+python demo.py SCENE_DIR=examples/statue query_method=sp+sift
 
-python demo.py SCENE_DIR=examples/kitchen query_method=aliked
-
+# Increase query number to 4096 (default: 2048)
 python demo.py SCENE_DIR=examples/british_museum max_query_pts=4096 
+
+# Assume a shared camera model for all frames, and
+# use SIMPLE_RADIAL camera model instead of the default SIMPLE_PINHOLE
+python demo.py shared_camera=True camera_type=SIMPLE_RADIAL
 
 # If you want a fast reconstruction without fine tracking
 python demo.py SCENE_DIR=examples/kitchen fine_tracking=False

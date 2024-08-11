@@ -232,7 +232,9 @@ class VGGSfMRunner:
 
             # Save the sparse reconstruction results
             if self.cfg.save_to_disk:
-                self.save_sparse_reconstruction(predictions, seq_name, output_dir)
+                self.save_sparse_reconstruction(
+                    predictions, seq_name, output_dir
+                )
 
             # Extract sparse depth and point information if needed for further processing
             if self.cfg.dense_depth or self.cfg.make_reproj_video:
@@ -245,8 +247,11 @@ class VGGSfMRunner:
             # Perform dense reconstruction if enabled
             if self.cfg.dense_depth:
                 predictions = self.dense_reconstruct(
-                    predictions, image_paths, output_dir, original_images, 
-                    save_depth_map=self.cfg.save_to_disk
+                    predictions,
+                    image_paths,
+                    output_dir,
+                    original_images,
+                    save_depth_map=self.cfg.save_to_disk,
                 )
 
             # Create reprojection video if enabled
@@ -254,8 +259,12 @@ class VGGSfMRunner:
                 max_hw = crop_params[0, :, :2].max(dim=0)[0].long()
                 video_size = (max_hw[0].item(), max_hw[1].item())
                 img_with_circles_list = self.make_reprojection_video(
-                    predictions, video_size, image_paths, output_dir, original_images,
-                    save_video=self.cfg.save_to_disk
+                    predictions,
+                    video_size,
+                    image_paths,
+                    output_dir,
+                    original_images,
+                    save_video=self.cfg.save_to_disk,
                 )
                 predictions["reproj_video"] = img_with_circles_list
 
@@ -317,7 +326,6 @@ class VGGSfMRunner:
             dtype = self.dtype
 
         predictions = {}
-        extra_dict = {}
 
         # Find the query frames using DINO or frame names
         with autocast(dtype=dtype):
@@ -466,6 +474,7 @@ class VGGSfMRunner:
             (
                 extrinsics_opencv,
                 intrinsics_opencv,
+                extra_params,
                 points3D,
                 points3D_rgb,
                 reconstruction,
@@ -489,6 +498,8 @@ class VGGSfMRunner:
         if self.cfg.filter_invalid_frame:
             extrinsics_opencv = extrinsics_opencv[valid_frame_mask]
             intrinsics_opencv = intrinsics_opencv[valid_frame_mask]
+            if extra_params is not None:
+                extra_params = extra_params[valid_frame_mask]
             invalid_ids = torch.nonzero(~valid_frame_mask).squeeze(1)
             invalid_ids = invalid_ids.cpu().numpy().tolist()
             if len(invalid_ids) > 0:
@@ -537,12 +548,15 @@ class VGGSfMRunner:
             # NOTE we changed the image order previously, now we need to scwitch it back
             extrinsics_opencv = extrinsics_opencv[center_order]
             intrinsics_opencv = intrinsics_opencv[center_order]
+            if extra_params is not None:
+                extra_params = extra_params[center_order]
 
         predictions["extrinsics_opencv"] = extrinsics_opencv
         predictions["intrinsics_opencv"] = intrinsics_opencv
         predictions["points3D"] = points3D
         predictions["points3D_rgb"] = points3D_rgb
         predictions["reconstruction"] = reconstruction
+        predictions["extra_params"] = extra_params
         predictions["unproj_dense_points3D"] = None  # placeholder here
 
         return predictions
@@ -579,7 +593,14 @@ class VGGSfMRunner:
         predictions["sparse_point"] = sparse_point
         return predictions
 
-    def dense_reconstruct(self, predictions, image_paths, output_dir, original_images, save_depth_map=True):
+    def dense_reconstruct(
+        self,
+        predictions,
+        image_paths,
+        output_dir,
+        original_images,
+        save_depth_map=True,
+    ):
         """
         Args:
             predictions (dict): A dictionary containing the sparse reconstruction results.
@@ -597,7 +618,7 @@ class VGGSfMRunner:
         """
 
         print("Predicting dense depth maps via monocular depth estimation.")
-        
+
         disp_dict = extract_dense_depth_maps(
             self.depth_model, image_paths, original_images
         )
@@ -621,7 +642,7 @@ class VGGSfMRunner:
             for img_basename in depth_dict:
                 depth_map = depth_dict[img_basename]
                 depth_map_path = os.path.join(depth_dir, img_basename)
-                
+
                 name_wo_extension = os.path.splitext(depth_map_path)[0]
                 out_fname_with_bin = name_wo_extension + ".bin"
                 write_array(depth_map, out_fname_with_bin)
@@ -633,7 +654,13 @@ class VGGSfMRunner:
         return predictions
 
     def make_reprojection_video(
-        self, predictions, video_size, image_paths, output_dir, original_images, save_video=True
+        self,
+        predictions,
+        video_size,
+        image_paths,
+        output_dir,
+        original_images,
+        save_video=True,
     ):
         """
         Create a video with reprojections of the 3D points onto the original images.
@@ -673,8 +700,6 @@ class VGGSfMRunner:
         )
 
         return img_with_circles_list
-
-
 
     def save_sparse_reconstruction(
         self, predictions, seq_name=None, output_dir=None
@@ -881,7 +906,10 @@ def predict_tracks(
 
         # Feed into track predictor
         fine_pred_track, _, pred_vis, pred_score = track_predictor(
-            images_feed, query_points, fmaps=fmaps_feed, fine_tracking=fine_tracking
+            images_feed,
+            query_points,
+            fmaps=fmaps_feed,
+            fine_tracking=fine_tracking,
         )
 
         # Switch back the predictions

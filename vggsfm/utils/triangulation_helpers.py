@@ -16,6 +16,8 @@ from torch.cuda.amp import autocast
 from itertools import combinations
 import math
 
+from vggsfm.utils.distortion import apply_distortion, iterative_undistortion
+
 
 def triangulate_multi_view_point_batched(
     cams_from_world,
@@ -60,15 +62,6 @@ def triangulate_multi_view_point_batched(
         terms = terms * mask[:, :, None, None]
 
     A = torch.einsum("bnij,bnik->bjk", terms, terms)
-
-    # Compute eigenvalues and eigenvectors
-    # try:
-    #     _, eigenvectors = torch.linalg.eigh(A)
-    # except:
-    #     print("Meet CUSOLVER_STATUS_INVALID_VALUE ERROR during torch.linalg.eigh()")
-    #     print("SWITCH TO torch.linalg.eig()")
-    #     _, eigenvectors = torch.linalg.eig(A)
-    #     eigenvectors = torch.real(eigenvectors)
 
     # Compute eigenvalues and eigenvectors
     num_A_batch = len(A)
@@ -138,6 +131,7 @@ def filter_all_points3D(
     points2D,
     extrinsics,
     intrinsics,
+    extra_params=None,
     max_reproj_error=4,
     min_tri_angle=1.5,
     check_triangle=True,
@@ -157,7 +151,11 @@ def filter_all_points3D(
 
     # compute reprojection error
     projected_points2D, projected_points_cam = project_3D_points(
-        points3D, extrinsics, intrinsics, return_points_cam=True
+        points3D,
+        extrinsics,
+        intrinsics,
+        extra_params=extra_params,
+        return_points_cam=True,
     )
 
     reproj_error = (projected_points2D - points2D).norm(dim=-1) ** 2  # sqaure
@@ -221,6 +219,7 @@ def project_3D_points(
     points3D,
     extrinsics,
     intrinsics=None,
+    extra_params=None,
     return_points_cam=False,
     default=0,
     only_points_cam=False,
@@ -231,6 +230,7 @@ def project_3D_points(
         points3D (torch.Tensor): 3D points of shape Px3.
         extrinsics (torch.Tensor): Extrinsic parameters of shape Bx3x4.
         intrinsics (torch.Tensor): Intrinsic parameters of shape Bx3x3.
+        extra_params (torch.Tensor): Extra parameters of shape BxN, which is used for radial distortion.
     Returns:
         torch.Tensor: Transformed 2D points of shape BxNx2.
     """
@@ -244,6 +244,7 @@ def project_3D_points(
         points3D_homogeneous = points3D_homogeneous.unsqueeze(0).expand(
             B, -1, -1
         )  # BxNx4
+
         # Step 1: Apply extrinsic parameters
         # Transform 3D points to camera coordinate system for all cameras
         points_cam = torch.bmm(
@@ -253,18 +254,80 @@ def project_3D_points(
         if only_points_cam:
             return points_cam
 
-        # Step 2: Apply intrinsic parameters
-        # Intrinsic multiplication requires a transpose to match dimensions (Bx3x3 * Bx3xN -> Bx3xN)
-        points2D_homogeneous = torch.bmm(intrinsics, points_cam)  # Still Bx3xN
-        points2D_homogeneous = points2D_homogeneous.transpose(1, 2)  # BxNx3
-        points2D = (
-            points2D_homogeneous[..., :2] / points2D_homogeneous[..., 2:3]
-        )  # BxNx2
-        # Performs safe division, replacing NaNs with a default value
-        points2D[torch.isnan(points2D)] = default
+        # Step 2: Apply intrinsic parameters and (optional) distortion
+        points2D = img_from_cam(intrinsics, points_cam, extra_params)
+
         if return_points_cam:
             return points2D, points_cam
         return points2D
+
+
+def img_from_cam(intrinsics, points_cam, extra_params=None, default=0.0):
+    """
+    Applies intrinsic parameters and optional distortion to the given 3D points.
+
+    Args:
+        intrinsics (torch.Tensor): Intrinsic camera parameters of shape Bx3x3.
+        points_cam (torch.Tensor): 3D points in camera coordinates of shape Bx3xN.
+        extra_params (torch.Tensor, optional): Distortion parameters of shape BxN, where N can be 1, 2, or 4.
+        default (float, optional): Default value to replace NaNs in the output.
+
+    Returns:
+        points2D (torch.Tensor): 2D points in pixel coordinates of shape BxNx2.
+    """
+
+    # Normalize by the third coordinate (homogeneous division)
+    points_cam = points_cam / points_cam[:, 2:3, :]
+    # Extract uv
+    uv = points_cam[:, :2, :]
+
+    # Apply distortion if extra_params are provided
+    if extra_params is not None:
+        uu, vv = apply_distortion(extra_params, uv[:, 0], uv[:, 1])
+        uv = torch.stack([uu, vv], dim=1)
+
+    # Prepare points_cam for batch matrix multiplication
+    points_cam_homo = torch.cat(
+        (uv, torch.ones_like(uv[:, :1, :])), dim=1
+    )  # Bx3xN
+    # Apply intrinsic parameters using batch matrix multiplication
+    points2D_homo = torch.bmm(intrinsics, points_cam_homo)  # Bx3xN
+
+    # Extract x and y coordinates
+    points2D = points2D_homo[:, :2, :]  # Bx2xN
+
+    # Replace NaNs with default value
+    points2D = torch.nan_to_num(points2D, nan=default)
+
+    return points2D.transpose(1, 2)  # BxNx2
+
+
+def cam_from_img(pred_tracks, intrinsics, extra_params=None):
+    """
+    Normalize predicted tracks based on camera intrinsics.
+    Args:
+    intrinsics (torch.Tensor): The camera intrinsics tensor of shape [batch_size, 3, 3].
+    pred_tracks (torch.Tensor): The predicted tracks tensor of shape [batch_size, num_tracks, 2].
+    extra_params (torch.Tensor, optional): Distortion parameters of shape BxN, where N can be 1, 2, or 4.
+    Returns:
+    torch.Tensor: Normalized tracks tensor.
+    """
+
+    # We don't want to do intrinsics_inv = torch.inverse(intrinsics) here
+    # otherwise we can use something like
+    #     tracks_normalized_homo = torch.bmm(pred_tracks_homo, intrinsics_inv.transpose(1, 2))
+
+    principal_point = intrinsics[:, [0, 1], [2, 2]].unsqueeze(-2)
+    focal_length = intrinsics[:, [0, 1], [0, 1]].unsqueeze(-2)
+    tracks_normalized = (pred_tracks - principal_point) / focal_length
+
+    if extra_params is not None:
+        # Apply iterative undistortion
+        tracks_normalized = iterative_undistortion(
+            extra_params, tracks_normalized
+        )
+
+    return tracks_normalized
 
 
 def calculate_normalized_angular_error_batched(

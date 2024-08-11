@@ -23,6 +23,7 @@ def batch_matrix_to_pycolmap(
     max_points3D_val=300,
     shared_camera=False,
     camera_type="SIMPLE_PINHOLE",
+    extra_params=None,
 ):
     """
     Convert Batched Pytorch Tensors to PyCOLMAP
@@ -46,6 +47,10 @@ def batch_matrix_to_pycolmap(
 
     extrinsics = extrinsics.cpu().numpy()
     intrinsics = intrinsics.cpu().numpy()
+
+    if extra_params is not None:
+        extra_params = extra_params.cpu().numpy()
+
     tracks = tracks.cpu().numpy()
     masks = masks.cpu().numpy()
     points3d = points3d.cpu().numpy()
@@ -70,7 +75,6 @@ def batch_matrix_to_pycolmap(
     # frame idx
     for fidx in range(N):
         # set camera
-
         if camera is None or (not shared_camera):
             if camera_type == "SIMPLE_RADIAL":
                 pycolmap_intri = np.array(
@@ -78,7 +82,7 @@ def batch_matrix_to_pycolmap(
                         intrinsics[fidx][0, 0],
                         intrinsics[fidx][0, 2],
                         intrinsics[fidx][1, 2],
-                        0,
+                        extra_params[fidx][0],
                     ]
                 )
             elif camera_type == "SIMPLE_PINHOLE":
@@ -156,9 +160,19 @@ def batch_matrix_to_pycolmap(
     return reconstruction
 
 
-def pycolmap_to_batch_matrix(reconstruction, device="cuda"):
+def pycolmap_to_batch_matrix(
+    reconstruction, device="cuda", camera_type="SIMPLE_PINHOLE"
+):
     """
-    Inversion to batch_matrix_to_pycolmap, nothing but picking them back
+    Convert a PyCOLMAP Reconstruction Object to batched PyTorch tensors.
+
+    Args:
+        reconstruction (pycolmap.Reconstruction): The reconstruction object from PyCOLMAP.
+        device (str): The device to place the tensors on (default: "cuda").
+        camera_type (str): The type of camera model used (default: "SIMPLE_PINHOLE").
+
+    Returns:
+        tuple: A tuple containing points3D, extrinsics, intrinsics, and optionally extra_params.
     """
 
     num_images = len(reconstruction.images)
@@ -172,23 +186,29 @@ def pycolmap_to_batch_matrix(reconstruction, device="cuda"):
     extrinsics = []
     intrinsics = []
 
+    extra_params = [] if camera_type == "SIMPLE_RADIAL" else None
+
     for i in range(num_images):
         # Extract and append extrinsics
         pyimg = reconstruction.images[i]
+        pycam = reconstruction.cameras[pyimg.camera_id]
         matrix = pyimg.cam_from_world.matrix()
         extrinsics.append(matrix)
 
         # Extract and append intrinsics
-        calibration_matrix = reconstruction.cameras[
-            pyimg.camera_id
-        ].calibration_matrix()
+        calibration_matrix = pycam.calibration_matrix()
         intrinsics.append(calibration_matrix)
 
+        if camera_type == "SIMPLE_RADIAL":
+            extra_params.append(pycam.params[-1])
+
     # Convert lists to torch tensors
-    extrinsics = torch.from_numpy(np.stack(extrinsics))
-    extrinsics = extrinsics.to(device)
+    extrinsics = torch.from_numpy(np.stack(extrinsics)).to(device)
 
-    intrinsics = torch.from_numpy(np.stack(intrinsics))
-    intrinsics = intrinsics.to(device)
+    intrinsics = torch.from_numpy(np.stack(intrinsics)).to(device)
 
-    return points3D, extrinsics, intrinsics
+    if camera_type == "SIMPLE_RADIAL":
+        extra_params = torch.from_numpy(np.stack(extra_params)).to(device)
+        extra_params = extra_params[:, None]
+
+    return points3D, extrinsics, intrinsics, extra_params

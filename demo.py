@@ -62,9 +62,9 @@ def demo_fn(cfg: DictConfig):
     crop_params = (
         batch["crop_params"] if batch["crop_params"] is not None else None
     )
-    
+
     # Cache the original images for visualization, so that we don't need to re-load many times
-    original_images = batch["original_images"]  
+    original_images = batch["original_images"]
 
     # Run VGGSfM
     # Both visualization and output writing are performed inside VGGSfMRunner

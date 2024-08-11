@@ -39,8 +39,7 @@ class VGGSfM(nn.Module):
             from huggingface_hub import hf_hub_download
 
             ckpt_path = hf_hub_download(
-                repo_id="facebook/VGGSfM", 
-                filename=model_name + ".bin"
+                repo_id="facebook/VGGSfM", filename=model_name + ".bin"
             )
             checkpoint = torch.load(ckpt_path)
         except:

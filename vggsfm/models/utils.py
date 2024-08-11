@@ -68,6 +68,7 @@ def get_EFP(pred_cameras, image_size, B, S, default_focal=False):
         focal_length = focal_length.clamp(0.2 * scale, 5 * scale)
 
     intrinsics = create_intri_matrix(focal_length, principal_point)
+
     return extrinsics, intrinsics
 
 

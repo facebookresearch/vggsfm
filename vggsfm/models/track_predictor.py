@@ -59,8 +59,15 @@ class TrackerPredictor(nn.Module):
         self.fine_predictor = instantiate(
             FINE.PREDICTOR, _recursive_=False, stride=1, cfg=cfg
         )
+
     def forward(
-        self, images, query_points, fmaps=None, coarse_iters=6, inference=True, fine_tracking=True,
+        self,
+        images,
+        query_points,
+        fmaps=None,
+        coarse_iters=6,
+        inference=True,
+        fine_tracking=True,
     ):
         """
         Args:
@@ -111,7 +118,6 @@ class TrackerPredictor(nn.Module):
             pred_score = torch.ones_like(pred_vis)
 
         return fine_pred_track, coarse_pred_track, pred_vis, pred_score
-
 
     def process_images_to_fmaps(self, images):
         """

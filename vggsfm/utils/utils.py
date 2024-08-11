@@ -9,7 +9,6 @@ import matplotlib
 import numpy as np
 
 
-
 import torch
 import torch.nn.functional as F
 import os
@@ -21,6 +20,7 @@ from .metric import closed_form_inverse, closed_form_inverse_OpenCV
 
 from scipy.spatial.transform import Rotation as sciR
 from minipytorch3d.cameras import CamerasBase, PerspectiveCameras
+
 
 def average_camera_prediction(
     camera_predictor,
@@ -185,7 +185,6 @@ def switch_tensor_order(tensors, order, dim=1):
         torch.index_select(tensor, dim, order) if tensor is not None else None
         for tensor in tensors
     ]
-
 
 
 def transform_camera_relative_to_first(pred_cameras, batch_size):
@@ -453,7 +452,9 @@ def create_video_with_reprojections(
             output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, video_size
         )
 
-    points3D = np.array([point.xyz for point in reconstruction.points3D.values()])
+    points3D = np.array(
+        [point.xyz for point in reconstruction.points3D.values()]
+    )
 
     if color_mode == "dis_to_center":
         median_point = np.median(points3D, axis=0)
@@ -465,7 +466,9 @@ def create_video_with_reprojections(
     elif color_mode == "point_order":
         max_point3D_idx = max(reconstruction.point3D_ids())
     else:
-        raise NotImplementedError(f"Color mode '{color_mode}' is not implemented.")
+        raise NotImplementedError(
+            f"Color mode '{color_mode}' is not implemented."
+        )
 
     img_with_circles_list = []
 
@@ -474,7 +477,9 @@ def create_video_with_reprojections(
             img_with_circles = original_images[img_basename]
             img_with_circles = cv2.cvtColor(img_with_circles, cv2.COLOR_RGB2BGR)
         else:
-            img_with_circles = cv2.imread(os.path.join(fname_prefix, img_basename))
+            img_with_circles = cv2.imread(
+                os.path.join(fname_prefix, img_basename)
+            )
 
         uvds = np.array(sparse_depth[img_basename])
         uvs, uv_depth = uvds[:, :2], uvds[:, -1]
@@ -508,7 +513,7 @@ def create_video_with_reprojections(
                 thickness=-1,
                 lineType=cv2.LINE_AA,
             )
-        
+
         if img_with_circles.shape[:2] != video_size_rev:
             # Center Pad
             target_h, target_w = video_size_rev
@@ -526,15 +531,16 @@ def create_video_with_reprojections(
                 cv2.BORDER_CONSTANT,
                 value=[0, 0, 0],
             )
-            
+
         img_with_circles_list.append(img_with_circles)
         if save_video:
             video_writer.write(img_with_circles)
-            
+
     if save_video:
         video_writer.release()
     print("Finished generating reprojection video")
     return img_with_circles_list
+
 
 def create_depth_map_visual(depth_map, raw_img, output_filename):
     # Normalize the depth map to the range 0-255
@@ -570,7 +576,7 @@ def extract_dense_depth_maps(depth_model, image_paths, original_images=None):
     Extract dense depth maps from a list of image paths
     Note that the monocular depth model outputs disp instead of real depth map
     """
-    
+
     print("Extracting dense depth maps")
     disp_dict = {}
 
@@ -585,16 +591,17 @@ def extract_dense_depth_maps(depth_model, image_paths, original_images=None):
             raw_img = cv2.cvtColor(raw_img, cv2.COLOR_RGB2BGR)
         else:
             raw_img = cv2.imread(img_fname)
-            
+
         # raw resolution
         disp_map = depth_model.infer_image(
             raw_img, min(1024, max(raw_img.shape[:2]))
-        ) 
+        )
 
         disp_dict[basename] = disp_map
 
     print("Monocular depth maps complete. Depth alignment to be conducted.")
     return disp_dict
+
 
 def align_dense_depth_maps(
     reconstruction,
@@ -620,9 +627,11 @@ def align_dense_depth_maps(
         for imgid in reconstruction.images
     }
 
-    for img_basename in tqdm(sparse_depth, desc="Load monocular depth and Align"):
+    for img_basename in tqdm(
+        sparse_depth, desc="Load monocular depth and Align"
+    ):
         sparse_uvd = np.array(sparse_depth[img_basename])
-        
+
         disp_map = disp_dict[img_basename]
 
         ww, hh = disp_map.shape
