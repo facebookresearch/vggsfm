@@ -33,20 +33,19 @@ from vggsfm.utils.utils import (
     switch_tensor_order,
     average_camera_prediction,
     create_video_with_reprojections,
+    save_video_with_reprojections,
 )
 
-# Try to import poselib for additional functionality
+# Optional imports
 try:
     import poselib
     from vggsfm.two_view_geo.estimate_preliminary import (
         estimate_preliminary_cameras_poselib,
     )
-
     print("Poselib is available")
 except:
     print("Poselib is not installed. Please disable use_poselib")
 
-# Try to import PyTorch3D for visualization
 try:
     from pytorch3d.structures import Pointclouds
     from pytorch3d.vis.plotly_vis import plot_scene
@@ -54,8 +53,7 @@ try:
         PerspectiveCameras as PerspectiveCamerasVisual,
     )
 except:
-    print("PyTorch3d is not available. Please disable visdom. ")
-
+    print("PyTorch3d is not available. Please disable visdom.")
 
 class VGGSfMRunner:
     def __init__(self, cfg):
@@ -64,6 +62,9 @@ class VGGSfMRunner:
 
         This class encapsulates the entire SfM process, including model initialization,
         sparse and dense reconstruction, and visualization.
+
+        Args:
+            cfg: Configuration object containing pipeline settings.
         """
 
         self.cfg = cfg
@@ -107,18 +108,15 @@ class VGGSfMRunner:
 
         print("Building VGGSfM")
 
-        if self.cfg.auto_download_ckpt:
-            vggsfm = instantiate(
+        vggsfm = instantiate(
                 self.cfg.MODEL, _recursive_=False, cfg=self.cfg
             )
+
+        if self.cfg.auto_download_ckpt:
             vggsfm.from_pretrained(self.cfg.model_name)
         else:
-            vggsfm = instantiate(
-                self.cfg.MODEL, _recursive_=False, cfg=self.cfg
-            )
             checkpoint = torch.load(self.cfg.resume_ckpt)
             vggsfm.load_state_dict(checkpoint, strict=True)
-
         self.vggsfm_model = vggsfm.to(self.device).eval()
         print("VGGSfM built successfully")
 
@@ -141,7 +139,6 @@ class VGGSfMRunner:
         )
 
         print("Building DepthAnythingV2")
-
         model_config = {
             "encoder": "vitl",
             "features": 256,
@@ -151,16 +148,14 @@ class VGGSfMRunner:
         _DEPTH_ANYTHING_V2_URL = "https://huggingface.co/depth-anything/Depth-Anything-V2-Large/resolve/main/depth_anything_v2_vitl.pth"
         checkpoint = torch.hub.load_state_dict_from_url(_DEPTH_ANYTHING_V2_URL)
         depth_model.load_state_dict(checkpoint)
-        depth_model = depth_model.to(self.device).eval()
-        self.depth_model = depth_model
+        self.depth_model = depth_model.to(self.device).eval()
         print(f"DepthAnythingV2 built successfully")
 
     def build_visdom(self):
         """
         Set up a Visdom server for visualization.
         """
-        viz = Visdom()
-        self.viz = viz
+        self.viz = Visdom()
 
     def run(
         self,
@@ -249,10 +244,12 @@ class VGGSfMRunner:
                 predictions = self.dense_reconstruct(
                     predictions,
                     image_paths,
-                    output_dir,
                     original_images,
-                    save_depth_map=self.cfg.save_to_disk,
                 )
+
+                # Save the dense depth maps
+                if self.cfg.save_to_disk:
+                    self.save_dense_depth_maps(predictions["depth_dict"], output_dir)
 
             # Create reprojection video if enabled
             if self.cfg.make_reproj_video:
@@ -262,11 +259,11 @@ class VGGSfMRunner:
                     predictions,
                     video_size,
                     image_paths,
-                    output_dir,
                     original_images,
-                    save_video=self.cfg.save_to_disk,
                 )
                 predictions["reproj_video"] = img_with_circles_list
+                if self.cfg.save_to_disk:
+                    self.save_reprojection_video(img_with_circles_list, video_size, output_dir)
 
             # Visualize the 3D reconstruction if enabled
             if self.cfg.viz_visualize:
@@ -276,6 +273,7 @@ class VGGSfMRunner:
                 self.visualize_3D_in_gradio(predictions, seq_name, output_dir)
 
             return predictions
+
 
     def sparse_reconstruct(
         self,
@@ -597,18 +595,14 @@ class VGGSfMRunner:
         self,
         predictions,
         image_paths,
-        output_dir,
         original_images,
-        save_depth_map=True,
     ):
         """
         Args:
             predictions (dict): A dictionary containing the sparse reconstruction results.
             image_paths (list): A list of paths to the input images.
-            output_dir (str): The directory to save the dense reconstruction results.
             original_images (dict): Dictionary with image basename as keys and original
                 numpy images (rgb) as values.
-            save_depth_map (bool, optional): Flag to save the depth maps to disk. Default is True.
 
         The function performs the following steps:
         1. Predicts dense depth maps using a monocular depth estimation model, e.g., DepthAnything V2.
@@ -636,35 +630,39 @@ class VGGSfMRunner:
             visual_dense_point_cloud=self.cfg.visual_dense_point_cloud,
         )
 
-        if save_depth_map:
-            depth_dir = os.path.join(output_dir, "depths")
-            os.makedirs(depth_dir, exist_ok=True)
-            for img_basename in depth_dict:
-                depth_map = depth_dict[img_basename]
-                depth_map_path = os.path.join(depth_dir, img_basename)
-
-                name_wo_extension = os.path.splitext(depth_map_path)[0]
-                out_fname_with_bin = name_wo_extension + ".bin"
-                write_array(depth_map, out_fname_with_bin)
-
         # Update predictions with dense reconstruction results
         predictions["depth_dict"] = depth_dict
         predictions["unproj_dense_points3D"] = unproj_dense_points3D
 
         return predictions
 
+    def save_dense_depth_maps(self, depth_dict, output_dir):
+        """
+        Save the dense depth maps to disk.
+
+        Args:
+            depth_dict (dict): Dictionary containing depth maps.
+            output_dir (str): Directory to save the depth maps.
+        """
+        depth_dir = os.path.join(output_dir, "depths")
+        os.makedirs(depth_dir, exist_ok=True)
+        for img_basename in depth_dict:
+            depth_map = depth_dict[img_basename]
+            depth_map_path = os.path.join(depth_dir, img_basename)
+
+            name_wo_extension = os.path.splitext(depth_map_path)[0]
+            out_fname_with_bin = name_wo_extension + ".bin"
+            write_array(depth_map, out_fname_with_bin)
+
     def make_reprojection_video(
         self,
         predictions,
         video_size,
         image_paths,
-        output_dir,
         original_images,
-        save_video=True,
     ):
         """
         Create a video with reprojections of the 3D points onto the original images.
-        The video is saved to {output_dir}/visuals/reproj.mp4
 
         Args:
             predictions (dict): A dictionary containing the reconstruction results,
@@ -674,7 +672,6 @@ class VGGSfMRunner:
             output_dir (str): The directory to save the output video.
             original_images (dict): Dictionary with image basename as keys and original
                 numpy images (rgb) as values.
-            save_video (bool, optional): Flag to save the video to disk. Default is True.
         """
         reconstruction = predictions["reconstruction"]
         sparse_depth = predictions["sparse_depth"]
@@ -683,12 +680,7 @@ class VGGSfMRunner:
         image_dir_prefix = os.path.dirname(image_paths[0])
         image_paths = [os.path.basename(imgpath) for imgpath in image_paths]
 
-        visual_dir = os.path.join(output_dir, "visuals")
-
-        os.makedirs(visual_dir, exist_ok=True)
-
         img_with_circles_list = create_video_with_reprojections(
-            os.path.join(visual_dir, "reproj.mp4"),
             image_dir_prefix,
             video_size,
             reconstruction,
@@ -696,10 +688,31 @@ class VGGSfMRunner:
             sparse_depth,
             sparse_point,
             original_images,
-            save_video=save_video,
         )
 
         return img_with_circles_list
+
+    def save_reprojection_video(
+        self,
+        img_with_circles_list,
+        video_size,
+        output_dir,
+    ):
+        """
+        Save the reprojection video to disk.
+
+        Args:
+            img_with_circles_list (list): List of images with circles to be included in the video.
+            video_size (tuple): A tuple specifying the size of the output video (width, height).
+            output_dir (str): The directory to save the output video.
+        """
+        visual_dir = os.path.join(output_dir, "visuals")
+        os.makedirs(visual_dir, exist_ok=True)
+        save_video_with_reprojections(
+            os.path.join(visual_dir, "reproj.mp4"),
+            img_with_circles_list,
+            video_size,
+        )
 
     def save_sparse_reconstruction(
         self, predictions, seq_name=None, output_dir=None
@@ -790,7 +803,6 @@ class VGGSfMRunner:
         print(f"Visualizing the scene by visdom at env: {env_name}")
 
         self.viz.plotlyplot(fig, env=env_name, win="3D")
-
     def visualize_3D_in_gradio(
         self, predictions, seq_name=None, output_dir=None
     ):
@@ -1094,3 +1106,4 @@ def get_query_points(
         query_points = query_points[:, random_point_indices, :]
 
     return query_points
+

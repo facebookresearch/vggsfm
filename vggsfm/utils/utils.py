@@ -405,9 +405,7 @@ def filter_invisible_reprojections(uvs_int, depths):
 
     return mask
 
-
 def create_video_with_reprojections(
-    output_path,
     fname_prefix,
     video_size,
     reconstruction,
@@ -417,15 +415,12 @@ def create_video_with_reprojections(
     original_images=None,
     draw_radius=3,
     cmap="gist_rainbow",
-    fps=1,
     color_mode="dis_to_center",
-    save_video=True,
 ):
     """
-    Generates a video with reprojections of 3D points onto 2D images.
+    Generates a list of images with reprojections of 3D points onto 2D images.
 
     Args:
-        output_path (str): Path to save the output video.
         fname_prefix (str): Prefix for image file names.
         video_size (tuple): Size of the video (width, height).
         reconstruction (object): 3D reconstruction object containing points3D.
@@ -435,22 +430,15 @@ def create_video_with_reprojections(
         original_images (dict, optional): Dictionary of original images. Defaults to None.
         draw_radius (int, optional): Radius of the circles to draw. Defaults to 3.
         cmap (str, optional): Colormap to use for drawing. Defaults to "gist_rainbow".
-        fps (int, optional): Frames per second for the video. Defaults to 1.
         color_mode (str, optional): Mode for coloring points. Defaults to "dis_to_center".
-        save_video (bool, optional): Flag to save the video. Defaults to True.
 
     Returns:
         list: List of images with drawn circles.
     """
-    print("Generating reprojection video")
+    print("Generating reprojection images")
 
     video_size_rev = video_size[::-1]
     colormap = matplotlib.colormaps.get_cmap(cmap)
-
-    if save_video:
-        video_writer = cv2.VideoWriter(
-            output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, video_size
-        )
 
     points3D = np.array(
         [point.xyz for point in reconstruction.points3D.values()]
@@ -533,15 +521,37 @@ def create_video_with_reprojections(
             )
 
         img_with_circles_list.append(img_with_circles)
-        if save_video:
-            video_writer.write(img_with_circles)
 
-    if save_video:
-        video_writer.release()
-    print("Finished generating reprojection video")
+    print("Finished generating reprojection images")
     return img_with_circles_list
 
 
+def save_video_with_reprojections(
+    output_path,
+    img_with_circles_list,
+    video_size,
+    fps=1,
+):
+    """
+    Saves a list of images as a video.
+
+    Args:
+        output_path (str): Path to save the output video.
+        img_with_circles_list (list): List of images with drawn circles.
+        video_size (tuple): Size of the video (width, height).
+        fps (int, optional): Frames per second for the video. Defaults to 1.
+    """
+    print("Saving video with reprojections")
+
+    video_writer = cv2.VideoWriter(
+        output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, video_size
+    )
+
+    for img_with_circles in img_with_circles_list:
+        video_writer.write(img_with_circles)
+
+    video_writer.release()
+    print("Finished saving video with reprojections")
 def create_depth_map_visual(depth_map, raw_img, output_filename):
     # Normalize the depth map to the range 0-255
     depth_map_visual = (

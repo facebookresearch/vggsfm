@@ -8,9 +8,9 @@ model_name: "vggsfm_v2_0_0"
 seed: 0
 img_size: 1024
 
-viz_ip: 127.0.0.1
 
 debug: False
+
 
 center_order: True
 mixed_precision: fp16
