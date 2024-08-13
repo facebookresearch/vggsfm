@@ -6,14 +6,15 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict
 
 from hydra.utils import instantiate
 
+from huggingface_hub import PyTorchModelHubMixin
 
-class VGGSfM(nn.Module):
+
+class VGGSfM(nn.Module, PyTorchModelHubMixin):
     def __init__(self, TRACK: Dict, CAMERA: Dict, TRIANGULAE: Dict, cfg=None):
         """
         Initializes a VGGSfM model
