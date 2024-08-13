@@ -112,11 +112,11 @@ class VGGSfMRunner:
                 self.cfg.MODEL, _recursive_=False, cfg=self.cfg
             )
 
-        if self.cfg.auto_download_ckpt:
-            vggsfm.from_pretrained(self.cfg.model_name)
-        else:
-            checkpoint = torch.load(self.cfg.resume_ckpt)
-            vggsfm.load_state_dict(checkpoint, strict=True)
+        # if self.cfg.auto_download_ckpt:
+        #     vggsfm.from_pretrained(self.cfg.model_name)
+        # else:
+        checkpoint = torch.load(self.cfg.resume_ckpt)
+        vggsfm.load_state_dict(checkpoint, strict=True)
         self.vggsfm_model = vggsfm.to(self.device).eval()
         print("VGGSfM built successfully")
 
