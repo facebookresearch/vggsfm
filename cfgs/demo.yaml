@@ -46,7 +46,6 @@ SCENE_DIR: examples/kitchen
 resume_ckpt:  ckpt/vggsfm_v2_0_0.bin
 auto_download_ckpt: True
 
-query_by_interval: False
 query_method: "aliked"
 
 use_poselib: True
@@ -59,6 +58,9 @@ visual_tracks: False
 visual_query_points: False
 visual_dense_point_cloud: False
 
+
+query_by_midpoint: False
+query_by_interval: False
 
 
 MODEL:

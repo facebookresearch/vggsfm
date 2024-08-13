@@ -25,7 +25,7 @@ conda install pytorch3d=0.7.5 -c pytorch3d
 
 # Install pip packages
 pip install hydra-core --upgrade
-pip install omegaconf opencv-python einops visdom tqdm scipy plotly scikit-learn imageio[ffmpeg] gradio trimesh
+pip install omegaconf opencv-python einops visdom tqdm scipy plotly scikit-learn imageio[ffmpeg] gradio trimesh huggingface_hub
 
 # Install LightGlue
 git clone https://github.com/jytime/LightGlue.git dependency/LightGlue
@@ -37,8 +37,8 @@ cd ../../
 # Force numpy <2
 pip install numpy==1.26.3
 
-# Ensure the version of pycolmap is 0.6.1
-pip install pycolmap==0.6.1
+# Ensure the version of pycolmap is 3.10.0
+pip install pycolmap==3.10.0 pyceres
 
 # (Optional) Install poselib 
 pip install poselib==2.0.2

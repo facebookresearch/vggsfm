@@ -1141,7 +1141,6 @@ def iterative_global_BA(
         )
 
         reconstruction = filter_reconstruction(reconstruction)
-
     return (
         points3D_opt,
         extrinsics,
@@ -1149,6 +1148,7 @@ def iterative_global_BA(
         extra_params,  # Return extra_params
         valid_tracks,
         BA_inlier_masks,
+        # filtered_inlier_mask,
         reconstruction,
     )
 

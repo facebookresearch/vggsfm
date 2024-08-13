@@ -31,7 +31,7 @@ def batch_matrix_to_pycolmap(
     Check https://github.com/colmap/pycolmap for more details about its format
     """
 
-    # points3d: Px2
+    # points3d: Px3
     # extrinsics: Nx3x4
     # intrinsics: Nx3x3
     # tracks: NxPx2

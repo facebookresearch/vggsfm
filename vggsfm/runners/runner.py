@@ -25,6 +25,7 @@ from vggsfm.two_view_geo.estimate_preliminary import (
 
 from vggsfm.utils.utils import (
     write_array,
+    generate_rank_by_midpoint,
     generate_rank_by_dino,
     generate_rank_by_interval,
     calculate_index_mappings,
@@ -285,6 +286,7 @@ class VGGSfMRunner:
         seq_name=None,
         output_dir=None,
         dtype=None,
+        back_to_original_resolution=True,
     ):
         """
         Perform sparse reconstruction on the given images.
@@ -327,9 +329,11 @@ class VGGSfMRunner:
 
         # Find the query frames using DINO or frame names
         with autocast(dtype=dtype):
-            if self.cfg.query_by_interval:
+            if self.cfg.query_by_midpoint:
+                query_frame_indexes = generate_rank_by_midpoint(frame_num)
+            elif self.cfg.query_by_interval:
                 query_frame_indexes = generate_rank_by_interval(
-                    frame_num, frame_num // query_frame_num
+                    frame_num, (frame_num // query_frame_num + 1)
                 )
             else:
                 query_frame_indexes = generate_rank_by_dino(
@@ -339,6 +343,7 @@ class VGGSfMRunner:
         # Extract base names from image paths
         image_paths = [os.path.basename(imgpath) for imgpath in image_paths]
 
+        center_order = None
         # Reorder frames if center_order is enabled
         if self.cfg.center_order:
             # The code below switchs the first frame (frame 0) to the most common frame
@@ -477,6 +482,8 @@ class VGGSfMRunner:
                 points3D_rgb,
                 reconstruction,
                 valid_frame_mask,
+                valid_2D_mask,
+                valid_tracks,
             ) = self.triangulator(
                 pred_cameras,
                 pred_track,
@@ -506,41 +513,42 @@ class VGGSfMRunner:
 
         img_size = images.shape[-1]  # H or W, the same for square
 
-        rescale_camera = True
+        if back_to_original_resolution:
+            rescale_camera = True
 
-        for pyimageid in reconstruction.images:
-            # Reshaped the padded&resized image to the original size
-            # Rename the images to the original names
-            pyimage = reconstruction.images[pyimageid]
-            pycamera = reconstruction.cameras[pyimage.camera_id]
-            pyimage.name = image_paths[pyimageid]
+            for pyimageid in reconstruction.images:
+                # Reshaped the padded&resized image to the original size
+                # Rename the images to the original names
+                pyimage = reconstruction.images[pyimageid]
+                pycamera = reconstruction.cameras[pyimage.camera_id]
+                pyimage.name = image_paths[pyimageid]
 
-            if rescale_camera:
-                # Rescale the camera parameters
-                pred_params = copy.deepcopy(pycamera.params)
-                real_image_size = crop_params[0, pyimageid][:2]
-                resize_ratio = real_image_size.max() / img_size
-                real_focal = resize_ratio * pred_params[0]
-                real_pp = real_image_size.cpu().numpy() // 2
+                if rescale_camera:
+                    # Rescale the camera parameters
+                    pred_params = copy.deepcopy(pycamera.params)
+                    real_image_size = crop_params[0, pyimageid][:2]
+                    resize_ratio = real_image_size.max() / img_size
+                    real_focal = resize_ratio * pred_params[0]
+                    real_pp = real_image_size.cpu().numpy() // 2
 
-                pred_params[0] = real_focal
-                pred_params[1:3] = real_pp
-                pycamera.params = pred_params
-                pycamera.width = real_image_size[0]
-                pycamera.height = real_image_size[1]
+                    pred_params[0] = real_focal
+                    pred_params[1:3] = real_pp
+                    pycamera.params = pred_params
+                    pycamera.width = real_image_size[0]
+                    pycamera.height = real_image_size[1]
 
-                resize_ratio = resize_ratio.item()
+                    resize_ratio = resize_ratio.item()
 
-            if self.cfg.shift_point2d_to_original_res:
-                # Also shift the point2D to original resolution
-                top_left = crop_params[0, pyimageid][-4:-2].abs().cpu().numpy()
-                for point2D in pyimage.points2D:
-                    point2D.xy = (point2D.xy - top_left) * resize_ratio
+                if self.cfg.shift_point2d_to_original_res:
+                    # Also shift the point2D to original resolution
+                    top_left = crop_params[0, pyimageid][-4:-2].abs().cpu().numpy()
+                    for point2D in pyimage.points2D:
+                        point2D.xy = (point2D.xy - top_left) * resize_ratio
 
-            if self.cfg.shared_camera:
-                # If shared_camera, all images share the same camera
-                # no need to rescale any more
-                rescale_camera = False
+                if self.cfg.shared_camera:
+                    # If shared_camera, all images share the same camera
+                    # no need to rescale any more
+                    rescale_camera = False
 
         if center_order is not None:
             # NOTE we changed the image order previously, now we need to scwitch it back
@@ -556,7 +564,11 @@ class VGGSfMRunner:
         predictions["reconstruction"] = reconstruction
         predictions["extra_params"] = extra_params
         predictions["unproj_dense_points3D"] = None  # placeholder here
-
+        predictions["valid_2D_mask"] = valid_2D_mask
+        predictions["pred_track"] = pred_track
+        predictions["pred_vis"] = pred_vis
+        predictions["pred_score"] = pred_score
+        predictions["valid_tracks"] = valid_tracks
         return predictions
 
     def extract_sparse_depth_and_point_from_reconstruction(self, predictions):
@@ -854,6 +866,7 @@ def predict_tracks(
     query_frame_indexes,
     fine_tracking,
     bound_bboxes=None,
+    query_points_dict=None,
 ):
     """
     Predict tracks for the given images and masks.
@@ -899,13 +912,16 @@ def predict_tracks(
         mask = masks[:, query_index] if masks is not None else None
 
         # Find query_points at the query frame
-        query_points = get_query_points(
-            images[:, query_index],
-            mask,
-            query_method,
-            max_query_pts,
-            bound_bbox=bound_bbox,
-        )
+        if query_points_dict is None:
+            query_points = get_query_points(
+                images[:, query_index],
+                mask,
+                query_method,
+                max_query_pts,
+                bound_bbox=bound_bbox,
+            )
+        else:
+            query_points = query_points_dict[query_index]
 
         # Switch so that query_index frame stays at the first frame
         # This largely simplifies the code structure of tracker
@@ -915,10 +931,10 @@ def predict_tracks(
         images_feed, fmaps_feed = switch_tensor_order(
             [images, fmaps_for_tracker], new_order
         )
-
-        # Feed into track predictor
+        
+        # Feed into track predictor    
         fine_pred_track, _, pred_vis, pred_score = track_predictor(
-            images_feed,
+            images_feed,        
             query_points,
             fmaps=fmaps_feed,
             fine_tracking=fine_tracking,

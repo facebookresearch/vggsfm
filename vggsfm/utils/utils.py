@@ -8,7 +8,6 @@
 import matplotlib
 import numpy as np
 
-
 import torch
 import torch.nn.functional as F
 import os
@@ -20,6 +19,8 @@ from .metric import closed_form_inverse, closed_form_inverse_OpenCV
 
 from scipy.spatial.transform import Rotation as sciR
 from minipytorch3d.cameras import CamerasBase, PerspectiveCameras
+
+
 
 
 def average_camera_prediction(
@@ -229,6 +230,24 @@ def farthest_point_sampling(
             break
 
     return selected_indices
+
+def generate_rank_by_midpoint(N):
+    def mid(start, end):
+        return start + (end - start) // 2
+
+    # Start with the first midpoint, then add 0 and N-1
+    sequence = [mid(0, N-1), 0, N-1]
+    queue = [(0, mid(0, N-1)), (mid(0, N-1), N-1)]  # Queue for BFS
+
+    while queue:
+        start, end = queue.pop(0)
+        m = mid(start, end)
+        if m not in sequence and start < m < end:
+            sequence.append(m)
+            queue.append((start, m))
+            queue.append((m, end))
+
+    return sequence
 
 
 def generate_rank_by_interval(N, k):
@@ -552,6 +571,8 @@ def save_video_with_reprojections(
 
     video_writer.release()
     print("Finished saving video with reprojections")
+    
+    
 def create_depth_map_visual(depth_map, raw_img, output_filename):
     # Normalize the depth map to the range 0-255
     depth_map_visual = (
