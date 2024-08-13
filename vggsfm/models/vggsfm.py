@@ -42,7 +42,7 @@ class VGGSfM(nn.Module, PyTorchModelHubMixin):
             ckpt_path = hf_hub_download(
                 repo_id="facebook/VGGSfM", filename=model_name + ".bin"
             )
-            checkpoint = torch.load(ckpt_path)
+            checkpoint = torch.load(ckpt_path, map_location="cpu")
         except:
             # In case the model is not hosted on huggingface
             # or the user cannot import huggingface_hub correctly
