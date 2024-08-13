@@ -115,7 +115,9 @@ class VGGSfMRunner:
         # if self.cfg.auto_download_ckpt:
         #     vggsfm.from_pretrained(self.cfg.model_name)
         # else:
-        checkpoint = torch.load(self.cfg.resume_ckpt)
+        from huggingface_hub import hf_hub_download
+        filepath = hf_hub_download(repo_id="facebook/VGGSfM", filename="vggsfm_v2_0_0.bin", repo_type="model")
+        checkpoint = torch.load(filepath, map_location="cpu")
         vggsfm.load_state_dict(checkpoint, strict=True)
         self.vggsfm_model = vggsfm.to(self.device).eval()
         print("VGGSfM built successfully")
