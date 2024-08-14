@@ -22,6 +22,13 @@ class VGGSfM(nn.Module, PyTorchModelHubMixin):
         TRACK, CAMERA, TRIANGULAE are the dicts to construct the model modules
         cfg is the whole hydra config
         """
+        print("TRACK", TRACK)
+        print("Type of TRACK", type(TRACK))
+        print("CAMERA", CAMERA)
+        print("Type of CAMERA", type(CAMERA))
+        print("TRIANGULAE", TRIANGULAE)
+        print("CFG", cfg)
+        print("Type of CFG", type(cfg))
         super().__init__()
 
         self.cfg = cfg
