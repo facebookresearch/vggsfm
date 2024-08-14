@@ -11,11 +11,22 @@ from typing import Dict
 
 from hydra.utils import instantiate
 
+from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
+
 from huggingface_hub import PyTorchModelHubMixin
 
 
-class VGGSfM(nn.Module, PyTorchModelHubMixin):
-    def __init__(self, TRACK: Dict, CAMERA: Dict, TRIANGULAE: Dict, cfg=None):
+class VGGSfM(nn.Module,
+             PyTorchModelHubMixin,
+             coders={
+                DictConfig : (
+                    lambda x: OmegaConf.to_container(x, resolve=True),  # Encoder: how to convert a `DictConfig` to a valid jsonable value?
+                    lambda data: OmegaConf.create(data),  # Decoder: how to reconstruct a `DictConfig` from a dictionary?
+                ),
+            }
+    ):
+    def __init__(self, TRACK: DictConfig, CAMERA: DictConfig, TRIANGULAE: DictConfig, cfg: DictConfig = None):
         """
         Initializes a VGGSfM model
 
