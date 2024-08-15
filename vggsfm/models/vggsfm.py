@@ -21,6 +21,7 @@ class VGGSfM(nn.Module,
              PyTorchModelHubMixin,
              repo_url="https://github.com/facebookresearch/vggsfm",
              pipeline_tag="image-to-3D",
+             license="cc-by-nc-sa-4.0",
              coders={
                 DictConfig : (
                     lambda x: OmegaConf.to_container(x, resolve=True),  # Encoder: how to convert a `DictConfig` to a valid jsonable value?
