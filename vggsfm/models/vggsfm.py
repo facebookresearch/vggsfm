@@ -20,7 +20,7 @@ from huggingface_hub import PyTorchModelHubMixin
 class VGGSfM(nn.Module,
              PyTorchModelHubMixin,
              repo_url="https://github.com/facebookresearch/vggsfm",
-             pipeline_tag="image-to-3D",
+             pipeline_tag="image-to-3d",
              license="cc-by-nc-sa-4.0",
              coders={
                 DictConfig : (
