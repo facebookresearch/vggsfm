@@ -815,6 +815,8 @@ class VGGSfMRunner:
         print(f"Visualizing the scene by visdom at env: {env_name}")
 
         self.viz.plotlyplot(fig, env=env_name, win="3D")
+        
+        
     def visualize_3D_in_gradio(
         self, predictions, seq_name=None, output_dir=None
     ):

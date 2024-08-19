@@ -22,7 +22,6 @@ from vggsfm.utils.utils import (
     align_dense_depth_maps,
     switch_tensor_order,
     average_camera_prediction,
-    average_camera_prediction,
     create_video_with_reprojections,
     save_video_with_reprojections,
 )
@@ -296,74 +295,134 @@ class VideoRunner(VGGSfMRunner):
         align_extri_window_plus_one = self.align_next_window(extri_window_plus_one, window_pred_track, track_vis_inlier, last_end_visible_points_3D, )
     
     
+    
+        ################################################################################################
+        # debugging
+        last_end_visible_points_3D_cuda = last_end_visible_points_3D.to(self.device)
+        valid_poins3D_mask, filtered_inlier_mask = filter_all_points3D(
+            last_end_visible_points_3D_cuda,
+            window_pred_track,
+            align_extri_window_plus_one,
+            self.intrinsics.expand(window_size+1, -1, -1),
+            extra_params=self.extra_params.expand(window_size+1, -1), 
+            max_reproj_error=4,
+            return_detail=True,
+        )
         
-        # NOTE It is window_size + 1 instead of window_size
-        ba_options = pycolmap.BundleAdjustmentOptions()
-        ba_options.refine_focal_length = False
-        ba_options.refine_extra_params = False
-        rec = batch_matrix_to_pycolmap(last_end_visible_points_3D, 
+        exist_valid_tracks_masks = filtered_inlier_mask.sum(dim=0) >= 3
+        exist_valid_points = last_end_visible_points_3D_cuda[exist_valid_tracks_masks]
+        exist_valid_tracks = window_pred_track[:, exist_valid_tracks_masks]
+        exist_valid_inlier_masks = filtered_inlier_mask[:, exist_valid_tracks_masks]
+
+        ################################################################################################
+
+
+
+        
+        
+        # window_triangulated_points, window_inlier_num, window_inlier_mask, new_window_pred_track, new_window_pred_vis, new_window_pred_score
+        window_triangulated_points, window_tracks_new, window_inlier_masks = self.triangulate_window_points(
+            window_images, window_masks, window_fmaps_for_tracker, window_size, align_extri_window_plus_one
+        )
+        
+        exist_points_3D_num = len(exist_valid_points)
+        
+        window_points_all = torch.cat([exist_valid_points, window_triangulated_points], dim=0)  
+        window_tracks_all = torch.cat([exist_valid_tracks, window_tracks_new], dim=1)
+        window_inlier_masks_all = torch.cat([exist_valid_inlier_masks, window_inlier_masks], dim=1)
+        
+        
+        
+        rec = batch_matrix_to_pycolmap(window_points_all, 
                                        align_extri_window_plus_one, 
                                        self.intrinsics.expand(window_size+1, -1, -1), 
-                                       window_pred_track, 
-                                       track_vis_inlier, 
+                                       window_tracks_all, 
+                                       window_inlier_masks_all, 
                                        self.image_size, 
                                        shared_camera =self.cfg.shared_camera, 
                                        camera_type=self.cfg.camera_type, 
                                        extra_params=self.extra_params.expand(window_size+1, -1))
         
+        
+        # NOTE It is window_size + 1 instead of window_size
+        ba_options = pycolmap.BundleAdjustmentOptions()
+        ba_options.refine_focal_length = False
+        ba_options.refine_extra_params = False
+        
+        
+        ################################################################################################
+        
         ba_config = pycolmap.BundleAdjustmentConfig()
         for image_id in rec.reg_image_ids(): ba_config.add_image(image_id)
 
         # Fix frame 0, i.e, the end frame of the last window
-        ba_config.set_constant_cam_pose(0)
-        for fixp_idx in rec.point3D_ids():  
-            ba_config.add_constant_point(fixp_idx)
+        ba_config.set_constant_cam_pose(rec.reg_image_ids()[0])
 
+
+        if False:
+            ba_config.set_constant_cam_positions(rec.reg_image_ids()[1], [0])
+
+        
+        for fixp_idx in rec.point3D_ids(): 
+            if fixp_idx < (exist_points_3D_num+1):
+                # can we assume all the existing points are valid?
+                # probably?
+                ba_config.add_constant_point(fixp_idx)
+            else:
+                ba_config.add_variable_point(fixp_idx)
+
+        # for fixp_idx in range(1, exist_points_3D_num+1): ba_config.add_constant_point(fixp_idx)
+        # for fixp_idx in range(exist_points_3D_num+1, len(rec.points3D)): ba_config.add_variable_point(fixp_idx)
+
+        import pdb;pdb.set_trace()
+        # track_vis_inlier
+
+        summary = solve_bundle_adjustment(rec, ba_options, ba_config)
+
+        log_ba_summary(summary)
+
+        obmanager = pycolmap.ObservationManager(rec)
+        obmanager.filter_all_points3D(4.0, 1.5)
+          
+        ( points3D_opt, extrinsics, intrinsics, extra_params, ) = pycolmap_to_batch_matrix( rec, device=self.device, camera_type=window_points_all.dtype )
+        tmp_dict = {}
+        tmp_dict['extrinsics_opencv'] = extrinsics
+        tmp_dict['points3D'] = points3D_opt
+        tmp_dict['unproj_dense_points3D'] = None
+        
+        from pytorch3d.implicitron.tools import model_io, vis_utils
+        from pytorch3d.structures import Pointclouds
+        from pytorch3d.vis.plotly_vis import plot_scene
+        self.viz = vis_utils.get_visdom_connection(server=f"http://10.200.169.96", port=10088)
+        self.visualize_3D_in_visdom(tmp_dict, "haha", "none")
+        
+        visual_dict = {
+            "hey":{
+                "pts_exist":Pointclouds(points=last_end_visible_points_3D[None]),
+                "pts_new":Pointclouds(points=window_triangulated_points[None]),
+                "pts_all":Pointclouds(points=window_points_all[None]),
+            }
+        }
+        # visual_dict= {"hey":{} "pts_exist":Pointclouds(points=last_end_visible_points_3D[None]),"pts_new":Pointclouds(points=window_triangulated_points[None]),}
+        fig = plot_scene(visual_dict, camera_scale=0.05)
+        self.viz.plotlyplot(fig, env="haha", win="3D")
+        import pdb;pdb.set_trace()
+
+
+        
+        
         # Then, let's add more points to
         # 1. Predict tracks
         # 2. Do Triangulation
         # 3. Add them to rec and ba_config
 
-
-        window_pred_track_NEW, window_pred_vis_NEW, window_pred_score_NEW = predict_tracks(
-            self.cfg.query_method,  
-            self.cfg.max_query_pts,
-            self.track_predictor,
-            window_images,
-            window_masks,
-            window_fmaps_for_tracker,
-            [window_size//2, window_size],
-            self.cfg.fine_tracking,
-            self.bound_bboxes.expand(-1, window_images.shape[1], -1),
-        )
-        
-        window_pred_track_NEW = window_pred_track_NEW.squeeze(0)
-        window_pred_vis_NEW = window_pred_vis_NEW.squeeze(0)
-        if window_pred_score_NEW is not None: window_pred_score_NEW = window_pred_score_NEW.squeeze(0)
-        tracks_normalized_refined = cam_from_img(
-            window_pred_track_NEW, self.intrinsics.expand(window_size+1, -1, -1), self.extra_params.expand(window_size+1, -1)
-        )
-
-        # Conduct triangulation to all the frames
-        # We adopt LORANSAC here again
-        (
-            best_triangulated_points,
-            best_inlier_num,
-            best_inlier_mask,
-        ) = triangulate_tracks(
-            align_extri_window_plus_one,
-            tracks_normalized_refined,
-            track_vis=window_pred_vis_NEW,
-            track_score=window_pred_score_NEW,
-        )
-
-        rec = add_triangulated_points_to_Reconstruction(rec, best_triangulated_points, window_pred_track_NEW, best_inlier_mask, best_inlier_num)
+        # rec = add_triangulated_points_to_Reconstruction(rec, best_triangulated_points, window_pred_track, best_inlier_mask, best_inlier_num)
         
         # rec.points3D
-        fixed_point3D_ids = ba_config.constant_point3D_ids
-        for p_idx in rec.point3D_ids():  
-            if p_idx not in fixed_point3D_ids:
-                ba_config.add_variable_point(p_idx)
+        # fixed_point3D_ids = ba_config.constant_point3D_ids
+        # for p_idx in rec.point3D_ids():  
+        #     if p_idx not in fixed_point3D_ids:
+        #         ba_config.add_variable_point(p_idx)
                 
         # ba_config.variable_point3D_ids
         # Run BA
@@ -539,7 +598,6 @@ class VideoRunner(VGGSfMRunner):
                 estoptions = pycolmap.AbsolutePoseEstimationOptions()
                 estoptions.ransac.max_error = 12
 
-
                 estanswer = pycolmap.absolute_pose_estimation(
                     points2D[inlier_mask],
                     points3D[inlier_mask],
@@ -548,8 +606,8 @@ class VideoRunner(VGGSfMRunner):
                     refoptions,
                 )
                 cam_from_world = estanswer["cam_from_world"]
+                print(estanswer["inliers"].mean())
 
-                
             answer = pycolmap.pose_refinement(
                 cam_from_world,
                 points2D,
@@ -559,7 +617,6 @@ class VideoRunner(VGGSfMRunner):
                 refoptions,
             )
             
-
             cam_from_world = answer["cam_from_world"]
             refined_extrinsics.append(cam_from_world.matrix())
 
@@ -569,11 +626,84 @@ class VideoRunner(VGGSfMRunner):
         )
         return refined_extrinsics
 
+    def triangulate_window_points(self, window_images, window_masks, window_fmaps_for_tracker, window_size, extrinsics, max_reproj_error=4, min_valid_track_length=3):
+        """
+        Add more points by predicting tracks and performing triangulation.
+
+        Args:
+            window_images (torch.Tensor): The images in the current window.
+            window_masks (torch.Tensor): The masks for the images in the current window.
+            window_fmaps_for_tracker (torch.Tensor): Feature maps for the tracker.
+            window_size (int): The size of the window.
+            extrinsics (align_extri_window_plus_one) (torch.Tensor): Aligned extrinsics for the window.
+
+        Returns:
+            best_triangulated_points (torch.Tensor): The best triangulated 3D points.
+            best_inlier_num (torch.Tensor): The number of inliers for each point.
+            best_inlier_mask (torch.Tensor): The inlier mask for each point.
+        """
+        window_pred_track, window_pred_vis, window_pred_score = predict_tracks(
+            self.cfg.query_method,  
+            self.cfg.max_query_pts,
+            self.track_predictor,
+            window_images,
+            window_masks,
+            window_fmaps_for_tracker,
+            [window_size//2, window_size],
+            self.cfg.fine_tracking,
+            self.bound_bboxes.expand(-1, window_images.shape[1], -1),
+        )
+        
+        window_pred_track = window_pred_track.squeeze(0)
+        window_pred_vis = window_pred_vis.squeeze(0)
+        if window_pred_score is not None: 
+            window_pred_score = window_pred_score.squeeze(0)
+        
+        tracks_normalized_refined = cam_from_img(
+            window_pred_track, 
+            self.intrinsics.expand(window_size+1, -1, -1), 
+            self.extra_params.expand(window_size+1, -1)
+        )
+
+        # Conduct triangulation to all the frames using LORANSAC
+        best_triangulated_points, best_inlier_num, best_inlier_mask = triangulate_tracks(
+            extrinsics,
+            tracks_normalized_refined,
+            track_vis=window_pred_vis,
+            track_score=window_pred_score,
+        )
+
+        valid_poins3D_mask, filtered_inlier_mask = filter_all_points3D(
+            best_triangulated_points,
+            window_pred_track,
+            extrinsics,
+            self.intrinsics.expand(window_size+1, -1, -1),
+            extra_params=self.extra_params.expand(window_size+1, -1), 
+            max_reproj_error=max_reproj_error,
+            return_detail=True,
+        )
+        
+        
+
+        valid_tracks = filtered_inlier_mask.sum(dim=0) >= min_valid_track_length
+        BA_points = best_triangulated_points[valid_tracks]
+        BA_tracks = window_pred_track[:, valid_tracks]
+        BA_inlier_masks = filtered_inlier_mask[:, valid_tracks]
+
+        return BA_points, BA_tracks, BA_inlier_masks
+        # return best_triangulated_points, best_inlier_num, best_inlier_mask, window_pred_track, window_pred_vis, window_pred_score
+
+
 
 def add_triangulated_points_to_Reconstruction(rec, points3D, tracks, inlier_mask, inlier_num, min_valid_track_length=3):
-
+    # inlier_num: P
+    # points3D: P x 3
+    # tracks: S x P x 2
+    # inlier_mask: P x S
+    
     # TODO: THIS MAY BE WRONG SOMEWHERE
-    # CAREFUL
+
+    import pdb;pdb.set_trace()
     valid_track_mask = inlier_num >= min_valid_track_length
 
     valid_points = points3D[valid_track_mask].cpu().numpy()
