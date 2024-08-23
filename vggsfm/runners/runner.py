@@ -365,6 +365,8 @@ class VGGSfMRunner:
                     for x in query_frame_indexes
                 ]
                 query_frame_indexes[0] = 0
+        else:
+            center_order = None
 
         # Select only the specified number of query frames
         query_frame_indexes = query_frame_indexes[:query_frame_num]
