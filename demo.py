@@ -49,19 +49,13 @@ def demo_fn(cfg: DictConfig):
     seq_name = sequence_list[0]  # Run on one Scene
 
     # Load the data for the selected sequence
-    batch, image_paths = test_dataset.get_data(
-        sequence_name=seq_name, return_path=True
-    )
+    batch, image_paths = test_dataset.get_data(sequence_name=seq_name, return_path=True)
 
-    output_dir = batch[
-        "scene_dir"
-    ]  # which is also cfg.SCENE_DIR for DemoLoader
+    output_dir = batch["scene_dir"]  # which is also cfg.SCENE_DIR for DemoLoader
 
     images = batch["image"]
     masks = batch["masks"] if batch["masks"] is not None else None
-    crop_params = (
-        batch["crop_params"] if batch["crop_params"] is not None else None
-    )
+    crop_params = batch["crop_params"] if batch["crop_params"] is not None else None
 
     # Cache the original images for visualization, so that we don't need to re-load many times
     original_images = batch["original_images"]

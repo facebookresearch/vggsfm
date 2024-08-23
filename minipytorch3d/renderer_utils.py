@@ -386,9 +386,7 @@ def ndc_grid_sample(
 
     batch, *spatial_size, pt_dim = grid_ndc.shape
     if batch != input.shape[0]:
-        raise ValueError(
-            "'input' and 'grid_ndc' have to have the same batch size."
-        )
+        raise ValueError("'input' and 'grid_ndc' have to have the same batch size.")
     if input.ndim != 4:
         raise ValueError("'input' has to be a 4-dimensional Tensor.")
     if pt_dim != 2:
@@ -403,9 +401,7 @@ def ndc_grid_sample(
         input, grid_flat, align_corners=align_corners, **grid_sample_kwargs
     )
 
-    sampled_input = sampled_input_flat.reshape(
-        [batch, input.shape[1], *spatial_size]
-    )
+    sampled_input = sampled_input_flat.reshape([batch, input.shape[1], *spatial_size])
 
     return sampled_input
 
@@ -427,9 +423,7 @@ def ndc_to_grid_sample_coords(
             `torch.nn.functional.grid_sample` coordinates.
     """
     if len(image_size_hw) != 2 or any(s <= 0 for s in image_size_hw):
-        raise ValueError(
-            "'image_size_hw' has to be a 2-tuple of positive integers"
-        )
+        raise ValueError("'image_size_hw' has to be a 2-tuple of positive integers")
     aspect = min(image_size_hw) / max(image_size_hw)
     xy_grid_sample = -xy_ndc  # first negate the coords
     if image_size_hw[0] >= image_size_hw[1]:
@@ -457,11 +451,7 @@ def parse_image_size(
     if len(image_size) != 2:
         raise ValueError("Image size can only be a tuple/list of (H, W)")
     if not all(i > 0 for i in image_size):
-        raise ValueError(
-            "Image sizes must be greater than 0; got %d, %d" % image_size
-        )
+        raise ValueError("Image sizes must be greater than 0; got %d, %d" % image_size)
     if not all(isinstance(i, int) for i in image_size):
-        raise ValueError(
-            "Image sizes must be integers; got %f, %f" % image_size
-        )
+        raise ValueError("Image sizes must be integers; got %f, %f" % image_size)
     return tuple(image_size)

@@ -317,20 +317,18 @@ class Triangulator(nn.Module):
             valid_frame_mask = torch.logical_and(
                 valid_param_mask, valid_trans_mask
             )
-            
-            
+
             valid_2D_mask = torch.ones_like(pred_tracks[..., 0]).bool()
             valid_2D_mask[:, ~valid_tracks] = False
             valid_2D_mask[:, valid_tracks] = BA_inlier_masks
-            
-            
+
             if extract_color:
                 from vggsfm.models.utils import sample_features4d
 
                 pred_track_rgb = sample_features4d(
                     images.squeeze(0), pred_tracks
                 )
-                
+
                 valid_track_rgb = pred_track_rgb[:, valid_tracks]
 
                 sum_rgb = (

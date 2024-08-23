@@ -7,13 +7,15 @@ def random_rotation_matrix(batch_size=1):
     q, r = torch.qr(random_matrix)
     return q
 
+
 def random_translation(batch_size=1):
     """Generate random translation vectors."""
     return torch.randn(batch_size, 3)
 
+
 def random_scale(batch_size=1):
     """Generate random scale values."""
-    
+
     return torch.rand(batch_size, 1) * 100  # Randomly sample from 0 to 100
     # return torch.rand(batch_size, 1) + 0.5  # Avoiding very small scales
 
@@ -34,13 +36,16 @@ def _align_camera_extrinsics_PT3D(
         R_A = (U V^T)^T
         ```
     """
-    R_src = cameras_src[:, :, :3]  # Extracting the rotation matrices from [R | t]
-    R_tgt = cameras_tgt[:, :, :3]  # Extracting the rotation matrices from [R | t]
+    R_src = cameras_src[
+        :, :, :3
+    ]  # Extracting the rotation matrices from [R | t]
+    R_tgt = cameras_tgt[
+        :, :, :3
+    ]  # Extracting the rotation matrices from [R | t]
 
     RRcov = torch.bmm(R_src, R_tgt.transpose(2, 1)).mean(0)
     U, _, V = torch.svd(RRcov)
     align_t_R = V @ U.t()
-
 
     """
     The translation + scale `T_A` and `s_A` is computed by finding
@@ -67,8 +72,12 @@ def _align_camera_extrinsics_PT3D(
         T_A = mean(B) - mean(A) * s_A
         ```
     """
-    T_src = cameras_src[:, :, 3]  # Extracting the translation vectors from [R | t]
-    T_tgt = cameras_tgt[:, :, 3]  # Extracting the translation vectors from [R | t]
+    T_src = cameras_src[
+        :, :, 3
+    ]  # Extracting the translation vectors from [R | t]
+    T_tgt = cameras_tgt[
+        :, :, 3
+    ]  # Extracting the translation vectors from [R | t]
 
     A = torch.bmm(R_src, T_src[:, :, None])[:, :, 0]
     B = torch.bmm(R_src, T_tgt[:, :, None])[:, :, 0]
@@ -90,11 +99,12 @@ def _align_camera_extrinsics_PT3D(
 
     return align_t_R, align_t_T, align_t_s
 
+
 def align_and_transform_cameras_PT3D(
     cameras_src: torch.Tensor,  # Bx3x4 tensor representing [R | t]
-    align_t_R: torch.Tensor,    # 1x3x3 rotation matrix
-    align_t_T: torch.Tensor,    # 1x3 translation vector
-    align_t_s: float            # Scaling factor
+    align_t_R: torch.Tensor,  # 1x3x3 rotation matrix
+    align_t_T: torch.Tensor,  # 1x3 translation vector
+    align_t_s: float,  # Scaling factor
 ) -> torch.Tensor:
     """
     # ASSUME PYTORCH3D CONVENTION
@@ -119,20 +129,11 @@ def align_and_transform_cameras_PT3D(
 
     # Apply the translation alignment to the source translations
     aligned_T = (
-        torch.bmm(
-            align_t_T[:, None].repeat(R_src.shape[0], 1, 1),
-            R_src
-        )[:, 0] + T_src * align_t_s
+        torch.bmm(align_t_T[:, None].repeat(R_src.shape[0], 1, 1), R_src)[:, 0]
+        + T_src * align_t_s
     )
 
     return aligned_R, aligned_T
-
-
-
-
-
-
-
 
 
 def align_camera_extrinsics(
@@ -142,7 +143,7 @@ def align_camera_extrinsics(
     eps: float = 1e-9,
 ):
     """
-    Align the source camera extrinsics to the target camera extrinsics. 
+    Align the source camera extrinsics to the target camera extrinsics.
     NOTE Assume OPENCV convention
 
     Args:
@@ -156,16 +157,27 @@ def align_camera_extrinsics(
         align_t_T (torch.Tensor): 1x3 translation vector for alignment.
         align_t_s (float): Scaling factor for alignment.
     """
-    
-    R_src = cameras_src[:, :, :3]  # Extracting the rotation matrices from [R | t]
-    R_tgt = cameras_tgt[:, :, :3]  # Extracting the rotation matrices from [R | t]
 
-    RRcov = torch.bmm(R_tgt.transpose(2, 1), R_src, ).mean(0)
+    R_src = cameras_src[
+        :, :, :3
+    ]  # Extracting the rotation matrices from [R | t]
+    R_tgt = cameras_tgt[
+        :, :, :3
+    ]  # Extracting the rotation matrices from [R | t]
+
+    RRcov = torch.bmm(
+        R_tgt.transpose(2, 1),
+        R_src,
+    ).mean(0)
     U, _, V = torch.svd(RRcov)
     align_t_R = V @ U.t()
 
-    T_src = cameras_src[:, :, 3]  # Extracting the translation vectors from [R | t]
-    T_tgt = cameras_tgt[:, :, 3]  # Extracting the translation vectors from [R | t]
+    T_src = cameras_src[
+        :, :, 3
+    ]  # Extracting the translation vectors from [R | t]
+    T_tgt = cameras_tgt[
+        :, :, 3
+    ]  # Extracting the translation vectors from [R | t]
 
     A = torch.bmm(T_src[:, None], R_src)[:, 0]
     B = torch.bmm(T_tgt[:, None], R_src)[:, 0]
@@ -192,9 +204,9 @@ def align_camera_extrinsics(
 
 def apply_transformation(
     cameras_src: torch.Tensor,  # Bx3x4 tensor representing [R | t]
-    align_t_R: torch.Tensor,    # 1x3x3 rotation matrix
-    align_t_T: torch.Tensor,    # 1x3 translation vector
-    align_t_s: float,            # Scaling factor
+    align_t_R: torch.Tensor,  # 1x3x3 rotation matrix
+    align_t_T: torch.Tensor,  # 1x3 translation vector
+    align_t_s: float,  # Scaling factor
     return_extri: bool = True,
 ) -> torch.Tensor:
     """
@@ -216,7 +228,7 @@ def apply_transformation(
     T_src = cameras_src[:, :, 3]
 
     aligned_R = torch.bmm(R_src, align_t_R.expand(R_src.shape[0], 3, 3))
-    
+
     # Apply the translation alignment to the source translations
     # aligned_T = (
     #     torch.bmm(
@@ -233,10 +245,9 @@ def apply_transformation(
     if return_extri:
         extri = torch.cat([aligned_R, aligned_T.unsqueeze(-1)], dim=-1)
         return extri
-    
+
     return aligned_R, aligned_T
 
-    
 
 def test_align_camera_extrinsics(num_tests=10000):
     """Test _align_camera_extrinsics function multiple times with random data."""
@@ -246,27 +257,41 @@ def test_align_camera_extrinsics(num_tests=10000):
         R_src = random_rotation_matrix(batch_size=batch_size)
         T_src = random_translation(batch_size=batch_size)
         cameras_src = torch.cat([R_src, T_src.unsqueeze(-1)], dim=-1)
-        
+
         # Generate random transformations
         R_transform = random_rotation_matrix(batch_size=1)
         T_transform = random_translation(batch_size=1)
         scale_transform = random_scale(batch_size=1)
 
         # Apply transformations to source cameras to create target cameras
-        R_tgt, T_tgt = apply_transformation(cameras_src, R_transform, T_transform, scale_transform, return_extri=False)
+        R_tgt, T_tgt = apply_transformation(
+            cameras_src,
+            R_transform,
+            T_transform,
+            scale_transform,
+            return_extri=False,
+        )
         cameras_tgt = torch.cat([R_tgt, T_tgt.unsqueeze(-1)], dim=-1)
-        
+
         # Test the alignment function
-        align_t_R, align_t_T, align_t_s = align_camera_extrinsics(cameras_src, cameras_tgt, estimate_scale=True)
-        
-        R_verify, T_verify = apply_transformation(cameras_src, align_t_R, align_t_T, align_t_s, return_extri=False)
-        
+        align_t_R, align_t_T, align_t_s = align_camera_extrinsics(
+            cameras_src, cameras_tgt, estimate_scale=True
+        )
+
+        R_verify, T_verify = apply_transformation(
+            cameras_src, align_t_R, align_t_T, align_t_s, return_extri=False
+        )
+
         # Verify the results
         print(test_idx)
         if not torch.allclose(R_tgt, R_verify, atol=1e-3):
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
         if not torch.allclose(T_tgt, T_verify, atol=1e-3):
-            import pdb;pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
 
 if __name__ == "__main__":
