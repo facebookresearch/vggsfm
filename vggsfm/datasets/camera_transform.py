@@ -137,13 +137,9 @@ def compute_optical_transform(new_cameras, points=None):
     """
 
     new_transform = new_cameras.get_world_to_view_transform()
-    (
-        p_intersect,
-        dist,
-        p_line_intersect,
-        pp,
-        r,
-    ) = compute_optical_axis_intersection(new_cameras)
+    (p_intersect, dist, p_line_intersect, pp, r) = (
+        compute_optical_axis_intersection(new_cameras)
+    )
     t = Translate(p_intersect)
     scale = dist.squeeze()[0]
 

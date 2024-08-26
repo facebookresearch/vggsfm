@@ -171,10 +171,7 @@ def align_camera_extrinsics(
         :, :, :3
     ]  # Extracting the rotation matrices from [R | t]
 
-    RRcov = torch.bmm(
-        R_tgt.transpose(2, 1),
-        R_src,
-    ).mean(0)
+    RRcov = torch.bmm(R_tgt.transpose(2, 1), R_src).mean(0)
     U, _, V = torch.svd(RRcov)
     align_t_R = V @ U.t()
 

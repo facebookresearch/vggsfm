@@ -546,10 +546,7 @@ def create_video_with_reprojections(
 
 
 def save_video_with_reprojections(
-    output_path,
-    img_with_circles_list,
-    video_size,
-    fps=1,
+    output_path, img_with_circles_list, video_size, fps=1
 ):
     """
     Saves a list of images as a video.

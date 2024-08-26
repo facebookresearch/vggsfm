@@ -132,20 +132,17 @@ def estimate_preliminary_cameras(
 
         # Estimate Fundamental Matrix by Batch
         # fmat: (B*(S-1))x3x3
-        (
-            fmat,
-            fmat_inlier_num,
-            fmat_inlier_mask,
-            fmat_residuals,
-        ) = estimate_fundamental(
-            query_points,
-            reference_points,
-            max_error=max_error,
-            lo_num=lo_num,
-            max_ransac_iters=max_ransac_iters,
-            valid_mask=valid_mask,
-            loopresidual=loopresidual,
-            return_residuals=True,
+        (fmat, fmat_inlier_num, fmat_inlier_mask, fmat_residuals) = (
+            estimate_fundamental(
+                query_points,
+                reference_points,
+                max_error=max_error,
+                lo_num=lo_num,
+                max_ransac_iters=max_ransac_iters,
+                valid_mask=valid_mask,
+                loopresidual=loopresidual,
+                return_residuals=True,
+            )
         )
 
         # kmat1, kmat2: (B*(S-1))x3x3

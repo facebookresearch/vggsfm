@@ -123,11 +123,9 @@ class Triangulator(nn.Module):
             # we first triangulate a point cloud for each pair of query-reference images,
             # i.e., we have S-1 3D point clouds
             # points_3d_pair: S-1 x N x 3
-            (
-                points_3d_pair,
-                cheirality_mask_pair,
-                triangle_value_pair,
-            ) = triangulate_by_pair(extrinsics[None], tracks_normalized[None])
+            (points_3d_pair, cheirality_mask_pair, triangle_value_pair) = (
+                triangulate_by_pair(extrinsics[None], tracks_normalized[None])
+            )
 
             # Check which point cloud can provide sufficient inliers
             # that pass the triangulation angle and cheirality check
@@ -167,23 +165,20 @@ class Triangulator(nn.Module):
             # Basically it is a bundle adjustment without optmizing 3D points
             # It is fine even this step fails
 
-            (
-                extrinsics,
-                intrinsics,
-                extra_params,
-                valid_param_mask,
-            ) = init_refine_pose(
-                extrinsics,
-                intrinsics,
-                extra_params,
-                inlier_geo_vis,
-                points3D_init,
-                pred_tracks,
-                track_init_mask,
-                image_size,
-                init_idx,
-                shared_camera=shared_camera,
-                camera_type=camera_type,
+            (extrinsics, intrinsics, extra_params, valid_param_mask) = (
+                init_refine_pose(
+                    extrinsics,
+                    intrinsics,
+                    extra_params,
+                    inlier_geo_vis,
+                    points3D_init,
+                    pred_tracks,
+                    track_init_mask,
+                    image_size,
+                    init_idx,
+                    shared_camera=shared_camera,
+                    camera_type=camera_type,
+                )
             )
 
             (
@@ -214,23 +209,20 @@ class Triangulator(nn.Module):
 
                     force_estimate = refine_idx == (robust_refine - 1)
 
-                    (
-                        extrinsics,
-                        intrinsics,
-                        extra_params,
-                        valid_param_mask,
-                    ) = refine_pose(
-                        extrinsics,
-                        intrinsics,
-                        extra_params,
-                        inlier_vis_all,
-                        points3D,
-                        pred_tracks,
-                        valid_tracks,
-                        image_size,
-                        force_estimate=force_estimate,
-                        shared_camera=shared_camera,
-                        camera_type=camera_type,
+                    (extrinsics, intrinsics, extra_params, valid_param_mask) = (
+                        refine_pose(
+                            extrinsics,
+                            intrinsics,
+                            extra_params,
+                            inlier_vis_all,
+                            points3D,
+                            pred_tracks,
+                            valid_tracks,
+                            image_size,
+                            force_estimate=force_estimate,
+                            shared_camera=shared_camera,
+                            camera_type=camera_type,
+                        )
                     )
 
                     (
@@ -265,38 +257,34 @@ class Triangulator(nn.Module):
                 else:
                     lastBA = False
 
-                try:
-                    (
-                        points3D,
-                        extrinsics,
-                        intrinsics,
-                        extra_params,
-                        valid_tracks,
-                        BA_inlier_masks,
-                        # filtered_inlier_mask,
-                        reconstruction,
-                    ) = iterative_global_BA(
-                        pred_tracks,
-                        intrinsics,
-                        extrinsics,
-                        pred_vis,
-                        pred_score,
-                        valid_tracks,
-                        points3D,
-                        image_size,
-                        lastBA=lastBA,
-                        extra_params=extra_params,
-                        shared_camera=shared_camera,
-                        min_valid_track_length=min_valid_track_length,
-                        max_reproj_error=max_reproj_error,
-                        ba_options=ba_options,
-                        camera_type=camera_type,
-                    )
-                    max_reproj_error = max_reproj_error // 2
-                    if max_reproj_error <= 1:
-                        max_reproj_error = 1
-                except:
-                    print(f"Oh BA fails at iter {BA_iter}! Careful")
+                (
+                    points3D,
+                    extrinsics,
+                    intrinsics,
+                    extra_params,
+                    valid_tracks,
+                    BA_inlier_masks,
+                    reconstruction,
+                ) = iterative_global_BA(
+                    pred_tracks,
+                    intrinsics,
+                    extrinsics,
+                    pred_vis,
+                    pred_score,
+                    valid_tracks,
+                    points3D,
+                    image_size,
+                    lastBA=lastBA,
+                    extra_params=extra_params,
+                    shared_camera=shared_camera,
+                    min_valid_track_length=min_valid_track_length,
+                    max_reproj_error=max_reproj_error,
+                    ba_options=ba_options,
+                    camera_type=camera_type,
+                )
+                max_reproj_error = max_reproj_error // 2
+                if max_reproj_error <= 1:
+                    max_reproj_error = 1
 
             rot_BA = extrinsics[:, :3, :3]
             trans_BA = extrinsics[:, :3, 3]
@@ -389,39 +377,33 @@ class Triangulator(nn.Module):
 
         # Conduct triangulation to all the frames
         # We adopt LORANSAC here again
-        (
-            best_triangulated_points,
-            best_inlier_num,
-            best_inlier_mask,
-        ) = triangulate_tracks(
-            extrinsics,
-            tracks_normalized_refined,
-            track_vis=pred_vis,
-            track_score=pred_score,
-            max_ransac_iters=128,
+
+        (best_triangulated_points, best_inlier_num, best_inlier_mask) = (
+            triangulate_tracks(
+                extrinsics,
+                tracks_normalized_refined,  # TxNx2
+                track_vis=pred_vis,  # TxN
+                track_score=pred_score,  # TxN
+            )
         )
 
         # Determine valid tracks based on inlier numbers
         valid_tracks = best_inlier_num >= min_valid_track_length
 
         # Perform global bundle adjustment
-        (
-            points3D,
-            extrinsics,
-            intrinsics,
-            extra_params,
-            reconstruction,
-        ) = global_BA(
-            best_triangulated_points,
-            valid_tracks,
-            pred_tracks,
-            best_inlier_mask,
-            extrinsics,
-            intrinsics,
-            extra_params,
-            image_size,
-            shared_camera=shared_camera,
-            camera_type=camera_type,
+        (points3D, extrinsics, intrinsics, extra_params, reconstruction) = (
+            global_BA(
+                best_triangulated_points,
+                valid_tracks,
+                pred_tracks,
+                best_inlier_mask,
+                extrinsics,
+                intrinsics,
+                extra_params,
+                image_size,
+                shared_camera=shared_camera,
+                camera_type=camera_type,
+            )
         )
 
         valid_poins3D_mask = filter_all_points3D(

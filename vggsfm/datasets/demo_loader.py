@@ -42,6 +42,7 @@ class DemoLoader(Dataset):
         normalize_cameras: bool = True,
         sort_by_filename: bool = True,
         load_gt: bool = False,
+        prefix: str = "images",
     ):
         """
         Initialize the DemoLoader dataset.
@@ -66,11 +67,13 @@ class DemoLoader(Dataset):
         self.load_gt = load_gt
         self.sort_by_filename = sort_by_filename
         self.sequences = {}
+        self.prefix = prefix
 
         bag_name = os.path.basename(os.path.normpath(SCENE_DIR))
         self.have_mask = os.path.exists(os.path.join(SCENE_DIR, "masks"))
 
-        img_filenames = glob.glob(os.path.join(SCENE_DIR, "images/*"))
+        img_filenames = glob.glob(os.path.join(SCENE_DIR, f"{self.prefix}/*"))
+
         if self.sort_by_filename:
             img_filenames = sorted(img_filenames)
 
@@ -218,7 +221,7 @@ class DemoLoader(Dataset):
             image_paths.append(image_path)
 
             if self.have_mask:
-                mask_path = image_path.replace("images", "masks")
+                mask_path = image_path.replace(f"/{self.prefix}", "/masks")
                 mask = Image.open(mask_path).convert("L")
                 masks.append(mask)
         return images, masks, image_paths
@@ -266,17 +269,14 @@ class DemoLoader(Dataset):
             original_images[os.path.basename(image_paths[i])] = np.array(image)
 
             # Transform the image and mask, and get crop parameters and bounding box
-            (
-                image_transformed,
-                mask_transformed,
-                crop_paras,
-                bbox,
-            ) = pad_and_resize_image(
-                image,
-                self.crop_longest,
-                self.img_size,
-                mask=mask,
-                transform=self.transform,
+            (image_transformed, mask_transformed, crop_paras, bbox) = (
+                pad_and_resize_image(
+                    image,
+                    self.crop_longest,
+                    self.img_size,
+                    mask=mask,
+                    transform=self.transform,
+                )
             )
             images_transformed.append(image_transformed)
             if mask_transformed is not None:
@@ -285,23 +285,21 @@ class DemoLoader(Dataset):
 
             if self.load_gt:
                 bbox_xywh = torch.FloatTensor(bbox_xyxy_to_xywh(bbox))
-                (
-                    focal_length_cropped,
-                    principal_point_cropped,
-                ) = adjust_camera_to_bbox_crop_(
-                    anno["focal_length"],
-                    anno["principal_point"],
-                    torch.FloatTensor(image.size),
-                    bbox_xywh,
+                (focal_length_cropped, principal_point_cropped) = (
+                    adjust_camera_to_bbox_crop_(
+                        anno["focal_length"],
+                        anno["principal_point"],
+                        torch.FloatTensor(image.size),
+                        bbox_xywh,
+                    )
                 )
-                (
-                    new_focal_length,
-                    new_principal_point,
-                ) = adjust_camera_to_image_scale_(
-                    focal_length_cropped,
-                    principal_point_cropped,
-                    torch.FloatTensor(image.size),
-                    torch.FloatTensor([self.img_size, self.img_size]),
+                (new_focal_length, new_principal_point) = (
+                    adjust_camera_to_image_scale_(
+                        focal_length_cropped,
+                        principal_point_cropped,
+                        torch.FloatTensor(image.size),
+                        torch.FloatTensor([self.img_size, self.img_size]),
+                    )
                 )
                 new_fls.append(new_focal_length)
                 new_pps.append(new_principal_point)

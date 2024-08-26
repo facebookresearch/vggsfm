@@ -186,11 +186,9 @@ def estimate_essential(
             points1, points2, all_emat, squared=True
         )
 
-        (
-            residual_indicator,
-            inlier_num_all,
-            inlier_mask_all,
-        ) = calculate_residual_indicator(residuals_all, max_thres)
+        (residual_indicator, inlier_num_all, inlier_mask_all) = (
+            calculate_residual_indicator(residuals_all, max_thres)
+        )
 
         batch_index = torch.arange(B).unsqueeze(-1).expand(-1, lo_num)
         best_e_indices = torch.argmax(residual_indicator, dim=1)

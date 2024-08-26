@@ -164,11 +164,9 @@ def estimate_fundamental(
     all_fmat = torch.cat([fmat_ransac, fmat_lo], dim=1)
     residuals_all = torch.cat([residuals, residuals_lo], dim=1)
 
-    (
-        residual_indicator,
-        inlier_num_all,
-        inlier_mask_all,
-    ) = calculate_residual_indicator(residuals_all, max_thres, debug=True)
+    (residual_indicator, inlier_num_all, inlier_mask_all) = (
+        calculate_residual_indicator(residuals_all, max_thres, debug=True)
+    )
 
     batch_index = torch.arange(B).unsqueeze(-1).expand(-1, lo_num)
 

@@ -243,9 +243,7 @@ class VGGSfMRunner:
             # Perform dense reconstruction if enabled
             if self.cfg.dense_depth:
                 predictions = self.dense_reconstruct(
-                    predictions,
-                    image_paths,
-                    original_images,
+                    predictions, image_paths, original_images
                 )
 
                 # Save the dense depth maps
@@ -259,10 +257,7 @@ class VGGSfMRunner:
                 max_hw = crop_params[0, :, :2].max(dim=0)[0].long()
                 video_size = (max_hw[0].item(), max_hw[1].item())
                 img_with_circles_list = self.make_reprojection_video(
-                    predictions,
-                    video_size,
-                    image_paths,
-                    original_images,
+                    predictions, video_size, image_paths, original_images
                 )
                 predictions["reproj_video"] = img_with_circles_list
                 if self.cfg.save_to_disk:
@@ -596,12 +591,7 @@ class VGGSfMRunner:
         predictions["sparse_point"] = sparse_point
         return predictions
 
-    def dense_reconstruct(
-        self,
-        predictions,
-        image_paths,
-        original_images,
-    ):
+    def dense_reconstruct(self, predictions, image_paths, original_images):
         """
         Args:
             predictions (dict): A dictionary containing the sparse reconstruction results.
@@ -660,11 +650,7 @@ class VGGSfMRunner:
             write_array(depth_map, out_fname_with_bin)
 
     def make_reprojection_video(
-        self,
-        predictions,
-        video_size,
-        image_paths,
-        original_images,
+        self, predictions, video_size, image_paths, original_images
     ):
         """
         Create a video with reprojections of the 3D points onto the original images.
@@ -698,10 +684,7 @@ class VGGSfMRunner:
         return img_with_circles_list
 
     def save_reprojection_video(
-        self,
-        img_with_circles_list,
-        video_size,
-        output_dir,
+        self, img_with_circles_list, video_size, output_dir
     ):
         """
         Save the reprojection video to disk.
@@ -908,6 +891,7 @@ def predict_tracks(
     fine_tracking,
     bound_bboxes=None,
     query_points_dict=None,
+    max_points_num=163840,
 ):
     """
     Predict tracks for the given images and masks.
@@ -925,6 +909,10 @@ def predict_tracks(
         query_frame_indexes (list): A list of indices representing the query frames.
         fine_tracking (bool): Whether to perform fine tracking.
         bound_bboxes (torch.Tensor, optional): A tensor of shape (B, T, 4) representing bounding boxes for the images.
+        max_points_num (int): The maximum number of points to process in one chunk.
+                              If the total number of points (T * N) exceeds max_points_num,
+                              the query points are split into smaller chunks.
+                              Default is 163840, suitable for 40GB GPUs.
 
     Returns:
         tuple: A tuple containing the predicted tracks, visibility, and scores.
@@ -973,13 +961,28 @@ def predict_tracks(
             [images, fmaps_for_tracker], new_order
         )
 
-        # Feed into track predictor
-        fine_pred_track, _, pred_vis, pred_score = track_predictor(
-            images_feed,
-            query_points,
-            fmaps=fmaps_feed,
-            fine_tracking=fine_tracking,
-        )
+        all_points_num = images_feed.shape[1] * max_query_pts
+
+        if all_points_num > max_points_num:
+            # Split query_points into smaller chunks to avoid memory issues
+            all_points_num = images_feed.shape[1] * query_points.shape[1]
+            num_splits = (all_points_num + max_points_num - 1) // max_points_num
+            fine_pred_track, pred_vis, pred_score = predict_tracks_in_chunks(
+                track_predictor,
+                images_feed,
+                query_points,
+                fmaps_feed,
+                fine_tracking,
+                num_splits,
+            )
+        else:
+            # Feed into track predictor
+            fine_pred_track, _, pred_vis, pred_score = track_predictor(
+                images_feed,
+                query_points,
+                fmaps=fmaps_feed,
+                fine_tracking=fine_tracking,
+            )
 
         # Switch back the predictions
         fine_pred_track, pred_vis, pred_score = switch_tensor_order(
@@ -1080,6 +1083,57 @@ def comple_nonvis_frames(
         if final_trial:
             break
     return pred_track, pred_vis, pred_score
+
+
+def predict_tracks_in_chunks(
+    track_predictor,
+    images_feed,
+    query_points,
+    fmaps_feed,
+    fine_tracking,
+    num_splits,
+):
+    """
+    Process query points in smaller chunks to avoid memory issues.
+
+    Args:
+        track_predictor (object): The track predictor object used for predicting tracks.
+        images_feed (torch.Tensor): A tensor of shape (B, T, C, H, W) representing a batch of images.
+        query_points (torch.Tensor): A tensor of shape (B, N, 2) representing the query points.
+        fmaps_feed (torch.Tensor): A tensor of feature maps for the tracker.
+        fine_tracking (bool): Whether to perform fine tracking.
+        num_splits (int): The number of chunks to split the query points into.
+
+    Returns:
+        tuple: A tuple containing the concatenated predicted tracks, visibility, and scores.
+    """
+    split_query_points = torch.chunk(query_points, num_splits, dim=1)
+
+    fine_pred_track_list = []
+    pred_vis_list = []
+    pred_score_list = []
+
+    for split_points in split_query_points:
+        # Feed into track predictor for each split
+        fine_pred_track, _, pred_vis, pred_score = track_predictor(
+            images_feed,
+            split_points,
+            fmaps=fmaps_feed,
+            fine_tracking=fine_tracking,
+        )
+        fine_pred_track_list.append(fine_pred_track)
+        pred_vis_list.append(pred_vis)
+        pred_score_list.append(pred_score)
+
+    # Concatenate the results from all splits
+    fine_pred_track = torch.cat(fine_pred_track_list, dim=2)
+    pred_vis = torch.cat(pred_vis_list, dim=2)
+    if pred_score is not None:
+        pred_score = torch.cat(pred_score_list, dim=2)
+    else:
+        pred_score = None
+
+    return fine_pred_track, pred_vis, pred_score
 
 
 def get_query_points(

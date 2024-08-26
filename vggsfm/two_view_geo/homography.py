@@ -95,11 +95,9 @@ def estimate_homography(
     residuals_all = oneway_transfer_error_batched(
         points1, points2, all_hmat, squared=True
     )
-    (
-        residual_indicator,
-        inlier_num_all,
-        inlier_mask_all,
-    ) = calculate_residual_indicator(residuals_all, max_thres)
+    (residual_indicator, inlier_num_all, inlier_mask_all) = (
+        calculate_residual_indicator(residuals_all, max_thres)
+    )
 
     batch_index = torch.arange(B).unsqueeze(-1).expand(-1, lo_num)
     best_indices = torch.argmax(residual_indicator, dim=1)

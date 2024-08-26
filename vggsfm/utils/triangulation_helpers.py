@@ -589,16 +589,14 @@ def local_refinement_tri(
         all_invalid_che_mask = []
 
         for loidx in range(lo_num):
-            (
-                triangulated_points,
-                tri_angles,
-                invalid_che_mask,
-            ) = triangulate_multi_view_point_batched(
-                extrinsics,
-                lo_points1[:, loidx],
-                mask=lo_mask[:, loidx],
-                compute_tri_angle=True,
-                check_cheirality=True,
+            (triangulated_points, tri_angles, invalid_che_mask) = (
+                triangulate_multi_view_point_batched(
+                    extrinsics,
+                    lo_points1[:, loidx],
+                    mask=lo_mask[:, loidx],
+                    compute_tri_angle=True,
+                    check_cheirality=True,
+                )
             )
 
             # Append the outputs to the respective lists
@@ -619,16 +617,14 @@ def local_refinement_tri(
         lo_extrinsics = extrinsics_expand.reshape(B * lo_num, N, 3, 4)
 
         # triangulate the inliers
-        (
-            triangulated_points,
-            tri_angles,
-            invalid_che_mask,
-        ) = triangulate_multi_view_point_batched(
-            lo_extrinsics,
-            lo_points1,
-            mask=lo_mask,
-            compute_tri_angle=True,
-            check_cheirality=True,
+        (triangulated_points, tri_angles, invalid_che_mask) = (
+            triangulate_multi_view_point_batched(
+                lo_extrinsics,
+                lo_points1,
+                mask=lo_mask,
+                compute_tri_angle=True,
+                check_cheirality=True,
+            )
         )
 
         triangulated_points = triangulated_points.reshape(B, lo_num, 3)

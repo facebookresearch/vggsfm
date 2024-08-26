@@ -27,9 +27,7 @@ from .runner import (
     predict_tracks,
     get_query_points,
 )
-from vggsfm.utils.utils import (
-    average_camera_prediction,
-)
+from vggsfm.utils.utils import average_camera_prediction
 
 from vggsfm.utils.tensor_to_pycolmap import (
     batch_matrix_to_pycolmap,
@@ -209,9 +207,7 @@ class VideoRunner(VGGSfMRunner):
             # Perform dense reconstruction if enabled
             if self.cfg.dense_depth:
                 predictions = self.dense_reconstruct(
-                    predictions,
-                    image_paths,
-                    original_images,
+                    predictions, image_paths, original_images
                 )
 
                 # Save the dense depth maps
@@ -225,10 +221,7 @@ class VideoRunner(VGGSfMRunner):
                 max_hw = crop_params[0, :, :2].max(dim=0)[0].long()
                 video_size = (max_hw[0].item(), max_hw[1].item())
                 img_with_circles_list = self.make_reprojection_video(
-                    predictions,
-                    video_size,
-                    image_paths,
-                    original_images,
+                    predictions, video_size, image_paths, original_images
                 )
                 predictions["reproj_video"] = img_with_circles_list
                 if self.cfg.save_to_disk:
@@ -702,7 +695,6 @@ class VideoRunner(VGGSfMRunner):
         # vis.visualize(window_images * 255, window_tracks_for_exist_points[None], window_vis_inlier_for_exist_points[None][..., None],
         #               filename=f"start_{start_idx}_end_{end_idx}")
         ###############################################################
-
 
         per_frame_enough_flag = (
             window_vis_inlier_for_exist_points.sum(dim=1) < 50

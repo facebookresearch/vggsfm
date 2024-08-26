@@ -256,14 +256,13 @@ class IMCDataset(Dataset):
             bbox_xywh = torch.FloatTensor(bbox_xyxy_to_xywh(bbox_jitter))
 
             # Cropping images
-            (
-                focal_length_cropped,
-                principal_point_cropped,
-            ) = adjust_camera_to_bbox_crop_(
-                focal_lengths[i],
-                principal_points[i],
-                torch.FloatTensor(image.size),
-                bbox_xywh,
+            (focal_length_cropped, principal_point_cropped) = (
+                adjust_camera_to_bbox_crop_(
+                    focal_lengths[i],
+                    principal_points[i],
+                    torch.FloatTensor(image.size),
+                    bbox_xywh,
+                )
             )
 
             crop_paras = calculate_crop_parameters(
@@ -275,14 +274,13 @@ class IMCDataset(Dataset):
             image = self._crop_image(image, bbox_jitter)
 
             # Resizing images
-            (
-                new_focal_length,
-                new_principal_point,
-            ) = adjust_camera_to_image_scale_(
-                focal_length_cropped,
-                principal_point_cropped,
-                torch.FloatTensor(image.size),
-                torch.FloatTensor([self.img_size, self.img_size]),
+            (new_focal_length, new_principal_point) = (
+                adjust_camera_to_image_scale_(
+                    focal_length_cropped,
+                    principal_point_cropped,
+                    torch.FloatTensor(image.size),
+                    torch.FloatTensor([self.img_size, self.img_size]),
+                )
             )
 
             images_transformed.append(self.transform(image))

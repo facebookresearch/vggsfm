@@ -187,11 +187,9 @@ def conduct_pnp(
         oriB, f_trials, all_pmat_num, P
     ).reshape(oriB, f_trials * all_pmat_num, P)
 
-    (
-        residual_indicator,
-        inlier_num_all,
-        inlier_mask_all,
-    ) = calculate_residual_indicator(residuals_all, max_thres, debug=True)
+    (residual_indicator, inlier_num_all, inlier_mask_all) = (
+        calculate_residual_indicator(residuals_all, max_thres, debug=True)
+    )
 
     # update B back to original B
     B = residual_indicator.shape[0]
