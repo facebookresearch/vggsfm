@@ -8,7 +8,6 @@
 import matplotlib
 import numpy as np
 
-
 import torch
 import torch.nn.functional as F
 import os
@@ -231,6 +230,25 @@ def farthest_point_sampling(
     return selected_indices
 
 
+def generate_rank_by_midpoint(N):
+    def mid(start, end):
+        return start + (end - start) // 2
+
+    # Start with the first midpoint, then add 0 and N-1
+    sequence = [mid(0, N - 1), 0, N - 1]
+    queue = [(0, mid(0, N - 1)), (mid(0, N - 1), N - 1)]  # Queue for BFS
+
+    while queue:
+        start, end = queue.pop(0)
+        m = mid(start, end)
+        if m not in sequence and start < m < end:
+            sequence.append(m)
+            queue.append((start, m))
+            queue.append((m, end))
+
+    return sequence
+
+
 def generate_rank_by_interval(N, k):
     result = []
     for start in range(k):
@@ -405,6 +423,7 @@ def filter_invisible_reprojections(uvs_int, depths):
 
     return mask
 
+
 def create_video_with_reprojections(
     fname_prefix,
     video_size,
@@ -447,7 +466,7 @@ def create_video_with_reprojections(
     if color_mode == "dis_to_center":
         median_point = np.median(points3D, axis=0)
         distances = np.linalg.norm(points3D - median_point, axis=1)
-        min_dis, max_dis = distances.min(), np.percentile(distances, 99)
+        min_dis, max_dis = distances.min(), np.percentile(distances, 95)
     elif color_mode == "dis_to_origin":
         distances = np.linalg.norm(points3D, axis=1)
         min_dis, max_dis = distances.min(), distances.max()
@@ -552,6 +571,8 @@ def save_video_with_reprojections(
 
     video_writer.release()
     print("Finished saving video with reprojections")
+
+
 def create_depth_map_visual(depth_map, raw_img, output_filename):
     # Normalize the depth map to the range 0-255
     depth_map_visual = (

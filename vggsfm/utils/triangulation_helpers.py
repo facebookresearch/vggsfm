@@ -10,13 +10,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import numpy as np
+import pyceres
 import pycolmap
 
 from torch.cuda.amp import autocast
 from itertools import combinations
 import math
 
-from vggsfm.utils.distortion import apply_distortion, iterative_undistortion
+from vggsfm.utils.distortion import (
+    apply_distortion,
+    iterative_undistortion,
+    single_undistortion,
+)
 
 
 def triangulate_multi_view_point_batched(
@@ -323,9 +328,14 @@ def cam_from_img(pred_tracks, intrinsics, extra_params=None):
 
     if extra_params is not None:
         # Apply iterative undistortion
-        tracks_normalized = iterative_undistortion(
-            extra_params, tracks_normalized
-        )
+        try:
+            tracks_normalized = iterative_undistortion(
+                extra_params, tracks_normalized
+            )
+        except:
+            tracks_normalized = single_undistortion(
+                extra_params, tracks_normalized
+            )
 
     return tracks_normalized
 

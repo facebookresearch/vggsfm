@@ -214,9 +214,7 @@ def normalize_points_masked(
     )  # BxNx2, Apply mask before subtraction to zero-out invalid points
 
     if colmap_style:
-        sum_squared_diffs = (
-            (diffs**2).sum(dim=-1).sum(dim=-1)
-        )  # Shape: (B, N)
+        sum_squared_diffs = (diffs**2).sum(dim=-1).sum(dim=-1)  # Shape: (B, N)
         mean_squared_diffs = sum_squared_diffs / (
             num_valid_points[:, 0, 0] + eps
         )  # Shape: (B,)

@@ -3,6 +3,15 @@ hydra:
         dir: .
 
 
+query_by_midpoint: True
+shared_camera: True
+camera_type: "SIMPLE_RADIAL"   # optional: ["SIMPLE_PINHOLE", "SIMPLE_RADIAL"]
+max_query_pts: 1024
+
+
+##########################
+
+
 model_name: "vggsfm_v2_0_0"
 
 seed: 0
@@ -24,8 +33,6 @@ BA_iters: 1
 
 fine_tracking: True
 
-camera_type: "SIMPLE_PINHOLE"   # optional: ["SIMPLE_PINHOLE", "SIMPLE_RADIAL"]
-
 load_gt: False
 viz_visualize: False
 gr_visualize: False
@@ -33,12 +40,10 @@ gr_visualize: False
 fmat_thres: 4.0
 max_reproj_error: 4.0
 init_max_reproj_error: 4.0
-max_query_pts: 2048
 
 dense_depth: False
 
 avg_pose: True
-shared_camera: False
 
 save_to_disk: True
 SCENE_DIR: examples/kitchen
@@ -58,8 +63,6 @@ visual_tracks: False
 visual_query_points: False
 visual_dense_point_cloud: False
 
-
-query_by_midpoint: False
 query_by_interval: False
 
 

@@ -1141,7 +1141,6 @@ def iterative_global_BA(
         )
 
         reconstruction = filter_reconstruction(reconstruction)
-
     return (
         points3D_opt,
         extrinsics,
@@ -1149,13 +1148,15 @@ def iterative_global_BA(
         extra_params,  # Return extra_params
         valid_tracks,
         BA_inlier_masks,
+        # filtered_inlier_mask,
         reconstruction,
     )
 
 
 def filter_reconstruction(reconstruction, filter_points=False):
     if filter_points:
-        reconstruction.filter_all_points3D(4.0, 1.5)
-        reconstruction.filter_observations_with_negative_depth()
+        observation_manager = pycolmap.ObservationManager(reconstruction)
+        observation_manager.filter_all_points3D(4.0, 1.5)
+        observation_manager.filter_observations_with_negative_depth()
     reconstruction.normalize(5.0, 0.1, 0.9, True)
     return reconstruction

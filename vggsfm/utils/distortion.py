@@ -8,6 +8,22 @@ import torch
 import numpy as np
 
 
+def single_undistortion(params, tracks_normalized):
+    """
+    Apply undistortion to the normalized tracks using the given distortion parameters once.
+
+    Args:
+        params (torch.Tensor): Distortion parameters of shape BxN.
+        tracks_normalized (torch.Tensor): Normalized tracks tensor of shape [batch_size, num_tracks, 2].
+
+    Returns:
+        torch.Tensor: Undistorted normalized tracks tensor.
+    """
+    u, v = tracks_normalized[..., 0].clone(), tracks_normalized[..., 1].clone()
+    u_undist, v_undist = apply_distortion(params, u, v)
+    return torch.stack([u_undist, v_undist], dim=-1)
+
+
 def iterative_undistortion(
     params,
     tracks_normalized,
