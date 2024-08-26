@@ -19,6 +19,11 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 
 **Updates:**
+
+- [Aug 26, 2024]
+  - We provided a video runner that can run on sequential frames, e.g., videos!
+
+
 - [Aug 6, 2024]
   - VGGSfM is now available as a Python package, making it easier to integrate into other codebases!
   - Introduced a new `VGGSfMRunner` class that serves as a central controller for all functionalities.
@@ -156,6 +161,17 @@ python -m pip install -e .
 ```
 
 Then, you just need to set ```dense_depth=True``` when running demo.py. Depth maps will be saved in the ```depths``` folder under ```cfg.SCENE_DIR```, using the COLMAP format (e.g., ```*.bin```). To visualize the dense point cloud (unprojected dense depth maps) in Visdom, set ```visual_dense_point_cloud=True``` (note it may take seconds to open the Visdom page when there are too many points).
+
+
+### 6. Video Runner (Beta)
+
+You can choose to run on a video by: 
+
+```bash
+python video_demo.py SCENE_DIR=/PATH/TO/YOUR/VIDEO/FOLDER
+```
+
+This script will call a VideoRunner to reconstruct the input frames in a sliding window manner. The input format is the same as the demo script, but just ensure the frames under the ```SCENE_DIR/images``` are ordered. 
 
 
 
