@@ -232,7 +232,9 @@ class CamerasBase(TensorProperties):
         """
         self.R: torch.Tensor = kwargs.get("R", self.R)
         self.T: torch.Tensor = kwargs.get("T", self.T)
-        world_to_view_transform = self.get_world_to_view_transform(R=self.R, T=self.T)
+        world_to_view_transform = self.get_world_to_view_transform(
+            R=self.R, T=self.T
+        )
         view_to_proj_transform = self.get_projection_transform(**kwargs)
         return world_to_view_transform.compose(view_to_proj_transform)
 
@@ -322,7 +324,9 @@ class CamerasBase(TensorProperties):
         world_to_ndc_transform = self.get_full_projection_transform(**kwargs)
         if not self.in_ndc():
             to_ndc_transform = self.get_ndc_camera_transform(**kwargs)
-            world_to_ndc_transform = world_to_ndc_transform.compose(to_ndc_transform)
+            world_to_ndc_transform = world_to_ndc_transform.compose(
+                to_ndc_transform
+            )
 
         return world_to_ndc_transform.transform_points(points, eps=eps)
 
@@ -418,11 +422,11 @@ class CamerasBase(TensorProperties):
             index, (int, list, *tensor_types["bool"], *tensor_types["long"])
         ) or (
             isinstance(index, list)
-            and not all(isinstance(i, int) and not isinstance(i, bool) for i in index)
-        ):
-            msg = (
-                "Invalid index type, expected int, List[int] or Bool/LongTensor; got %r"
+            and not all(
+                isinstance(i, int) and not isinstance(i, bool) for i in index
             )
+        ):
+            msg = "Invalid index type, expected int, List[int] or Bool/LongTensor; got %r"
             raise ValueError(msg % type(index))
 
         if isinstance(index, int):
@@ -440,7 +444,9 @@ class CamerasBase(TensorProperties):
                     f"Boolean index of shape {index.shape} does not match cameras"
                 )
         elif max(index) >= len(self):
-            raise IndexError(f"Index {max(index)} is out of bounds for select cameras")
+            raise IndexError(
+                f"Index {max(index)} is out of bounds for select cameras"
+            )
 
         for field in self._FIELDS:
             val = getattr(self, field, None)
@@ -459,7 +465,9 @@ class CamerasBase(TensorProperties):
                 # tensors before setting as attributes
                 kwargs[field] = val[index]
             else:
-                raise ValueError(f"Field {field} type is not supported for indexing")
+                raise ValueError(
+                    f"Field {field} type is not supported for indexing"
+                )
 
         kwargs["device"] = self.device
         return self.__class__(**kwargs)
@@ -601,7 +609,9 @@ class FoVPerspectiveCameras(CamerasBase):
         Returns:
             torch.FloatTensor of the calibration matrix with shape (N, 4, 4)
         """
-        K = torch.zeros((self._N, 4, 4), device=self.device, dtype=torch.float32)
+        K = torch.zeros(
+            (self._N, 4, 4), device=self.device, dtype=torch.float32
+        )
         ones = torch.ones((self._N), dtype=torch.float32, device=self.device)
         if degrees:
             fov = (np.pi / 180) * fov
@@ -723,7 +733,9 @@ class FoVPerspectiveCameras(CamerasBase):
             xy_sdepth = xy_depth
         else:
             # parse out important values from the projection matrix
-            K_matrix = self.get_projection_transform(**kwargs.copy()).get_matrix()
+            K_matrix = self.get_projection_transform(
+                **kwargs.copy()
+            ).get_matrix()
             # parse out f1, f2 from K_matrix
             unsqueeze_shape = [1] * xy_depth.dim()
             unsqueeze_shape[0] = K_matrix.shape[0]
@@ -868,7 +880,9 @@ class FoVOrthographicCameras(CamerasBase):
             min_y: minimum y coordinate of the frustrum.
             scale_xyz: scale factors for each axis of shape (N, 3).
         """
-        K = torch.zeros((self._N, 4, 4), dtype=torch.float32, device=self.device)
+        K = torch.zeros(
+            (self._N, 4, 4), dtype=torch.float32, device=self.device
+        )
         ones = torch.ones((self._N), dtype=torch.float32, device=self.device)
         # NOTE: OpenGL flips handedness of coordinate system between camera
         # space and NDC space so z sign is -ve. In PyTorch3D we maintain a
@@ -956,7 +970,9 @@ class FoVOrthographicCameras(CamerasBase):
         """
 
         if world_coordinates:
-            to_ndc_transform = self.get_full_projection_transform(**kwargs.copy())
+            to_ndc_transform = self.get_full_projection_transform(
+                **kwargs.copy()
+            )
         else:
             to_ndc_transform = self.get_projection_transform(**kwargs.copy())
 
@@ -1218,7 +1234,9 @@ class PerspectiveCameras(CamerasBase):
             screen_to_ndc_transform = get_screen_to_ndc_transform(
                 self, with_xyflip=False, image_size=image_size
             )
-            ndc_transform = pr_point_fix_transform.compose(screen_to_ndc_transform)
+            ndc_transform = pr_point_fix_transform.compose(
+                screen_to_ndc_transform
+            )
 
         return ndc_transform
 
@@ -1451,7 +1469,9 @@ class OrthographicCameras(CamerasBase):
             screen_to_ndc_transform = get_screen_to_ndc_transform(
                 self, with_xyflip=False, image_size=image_size
             )
-            ndc_transform = pr_point_fix_transform.compose(screen_to_ndc_transform)
+            ndc_transform = pr_point_fix_transform.compose(
+                screen_to_ndc_transform
+            )
 
         return ndc_transform
 
@@ -1677,7 +1697,9 @@ def look_at_rotation(
     if is_close.any():
         replacement = F.normalize(torch.cross(y_axis, z_axis, dim=1), eps=1e-5)
         x_axis = torch.where(is_close, replacement, x_axis)
-    R = torch.cat((x_axis[:, None, :], y_axis[:, None, :], z_axis[:, None, :]), dim=1)
+    R = torch.cat(
+        (x_axis[:, None, :], y_axis[:, None, :], z_axis[:, None, :]), dim=1
+    )
     return R.transpose(1, 2)
 
 
@@ -1723,7 +1745,9 @@ def look_at_view_transform(
     """
 
     if eye is not None:
-        broadcasted_args = convert_to_tensors_and_broadcast(eye, at, up, device=device)
+        broadcasted_args = convert_to_tensors_and_broadcast(
+            eye, at, up, device=device
+        )
         eye, at, up = broadcasted_args
         C = eye
     else:
@@ -1776,7 +1800,9 @@ def get_ndc_to_screen_transform(
         msg = "For NDC to screen conversion, image_size=(height, width) needs to be specified."
         raise ValueError(msg)
 
-    K = torch.zeros((cameras._N, 4, 4), device=cameras.device, dtype=torch.float32)
+    K = torch.zeros(
+        (cameras._N, 4, 4), device=cameras.device, dtype=torch.float32
+    )
     if not torch.is_tensor(image_size):
         image_size = torch.tensor(image_size, device=cameras.device)
     # pyre-fixme[16]: Item `List` of `Union[List[typing.Any], Tensor, Tuple[Any,

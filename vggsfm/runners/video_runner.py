@@ -3,6 +3,7 @@ import cv2
 import os
 import copy
 import time
+import math
 import random
 import pyceres
 import pycolmap
@@ -61,7 +62,7 @@ class VideoRunner(VGGSfMRunner):
         query_frame_num=None,
         seq_name=None,
         output_dir=None,
-        init_window_size=24,
+        init_window_size=32,
         window_size=16,
         joint_BA_interval=6,
     ):
@@ -96,11 +97,11 @@ class VideoRunner(VGGSfMRunner):
             self.img_dim = C
             self.H = H
             self.W = W
-            
+
             self.image_size = torch.tensor(
                 [W, H], dtype=images.dtype, device=self.device
             )
-            
+
             self.images = images
             self.masks = masks
             self.image_paths = image_paths
@@ -111,7 +112,7 @@ class VideoRunner(VGGSfMRunner):
             start_idx = 0
             end_idx = start_idx + init_window_size
 
-            # Temporally double the max_query_pts to ensure 
+            # Temporally double the max_query_pts to ensure
             # the initial window has enough points to track
             self.cfg.max_query_pts = self.cfg.max_query_pts * 2
             # Run reconstruction for the initial window
@@ -140,55 +141,50 @@ class VideoRunner(VGGSfMRunner):
 
             self.convert_pred_to_point_frame_dict(init_pred, start_idx, end_idx)
 
-
             window_counter = 0  # Initialize a counter for windows
-            
+
             while end_idx < T:
                 if (T - end_idx) <= int(1.25 * window_size):
-                    start_idx, end_idx, move_success, _ = self.move_window(start_idx, end_idx, T - end_idx)
+                    start_idx, end_idx, move_success, _ = self.move_window(
+                        start_idx, end_idx, T - end_idx
+                    )
                 else:
-                    start_idx, end_idx, move_success, _ = (
-                        self.move_window(start_idx, end_idx, window_size)
+                    start_idx, end_idx, move_success, _ = self.move_window(
+                        start_idx, end_idx, window_size
                     )
 
                 if not move_success:
-                    print("Moving window failed, trying again. (This should not happen in most cases)")
+                    print(
+                        "Moving window failed, trying again. (This should not happen in most cases)"
+                    )
                     self.cfg.max_query_pts = self.cfg.max_query_pts * 2
-                    start_idx, end_idx, move_success, _ = (
-                        self.move_window(
-                            start_idx, end_idx, window_size
-                        )
+                    start_idx, end_idx, move_success, _ = self.move_window(
+                        start_idx, end_idx, window_size
                     )
                     self.cfg.max_query_pts = self.cfg.max_query_pts // 2
-                    
+
                 if window_counter % joint_BA_interval == 0:
                     print("Running joint BA:")
-                    start_time = time.time()   
-                    
-                    self.joint_BA(0, end_idx, normalize=True)
-                                            
-                    end_time = time.time()
-                    print(
-                        f"Joint BA took {end_time - start_time:.2f} seconds"
-                    )
-                    
-                window_counter += 1  # Increment the window counter
+                    start_time = time.time()
 
+                    self.joint_BA(0, end_idx, normalize=True)
+
+                    end_time = time.time()
+                    print(f"Joint BA took {end_time - start_time:.2f} seconds")
+
+                window_counter += 1  # Increment the window counter
 
             # Conduct a BA for the entire sequence
             print("Running joint BA for the entire sequence:")
             self.joint_BA(0, T, normalize=True)
 
-            
             print("Updating points color")
-            self._update_points_color() # TODO: _update_points_color is too slow, fix it
+            self._update_points_color()  # TODO: _update_points_color is too slow, fix it
             print("Points color updated")
 
-
-
-            predictions = self.dicts_to_output(0, T, 
-                                back_to_original_resolution=True)
-            
+            predictions = self.dicts_to_output(
+                0, T, back_to_original_resolution=True
+            )
 
             # Save the sparse reconstruction results
             if self.cfg.save_to_disk:
@@ -243,31 +239,39 @@ class VideoRunner(VGGSfMRunner):
 
             return predictions
 
-    def dicts_to_output(self, start_idx, end_idx, back_to_original_resolution=False):
+    def dicts_to_output(
+        self, start_idx, end_idx, back_to_original_resolution=False
+    ):
         print("Converting Predictions to the Output Format")
         predictions = {}
-        
+
         T = self.images.shape[1]
-        reconstruction = self.dicts_to_reconstruction(start_idx, end_idx, extract_color=True)
-        
-        
+        reconstruction = self.dicts_to_reconstruction(
+            start_idx, end_idx, extract_color=True
+        )
+
         basenames = [os.path.basename(path) for path in self.image_paths]
-        
+
         if back_to_original_resolution:
-            reconstruction = self.rename_colmap_recons_and_rescale_camera(reconstruction, basenames, 
-                                                self.crop_params.expand(-1, T, -1), self.image_size[-1],
-                                                shift_point2d_to_original_res=self.cfg.shift_point2d_to_original_res, 
-                                                shared_camera=self.cfg.shared_camera)
-        
+            reconstruction = self.rename_colmap_recons_and_rescale_camera(
+                reconstruction,
+                basenames,
+                self.crop_params.expand(-1, T, -1),
+                self.image_size[-1],
+                shift_point2d_to_original_res=self.cfg.shift_point2d_to_original_res,
+                shared_camera=self.cfg.shared_camera,
+            )
+
         predictions["reconstruction"] = reconstruction
-        
+
         # NOTE:
-        # We can do this only when we know 
+        # We can do this only when we know
         # the images inside reconstruction is sorted by order
         # i.e., reconstruction.images[1] cooresponds to extrinsics[1]
-        _, extrinsics, intrinsics, extra_params = pycolmap_to_batch_matrix(reconstruction, self.device, 
-                                                                           camera_type=self.cfg.camera_type)
-        
+        _, extrinsics, intrinsics, extra_params = pycolmap_to_batch_matrix(
+            reconstruction, self.device, camera_type=self.cfg.camera_type
+        )
+
         predictions["extrinsics_opencv"] = extrinsics
         predictions["intrinsics_opencv"] = intrinsics
         predictions["extra_params"] = extra_params
@@ -275,7 +279,7 @@ class VideoRunner(VGGSfMRunner):
         points_xyz = []
         points_rgb = []
 
-        for point_id in self.point_dict.keys(): 
+        for point_id in self.point_dict.keys():
             point_data = self.point_dict[point_id]
             points_xyz.append(point_data["xyz"])
             points_rgb.append(point_data["rgb"])
@@ -283,16 +287,13 @@ class VideoRunner(VGGSfMRunner):
         predictions["points3D"] = torch.stack(points_xyz).to(self.device)
         predictions["points3D_rgb"] = torch.stack(points_rgb).to(self.device)
 
-
-        predictions["unproj_dense_points3D"] = None  
+        predictions["unproj_dense_points3D"] = None
         predictions["valid_2D_mask"] = None
         predictions["pred_track"] = None
         predictions["pred_vis"] = None
         predictions["pred_score"] = None
         predictions["valid_tracks"] = None
         return predictions
-
-
 
     def calculate_bounding_boxes(self, crop_params, images):
         """
@@ -449,7 +450,11 @@ class VideoRunner(VGGSfMRunner):
                 point_dict = {
                     "id": abs_point_idx,
                     "xyz": points3D[point_idx],
-                    "rgb": points3D_rgb[point_idx] if points3D_rgb is not None else None,
+                    "rgb": (
+                        points3D_rgb[point_idx]
+                        if points3D_rgb is not None
+                        else None
+                    ),
                     "track": point_track_dict,
                 }
 
@@ -474,20 +479,27 @@ class VideoRunner(VGGSfMRunner):
                 # Update point_dict with the computed RGB value
                 self.point_dict[point_id]["rgb"] = avg_color.cpu()
 
-    def joint_BA(self, start_idx, end_idx, reproj_error = 2.0, tri_angle = 1.5, normalize = True):
+    def joint_BA(
+        self,
+        start_idx,
+        end_idx,
+        reproj_error=2.0,
+        tri_angle=1.5,
+        normalize=True,
+    ):
         reconstruction = self.dicts_to_reconstruction(start_idx, end_idx)
 
         if normalize:
             reconstruction.normalize(5.0, 0.1, 0.9, True)
-            
+
         ba_options = pycolmap.BundleAdjustmentOptions()
         pycolmap.bundle_adjustment(reconstruction, ba_options)
 
         observation_manager = pycolmap.ObservationManager(reconstruction)
         observation_manager.filter_all_points3D(reproj_error, tri_angle)
         observation_manager.filter_observations_with_negative_depth()
-        
-        if normalize:   
+
+        if normalize:
             reconstruction.normalize(5.0, 0.1, 0.9, True)
 
         intrinsics_opt = (
@@ -512,18 +524,21 @@ class VideoRunner(VGGSfMRunner):
             self.frame_dict = defaultdict(dict)
             self.reconstruction_to_dicts(reconstruction)
         else:
-            self.update_dicts_by_reconstruction(reconstruction, start_idx, end_idx)
-                
+            self.update_dicts_by_reconstruction(
+                reconstruction, start_idx, end_idx
+            )
 
     def dicts_to_reconstruction(self, start_idx, end_idx, extract_color=False):
         reconstruction = pycolmap.Reconstruction()
         points3d_idx_list = sorted(list(self.point_dict.keys()))
         for pidx in points3d_idx_list:
             if extract_color:
-                point_color = np.round(self.point_dict[pidx]["rgb"].numpy() * 255).astype(np.uint8)
-            else:   
+                point_color = np.round(
+                    self.point_dict[pidx]["rgb"].numpy() * 255
+                ).astype(np.uint8)
+            else:
                 point_color = np.zeros(3)
-            
+
             reconstruction.add_point3D(
                 self.point_dict[pidx]["xyz"].numpy(),
                 pycolmap.Track(),
@@ -575,8 +590,6 @@ class VideoRunner(VGGSfMRunner):
             reconstruction.add_image(pyimg)
 
         return reconstruction
-
-
 
     def reconstruction_to_dicts(self, reconstruction):
         # Convert reconstruction to frame_dict
@@ -675,6 +688,16 @@ class VideoRunner(VGGSfMRunner):
             start_idx, end_idx, aligned_pred_extri_next_window
         )
 
+        ###############################################################
+        # from vggsfm.utils.utils import visual_query_points
+        # visual_query_points(window_images, 0, window_pred_track[0:1])
+        # from vggsfm.utils.visualizer import Visualizer
+        # vis = Visualizer(save_dir="visual_debug", linewidth=1)
+        # vis.visualize(window_images * 255, window_tracks_for_exist_points[None], window_vis_inlier_for_exist_points[None][..., None],
+        #               filename=f"start_{start_idx}_end_{end_idx}")
+        ###############################################################
+
+
         per_frame_enough_flag = (
             window_vis_inlier_for_exist_points.sum(dim=1) < 50
         )
@@ -685,26 +708,36 @@ class VideoRunner(VGGSfMRunner):
                 .nonzero(as_tuple=True)[0][0]
                 .item()
             )
-            
-            if first_invalid_index > 1:
-                window_size = first_invalid_index - 1 # TODO: -1 or not?
-                print(f"Shrink the window from {start_idx}-{end_idx} to {start_idx}-{start_idx + window_size}")
+
+            if first_invalid_index > 2:
+                window_size = first_invalid_index - 1  # TODO: -1 or not?
+                print(
+                    f"Shrink the window from {start_idx}-{end_idx} to {start_idx}-{start_idx + window_size}"
+                )
                 end_idx = start_idx + window_size
-                
-                window_images = window_images[:, :(window_size + 1)]
+
+                window_images = window_images[:, : (window_size + 1)]
                 if window_masks is not None:
-                    window_masks = window_masks[:, :(window_size + 1)]
-                window_fmaps_for_tracker = window_fmaps_for_tracker[:, :(window_size + 1)]
-                window_tracks_for_exist_points = window_tracks_for_exist_points[:(window_size + 1)]
-                window_vis_for_exist_points = window_vis_for_exist_points[:(window_size + 1)]
-                window_vis_inlier_for_exist_points = window_vis_inlier_for_exist_points[:(window_size + 1)]
-                extri_window_plus_one = extri_window_plus_one[:(window_size + 1)]
+                    window_masks = window_masks[:, : (window_size + 1)]
+                window_fmaps_for_tracker = window_fmaps_for_tracker[
+                    :, : (window_size + 1)
+                ]
+                window_tracks_for_exist_points = window_tracks_for_exist_points[
+                    : (window_size + 1)
+                ]
+                window_vis_for_exist_points = window_vis_for_exist_points[
+                    : (window_size + 1)
+                ]
+                window_vis_inlier_for_exist_points = (
+                    window_vis_inlier_for_exist_points[: (window_size + 1)]
+                )
+                extri_window_plus_one = extri_window_plus_one[
+                    : (window_size + 1)
+                ]
             else:
                 # TODO drop some frames and get them back later
                 print("No valid frame, step back")
-                return last_start_idx - window_size//2, start_idx - window_size//2, False, None
-
-
+                return last_start_idx - 1, start_idx - 1, False, None
 
         align_extri_window_plus_one = self.align_next_window(
             extri_window_plus_one,
@@ -753,7 +786,6 @@ class VideoRunner(VGGSfMRunner):
             [exist_valid_inlier_masks, window_new_inlier_masks], dim=1
         )
 
-        
         rec = batch_matrix_to_pycolmap(
             window_points_all,
             align_extri_window_plus_one,
@@ -790,7 +822,9 @@ class VideoRunner(VGGSfMRunner):
         ba_success = log_ba_summary(summary)
 
         if not ba_success:
-            import pdb; pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
         window_points3D_opt, extrinsics, _, _ = pycolmap_to_batch_matrix(
             rec, device=self.device, camera_type=window_points_all.dtype
@@ -861,7 +895,6 @@ class VideoRunner(VGGSfMRunner):
 
         return start_idx, end_idx, True, None
 
-
     def filter_points_and_compute_masks(
         self,
         points,
@@ -885,9 +918,7 @@ class VideoRunner(VGGSfMRunner):
             hard_max=-1,
         )
 
-        valid_tracks_mask = (
-            inlier_mask.sum(dim=0) >= min_valid_track_length
-        )
+        valid_tracks_mask = inlier_mask.sum(dim=0) >= min_valid_track_length
         filtered_points = points[valid_tracks_mask]
         filtered_tracks = tracks[:, valid_tracks_mask]
         filtered_inlier_masks = inlier_mask[:, valid_tracks_mask]
@@ -976,7 +1007,6 @@ class VideoRunner(VGGSfMRunner):
         )
         return refined_extrinsics
 
-
     def build_camera_for_video(self):
         if self.cfg.camera_type == "SIMPLE_RADIAL":
             pycolmap_intri = np.array(
@@ -1017,6 +1047,8 @@ class VideoRunner(VGGSfMRunner):
         back_step=1,
         max_ratio=1,
         use_support_points=True,
+        random_support_points=True,
+        track_vis_thres=0.05,
     ):
         last_end_visible_points_idx = self.frame_dict[start_idx - back_step][
             "visible_points"
@@ -1066,13 +1098,18 @@ class VideoRunner(VGGSfMRunner):
         )
 
         if use_support_points:
-            support_points = get_query_points(
-                window_images[:, 0],
-                window_masks[:, 0] if window_masks is not None else None,
-                self.cfg.query_method,
-                self.cfg.max_query_pts,
-                bound_bbox=self.bound_bboxes[0],
-            )
+            if random_support_points:
+                support_points = generate_grid_samples(
+                    self.bound_bboxes[0], self.cfg.max_query_pts
+                ).to(self.device)[None]
+            else:
+                support_points = get_query_points(
+                    window_images[:, 0],
+                    window_masks[:, 0] if window_masks is not None else None,
+                    self.cfg.query_method,
+                    self.cfg.max_query_pts,
+                    bound_bbox=self.bound_bboxes[0],
+                )
             exist_points_num = len(last_end_visible_points_2D)
             query_points = torch.cat(
                 [
@@ -1100,7 +1137,7 @@ class VideoRunner(VGGSfMRunner):
             self.bound_bboxes.expand(-1, window_images.shape[1], -1),
             query_points_dict={0: query_points},
         )
-        
+
         if use_support_points:
             # only pick the real query ones instead of the support points
             window_tracks_for_exist_points = window_tracks_for_exist_points[
@@ -1114,7 +1151,7 @@ class VideoRunner(VGGSfMRunner):
             0
         )
         window_vis_for_exist_points = window_vis_for_exist_points.squeeze(0)
-        track_vis_thres = 0.1
+
         window_vis_inlier_for_exist_points = (
             window_vis_for_exist_points > track_vis_thres
         )
@@ -1122,7 +1159,7 @@ class VideoRunner(VGGSfMRunner):
         last_end_extri = self.frame_dict[start_idx - back_step]["extri"][
             None
         ].to(self.device)
-        
+
         extri_window_plus_one = torch.cat(
             [last_end_extri, aligned_pred_extri_next_window], dim=0
         )
@@ -1139,7 +1176,6 @@ class VideoRunner(VGGSfMRunner):
             extri_window_plus_one,
             last_end_visible_points_idx,
         )
-
 
     def triangulate_window_points(
         self,
@@ -1194,18 +1230,19 @@ class VideoRunner(VGGSfMRunner):
             )
         )
 
-
         (
             filtered_points,
             filtered_tracks,
             filtered_inlier_masks,
             valid_tracks_mask,
         ) = self.filter_points_and_compute_masks(
-            best_triangulated_points, window_pred_track, extrinsics,
+            best_triangulated_points,
+            window_pred_track,
+            extrinsics,
             max_reproj_error=max_reproj_error,
             min_valid_track_length=min_valid_track_length,
         )
-        
+
         filtered_vis = window_pred_vis[:, valid_tracks_mask]
 
         return (
@@ -1215,36 +1252,41 @@ class VideoRunner(VGGSfMRunner):
             filtered_vis,
         )
 
-
-
-    def update_dicts_by_reconstruction(self, reconstruction, start_idx, end_idx):
+    def update_dicts_by_reconstruction(
+        self, reconstruction, start_idx, end_idx
+    ):
         # Update dicts by reconstruction
         for image_id, image in reconstruction.images.items():
             self.frame_dict[image_id]["extri"] = torch.tensor(
                 image.cam_from_world.matrix()
             )
 
-        for point3D_id in sorted(self.point_dict.keys()): 
+        for point3D_id in sorted(self.point_dict.keys()):
             pycolmap_point3D_id = point3D_id + 1
             if pycolmap_point3D_id in reconstruction.point3D_ids():
                 point3D = reconstruction.points3D[pycolmap_point3D_id]
-                self.point_dict[point3D_id]["xyz"] = torch.from_numpy(point3D.xyz).float()
+                self.point_dict[point3D_id]["xyz"] = torch.from_numpy(
+                    point3D.xyz
+                ).float()
                 visible_frames = []
-                for track_element in point3D.track.elements: 
+                for track_element in point3D.track.elements:
                     visible_frames.append(track_element.image_id)
 
                 # Remove the filtered 2D observations
-                for frame_idx in range(start_idx, end_idx): 
+                for frame_idx in range(start_idx, end_idx):
                     if frame_idx in self.point_dict[point3D_id]["track"]:
                         if frame_idx not in visible_frames:
                             del self.point_dict[point3D_id]["track"][frame_idx]
-                            self.frame_dict[frame_idx]["visible_points"].remove(point3D_id)
+                            self.frame_dict[frame_idx]["visible_points"].remove(
+                                point3D_id
+                            )
             else:
-                for frame_idx in range(start_idx, end_idx): 
+                for frame_idx in range(start_idx, end_idx):
                     if frame_idx in self.point_dict[point3D_id]["track"]:
                         del self.point_dict[point3D_id]["track"][frame_idx]
-                        self.frame_dict[frame_idx]["visible_points"].remove(point3D_id)
-
+                        self.frame_dict[frame_idx]["visible_points"].remove(
+                            point3D_id
+                        )
 
 
 def log_ba_summary(summary):
@@ -1295,3 +1337,43 @@ def remove_query(*vars):
     Removes the first element along dimension 1 for each variable in vars.
     """
     return [var[:, 1:, ...] if var is not None else None for var in vars]
+
+
+def generate_grid_samples(rect, N):
+    """
+    Generate a tensor with shape (N, 2) representing grid-sampled points inside a rectangle.
+
+    Parameters:
+    rect (torch.Tensor): Tensor of shape (1, 4) indicating the rectangle [topleftx, toplefty, bottomrightx, bottomrighty].
+    N (int): Number of points to sample within the rectangle.
+
+    Returns:
+    torch.Tensor: Tensor of shape (N, 2) containing sampled points.
+    """
+    # Extract coordinates from the rectangle
+    topleft_x, topleft_y, bottomright_x, bottomright_y = rect[0]
+
+    # Calculate the width and height of the rectangle
+    width = bottomright_x - topleft_x
+    height = bottomright_y - topleft_y
+
+    # Determine the number of points along each dimension
+    aspect_ratio = width / height
+    num_samples_x = int(math.sqrt(N * aspect_ratio))
+    num_samples_y = int(N / num_samples_x)
+
+    # Generate linspace for x and y coordinates
+    x_coords = torch.linspace(
+        topleft_x, bottomright_x, num_samples_x, device=rect.device
+    )
+    y_coords = torch.linspace(
+        topleft_y, bottomright_y, num_samples_y, device=rect.device
+    )
+
+    # Create a meshgrid of x and y coordinates
+    grid_x, grid_y = torch.meshgrid(x_coords, y_coords, indexing="ij")
+
+    # Flatten the grids and stack them to create the final tensor of shape (N, 2)
+    sampled_points = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=-1)
+
+    return sampled_points

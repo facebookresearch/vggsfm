@@ -136,16 +136,24 @@ def matrix_to_quaternion(matrix: torch.Tensor) -> torch.Tensor:
         [
             # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and
             #  `int`.
-            torch.stack([q_abs[..., 0] ** 2, m21 - m12, m02 - m20, m10 - m01], dim=-1),
+            torch.stack(
+                [q_abs[..., 0] ** 2, m21 - m12, m02 - m20, m10 - m01], dim=-1
+            ),
             # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and
             #  `int`.
-            torch.stack([m21 - m12, q_abs[..., 1] ** 2, m10 + m01, m02 + m20], dim=-1),
+            torch.stack(
+                [m21 - m12, q_abs[..., 1] ** 2, m10 + m01, m02 + m20], dim=-1
+            ),
             # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and
             #  `int`.
-            torch.stack([m02 - m20, m10 + m01, q_abs[..., 2] ** 2, m12 + m21], dim=-1),
+            torch.stack(
+                [m02 - m20, m10 + m01, q_abs[..., 2] ** 2, m12 + m21], dim=-1
+            ),
             # pyre-fixme[58]: `**` is not supported for operand types `Tensor` and
             #  `int`.
-            torch.stack([m10 - m01, m20 + m02, m21 + m12, q_abs[..., 3] ** 2], dim=-1),
+            torch.stack(
+                [m10 - m01, m20 + m02, m21 + m12, q_abs[..., 3] ** 2], dim=-1
+            ),
         ],
         dim=-2,
     )
@@ -193,7 +201,9 @@ def _axis_angle_rotation(axis: str, angle: torch.Tensor) -> torch.Tensor:
     return torch.stack(R_flat, -1).reshape(angle.shape + (3, 3))
 
 
-def euler_angles_to_matrix(euler_angles: torch.Tensor, convention: str) -> torch.Tensor:
+def euler_angles_to_matrix(
+    euler_angles: torch.Tensor, convention: str
+) -> torch.Tensor:
     """
     Convert rotations given as Euler angles in radians to rotation matrices.
 
@@ -265,7 +275,9 @@ def _index_from_letter(letter: str) -> int:
     raise ValueError("letter must be either X, Y or Z.")
 
 
-def matrix_to_euler_angles(matrix: torch.Tensor, convention: str) -> torch.Tensor:
+def matrix_to_euler_angles(
+    matrix: torch.Tensor, convention: str
+) -> torch.Tensor:
     """
     Convert rotations given as rotation matrices to Euler angles in radians.
 
@@ -437,7 +449,9 @@ def quaternion_invert(quaternion: torch.Tensor) -> torch.Tensor:
     return quaternion * scaling
 
 
-def quaternion_apply(quaternion: torch.Tensor, point: torch.Tensor) -> torch.Tensor:
+def quaternion_apply(
+    quaternion: torch.Tensor, point: torch.Tensor
+) -> torch.Tensor:
     """
     Apply the rotation given by a quaternion to a 3D point.
     Usual torch rules for broadcasting apply.

@@ -516,7 +516,6 @@ class VGGSfMRunner:
 
         img_size = images.shape[-1]  # H or W, the same for square
 
-
         if center_order is not None:
             # NOTE we changed the image order previously, now we need to scwitch it back
             extrinsics_opencv = extrinsics_opencv[center_order]
@@ -524,27 +523,33 @@ class VGGSfMRunner:
             if extra_params is not None:
                 extra_params = extra_params[center_order]
 
-
-        
         if back_to_original_resolution:
-            reconstruction = self.rename_colmap_recons_and_rescale_camera(reconstruction, image_paths, 
-                                    crop_params, img_size, shared_camera=self.cfg.shared_camera,
-                                    shift_point2d_to_original_res=self.cfg.shift_point2d_to_original_res)
-    
+            reconstruction = self.rename_colmap_recons_and_rescale_camera(
+                reconstruction,
+                image_paths,
+                crop_params,
+                img_size,
+                shared_camera=self.cfg.shared_camera,
+                shift_point2d_to_original_res=self.cfg.shift_point2d_to_original_res,
+            )
+
             # Also rescale the intrinsics_opencv tensor
-            fname_to_id = {reconstruction.images[imgid].name: imgid for imgid in reconstruction.images }
+            fname_to_id = {
+                reconstruction.images[imgid].name: imgid
+                for imgid in reconstruction.images
+            }
             intrinsics_original_res = []
             # We assume the returned extri and intri cooresponds to the order of sorted image_paths
-            for fname in sorted(image_paths): 
+            for fname in sorted(image_paths):
                 pyimg = reconstruction.images[fname_to_id[fname]]
                 pycam = reconstruction.cameras[pyimg.camera_id]
                 intrinsics_original_res.append(pycam.calibration_matrix())
-            intrinsics_opencv = torch.from_numpy(np.stack(intrinsics_original_res)).to(device)
-
-    
+            intrinsics_opencv = torch.from_numpy(
+                np.stack(intrinsics_original_res)
+            ).to(device)
 
         predictions["extrinsics_opencv"] = extrinsics_opencv
-        # NOTE! If not back_to_original_resolution, then intrinsics_opencv 
+        # NOTE! If not back_to_original_resolution, then intrinsics_opencv
         # cooresponds to the resized one (e.g., 1024x1024)
         predictions["intrinsics_opencv"] = intrinsics_opencv
         predictions["points3D"] = points3D
@@ -833,10 +838,15 @@ class VGGSfMRunner:
                 "Dense point cloud visualization in Gradio is not supported due to time constraints."
             )
 
-
-
-    def rename_colmap_recons_and_rescale_camera(self, reconstruction, image_paths, crop_params, img_size,
-                                  shift_point2d_to_original_res=False, shared_camera=False):
+    def rename_colmap_recons_and_rescale_camera(
+        self,
+        reconstruction,
+        image_paths,
+        crop_params,
+        img_size,
+        shift_point2d_to_original_res=False,
+        shared_camera=False,
+    ):
         rescale_camera = True
 
         for pyimageid in reconstruction.images:
@@ -864,9 +874,7 @@ class VGGSfMRunner:
 
             if shift_point2d_to_original_res:
                 # Also shift the point2D to original resolution
-                top_left = (
-                    crop_params[0, pyimageid][-4:-2].abs().cpu().numpy()
-                )
+                top_left = crop_params[0, pyimageid][-4:-2].abs().cpu().numpy()
                 for point2D in pyimage.points2D:
                     point2D.xy = (point2D.xy - top_left) * resize_ratio
 
@@ -876,6 +884,8 @@ class VGGSfMRunner:
                 rescale_camera = False
 
         return reconstruction
+
+
 ################################################ Helper Functions
 
 

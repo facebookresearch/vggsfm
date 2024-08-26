@@ -1160,5 +1160,3 @@ def filter_reconstruction(reconstruction, filter_points=False):
         observation_manager.filter_observations_with_negative_depth()
     reconstruction.normalize(5.0, 0.1, 0.9, True)
     return reconstruction
-
-
