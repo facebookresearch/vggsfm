@@ -139,6 +139,9 @@ class VideoRunner(VGGSfMRunner):
                 init_pred["intrinsics_opencv"],
                 init_pred["extra_params"],
             )
+            
+            if init_extra is None:
+                init_extra = torch.zeros(len(init_intri), 1).to(self.device)
 
             self.intrinsics = init_intri[0:1].clone()  # 1x3x3
             self.extra_params = init_extra[0:1].clone()  # 1xnum_extra_params
