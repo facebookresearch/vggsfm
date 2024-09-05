@@ -20,7 +20,7 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 **Updates:**
 
-- [Aug 26, 2024]
+- [Sep 5, 2024]
   - Added the instruction on how to train a Gaussian splatting model with our results! 
 
 - [Aug 26, 2024]
