@@ -141,7 +141,7 @@ You should see an interface like this:
 You only need to specify the address of your data. For example, I would recommend to start from 
 
 ```bash
-python demo.py SCENE_DIR=examples/YOUR_FOLDER camera_type=SIMPLE_RADIAL gr_visualize=True make_reproj_video=True
+python demo.py SCENE_DIR=/YOUR_FOLDER camera_type=SIMPLE_RADIAL gr_visualize=True make_reproj_video=True
 ```
 
 Please ensure that the images are stored in ```YOUR_FOLDER/images```. This folder should contain only the images. Check the ```examples``` folder for the desired data structure.
@@ -175,8 +175,6 @@ Its launcher ```video_demo.py``` follows the same convention to ```demo.py``` ab
 python video_demo.py SCENE_DIR=/YOUR_VIDEO_FOLDER
 ```
 
-Please note that the config for video_demo is defaulted in  ```cfgs/video_demo.yaml```. Other utilies, such as output saving or visualization are exactly the same to ```demo.py```.
-
 Please note that the configuration for `video_demo.py` is initialized in `cfgs/video_demo.yaml`. Other flags, such as thoses regarding output saving or visualization, are exactly the same as in `demo.py`.
 
 
@@ -190,11 +188,9 @@ This codebase supports the use of masks to filter out dynamic pixels. The masks 
 Masks can be generated using object detection, video segmentation, or manual labeling. Here is an [instruction](https://github.com/vye16/shape-of-motion/blob/main/preproc/README.md) on how to build such masks using SAM and Track-Anything. [SAM2](https://github.com/facebookresearch/segment-anything-2) is also a good option for generating these masks.
 
 
-### FAQ
+### 8. FAQs
 <details>
 <summary><strong>What should I do if I encounter an out-of-memory error?</strong></summary>
-
-We may encounter an out-of-memory error when the number of input frames or query points is too high. In v2.0, we solve it by chunking points to several splits and iteratively run the prediction. This relates to two hardcored hyperparamters, ```max_points_num=163840``` in [predict_tracks](https://github.com/facebookresearch/vggsfm/blob/cfbc06e2f30639073b52d65828e6a6d27087c4f4/vggsfm/runners/runner.py#L894C20-L894C26) and ```max_tri_points_num=819200``` in [triangulate_tracks](https://github.com/facebookresearch/vggsfm/blob/cfbc06e2f30639073b52d65828e6a6d27087c4f4/vggsfm/utils/triangulation.py#L712). These two hyperparameters were defaulted for a ```32GB``` GPU. If your GPU has a lower or higher memory, decrease or increase them correspondingly. 
 
 We may encounter an out-of-memory error when the number of input frames or query points is too high. In v2.0, we address this by splitting the points into several chunks and running the prediction separately. This involves two hardcoded hyperparameters: ```max_points_num=163840``` in [predict_tracks](https://github.com/facebookresearch/vggsfm/blob/cfbc06e2f30639073b52d65828e6a6d27087c4f4/vggsfm/runners/runner.py#L894C20-L894C26) and ```max_tri_points_num=819200``` in [triangulate_tracks](https://github.com/facebookresearch/vggsfm/blob/cfbc06e2f30639073b52d65828e6a6d27087c4f4/vggsfm/utils/triangulation.py#L712). These values are set for a ```32GB``` GPU. If your GPU has less or more memory, reduce or increase these values ​​accordingly.
 
