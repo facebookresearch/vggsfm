@@ -8,6 +8,9 @@ shared_camera: True
 camera_type: "SIMPLE_RADIAL"   # optional: ["SIMPLE_PINHOLE", "SIMPLE_RADIAL"]
 max_query_pts: 1024
 
+init_window_size: 32
+window_size: 16
+joint_BA_interval: 6
 
 ##########################
 

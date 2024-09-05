@@ -720,10 +720,11 @@ class VGGSfMRunner:
         if output_dir is None:
             output_dir = os.path.join("output", seq_name)
 
+        sfm_output_dir = os.path.join(output_dir, "sparse")
         print("-" * 50)
-        print(f"The output has been saved in COLMAP style at: {output_dir} ")
-        os.makedirs(output_dir, exist_ok=True)
-        reconstruction_pycolmap.write(output_dir)
+        print(f"The output has been saved in COLMAP style at: {sfm_output_dir} ")
+        os.makedirs(sfm_output_dir, exist_ok=True)
+        reconstruction_pycolmap.write(sfm_output_dir)
 
     def visualize_3D_in_visdom(
         self, predictions, seq_name=None, output_dir=None

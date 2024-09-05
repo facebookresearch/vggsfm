@@ -122,13 +122,13 @@ You should see an interface like this:
 
 #### 3.3 Additional Visualizations
 - **Visualizing 2D Reprojections:**
-  <details>
-  <summary>Click to expand</summary>
+  <!-- <details> -->
+  <!-- <summary>Click to expand</summary> -->
   - To visualize the 2D reprojections of reconstructed 3D points, set the `make_reproj_video` flag to `True`. This will generate a video named `reproj.mp4` in the `SCENE_DIR/visuals` directory. For example:
   <p align="center">
     <img src="https://github.com/vggsfm/vggsfm.github.io/blob/main/resources/reproj.gif" width="500" alt="reproj">
   </p>
-  </details>
+  <!-- </details> -->
 
 
 - **Visualizing Track Predictions:**
@@ -178,7 +178,7 @@ Its launcher ```video_demo.py``` follows the same convention to ```demo.py``` ab
 python video_demo.py SCENE_DIR=/YOUR_VIDEO_FOLDER
 ```
 
-Please note that the configuration for `video_demo.py` is initialized in `cfgs/video_demo.yaml`. Other flags, such as thoses regarding output saving or visualization, are exactly the same as in `demo.py`.
+Please note that the configuration for `video_demo.py` is initialized in `cfgs/video_demo.yaml`. You can adjust ```init_window_size``` and ```window_size``` to control the number of frames for each window. The flag ```joint_BA_interval``` is used to control the frequency of joint bundle adjustment over the whole sequence. Other flags, such as thoses regarding output saving or visualization, are exactly the same as in `demo.py`.
 
 
 ### 7. Dynamic/Moving Objects

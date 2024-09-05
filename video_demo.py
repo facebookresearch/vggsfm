@@ -79,6 +79,9 @@ def demo_fn(cfg: DictConfig):
         crop_params=crop_params,
         seq_name=seq_name,
         output_dir=output_dir,
+        init_window_size=cfg.init_window_size,
+        window_size=cfg.window_size,
+        joint_BA_interval=cfg.joint_BA_interval,
     )
 
     print("Video Demo Finished Successfully")

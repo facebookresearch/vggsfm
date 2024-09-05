@@ -660,6 +660,10 @@ def align_dense_depth_maps(
     ):
         sparse_uvd = np.array(sparse_depth[img_basename])
 
+        if len(sparse_uvd)<=0:
+            raise ValueError("Too few points for depth alignment")
+
+
         disp_map = disp_dict[img_basename]
 
         ww, hh = disp_map.shape
@@ -689,6 +693,12 @@ def align_dense_depth_maps(
         X = sampled_disps.reshape(-1, 1)
         y = target_disps
         ransac_thres = np.median(y) / thres_ratio
+
+
+        if ransac_thres <= 0:
+            raise ValueError("Ill-posed scene for depth alignment")
+        
+        
         ransac = RANSACRegressor(
             LinearRegression(),
             min_samples=2,
