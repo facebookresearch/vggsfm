@@ -21,18 +21,10 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 **Updates:**
 
 - [Aug 26, 2024]
-  - We provided a video runner that can run on sequential frames, e.g., videos!
-
-
-- [Aug 6, 2024]
-  - VGGSfM is now available as a Python package, making it easier to integrate into other codebases!
-  - Introduced a new `VGGSfMRunner` class that serves as a central controller for all functionalities.
-  - Added support for gradio visualization, controlled by ```gr_visualize```.
-
+  - We have introduced a video runner that can process sequential frames, such as those in videos. It supports the reconstruction of over ```1000``` input frames. By using masks to filter out moving objects, it can also effectively recover camera poses and point clouds from dynamic video sequences.
 
 - [Jul 28, 2024]
-  - Added support for filtering out dynamic objects using ```masks```. We will add an example soon but you can check `demo_loader.py` for a quick view.
-  - Added support for `visual_dense_point_cloud`.
+  - Added support for filtering out dynamic objects using ```masks```.
 
 - [Jul 10, 2024] Now we support exporting dense depth maps!
 
@@ -51,13 +43,13 @@ python -m pip install -e .
 This script installs official ```pytorch3d```, ```lightglue```, ```pycolmap```, ```poselib```, and ```visdom```. If you cannot install ```pytorch3d``` on your machine, feel free to comment the line, because now we only use it for visdom visualization (i.e., ```cfg.viz_visualize=True```). 
 
 
-## Demo 
+## RECONSTRUCTION  
 
 ### 1. Download Model
-The checkpoint will be automatically downloaded from [Hugging Face](https://huggingface.co/facebook/VGGSfM/tree/main). You can also manually download it from [Hugging Face](https://huggingface.co/facebook/VGGSfM/blob/main/vggsfm_v2_0_0.bin) and [Google Drive](https://drive.google.com/file/d/163bHiqeTJhQ2_UnihRNPRA4Y9X8-gZ1-/view?usp=sharing). If you prefer to specify the checkpoint path manually, set the path in ```resume_ckpt``` and set ```auto_download_ckpt``` to False.
+The checkpoint will be automatically downloaded from [Hugging Face](https://huggingface.co/facebook/VGGSfM/tree/main). Alternatively, you can manually download it from [Hugging Face](https://huggingface.co/facebook/VGGSfM/blob/main/vggsfm_v2_0_0.bin) or [Google Drive](https://drive.google.com/file/d/163bHiqeTJhQ2_UnihRNPRA4Y9X8-gZ1-/view?usp=sharing). If you prefer to specify the checkpoint path manually, set `auto_download_ckpt` to `False` and update `resume_ckpt` to your path in the Hydra config.
 
 
-### 2. Run the Demo 
+### 2. Run a Demo 
 
 Now it's time to enjoy your 3D reconstruction! You can start with our provided examples:
 
@@ -72,32 +64,45 @@ python demo.py SCENE_DIR=examples/statue query_method=sp+sift
 python demo.py SCENE_DIR=examples/british_museum max_query_pts=4096 
 
 # Assume a shared camera model for all frames, and
-# use SIMPLE_RADIAL camera model instead of the default SIMPLE_PINHOLE
-python demo.py shared_camera=True camera_type=SIMPLE_RADIAL
+# Use SIMPLE_RADIAL camera model instead of the default SIMPLE_PINHOLE
+# Increase the number of query frames from the default value of 3 to 6
+python demo.py shared_camera=True camera_type=SIMPLE_RADIAL query_frame_num=6
 
 # If you want a fast reconstruction without fine tracking
 python demo.py SCENE_DIR=examples/kitchen fine_tracking=False
 ```
 
-All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage. To enforce a shared camera model for a scene, set ```shared_camera=True```. To use query points from different methods, set ```query_method``` to ```sp```, ```sift```, ```aliked```, or any combination like ```sp+sift```. ```fine_tracking``` is set to True by default. Set it to False to switch to coarse mode for faster inference. 
-
-
-To run reconstruction on a scene with ```100``` frames on a ```32 GB``` GPU, you can start from the setting below:
-
-```bash
-python demo.py SCENE_DIR=TO/YOUR/PATH max_query_pts=1024 query_frame_num=6
-```
-
+All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage, or increase ```query_frame_num``` to use more frames as query. To enforce a shared camera model for a scene, set ```shared_camera=True```. To use query points from different methods, set ```query_method``` to ```sp```, ```sift```, ```aliked```, or any combination like ```sp+sift```. Additionally, ```fine_tracking``` is set to True by default. Set it to False to switch to use coarse matching only for faster inference. 
 
 The reconstruction result (camera parameters and 3D points) will be automatically saved under ```SCENE_DIR``` in the COLMAP format, as ```cameras.bin```, ```images.bin```, and ```points3D.bin```. This format is widely supported by the recent NeRF/Gaussian Splatting codebases. You can use [COLMAP GUI](https://colmap.github.io/gui.html) or [viser](https://github.com/nerfstudio-project/viser) to view the reconstruction. 
+
+This sparse reconstruction mode can process up to ```400``` frames at a time. To handle more frames (e.g., over ```1,000``` frames), please refer to the ```Sequential Input``` section below for guidance.
 
 
 ### 3. Visualization
 
-If you want to visualize it more easily, we also provide visualization options using [Visdom](https://github.com/fossasia/visdom) and [Gradio](https://github.com/gradio-app/gradio).
+If you want to visualize it more easily, we also provide visualization options using [Gradio](https://github.com/gradio-app/gradio) and [Visdom](https://github.com/fossasia/visdom).
 
 
-#### 3.1 Visdom Visualization
+
+#### 3.1 Gradio Visualization (recommended)
+
+<details>
+<summary>Click to expand</summary>
+
+The easiest way to visualize your results is by using Gradio. Simply set the `gr_visualize` flag to `True`, and a link will be generated that you can open in any web browser in any machine. This is especially useful when running the program on a remote Linux server without a GUI, allowing you to view the results on your local computer. Please note it may take a few seconds to load.
+
+
+```bash
+python demo.py gr_visualize=True ...(other flags)
+```
+</details>
+
+
+#### 3.2 Visdom Visualization
+
+<details>
+<summary>Click to expand</summary>
 
 To begin using Visdom, start the server by entering ```visdom``` in the command line. Once the server is running, access Visdom by navigating to ```http://localhost:8097``` in your web browser. Now every reconstruction can be visualized and saved to the Visdom server by enabling ```viz_visualize=True```:
 
@@ -108,50 +113,45 @@ python demo.py viz_visualize=True ...(other flags)
 You should see an interface like this:
 
 ![UI](assets/ui.png)
+</details>
 
 
-
-#### 3.2 Gradio Visualization
-
-For a serverless option, use Gradio by setting `gr_visualize` to True. This will generate a link accessible from any browser (but it may take seconds to load).
-
-
-```bash
-python demo.py gr_visualize=True ...(other flags)
-```
 
 #### 3.3 Additional Visualizations
-
-- **2D Reprojections:**
+- **Visualizing 2D Reprojections:**
+  <details>
+  <summary>Click to expand</summary>
   - To visualize the 2D reprojections of reconstructed 3D points, set the `make_reproj_video` flag to `True`. This will generate a video named `reproj.mp4` in the `SCENE_DIR/visuals` directory. For example:
-
-<!-- <img src="https://github.com/vggsfm/vggsfm.github.io/blob/main/resources/reproj.gif" width="500" alt="reproj"> -->
-
   <p align="center">
     <img src="https://github.com/vggsfm/vggsfm.github.io/blob/main/resources/reproj.gif" width="500" alt="reproj">
   </p>
+  </details>
 
 
-- **Track Predictions:**
+- **Visualizing Track Predictions:**
+  <details>
+  <summary>Click to expand</summary>
+
   - To visualize the raw predictions from our track predictor, enable ```visual_tracks=True``` to generate ```track.mp4```. In this video, transparent points indicate low visibility or confidence. 
+  </details>
 
 
 ### 4. Try your own data
 
-You only need to specify the address of your data, such as:
+You only need to specify the address of your data. For example, I would recommend to start from 
 
 ```bash
-python demo.py SCENE_DIR=examples/YOUR_FOLDER ...(other flags)
+python demo.py SCENE_DIR=examples/YOUR_FOLDER camera_type=SIMPLE_RADIAL gr_visualize=True make_reproj_video=True
 ```
 
 Please ensure that the images are stored in ```YOUR_FOLDER/images```. This folder should contain only the images. Check the ```examples``` folder for the desired data structure.
 
 
-Have fun and feel free to create an issue if you meet any problem. SfM is always about corner/hard cases. I am happy to help. If you prefer not to share your images publicly, please send them to me by email.
 
+### 5. Dense depth Prediction (Beta)
 
-### 5. Dense depth maps (Beta)
-
+<details>
+<summary>Click to expand</summary>
 We support extracting dense depth maps with the help of [Depth-Anything-V2](https://github.com/DepthAnything/Depth-Anything-V2). Basically, we align the dense depth prediction from Depth-Anything-V2 using the sparse SfM point cloud predicted by VGGSfM. To enable this, please first git clone Depth-Anything-V2 and install scikit-learn:
 
 ```bash
@@ -160,40 +160,62 @@ git clone git@github.com:DepthAnything/Depth-Anything-V2.git dependency/depth_an
 python -m pip install -e .
 ```
 
-Then, you just need to set ```dense_depth=True``` when running demo.py. Depth maps will be saved in the ```depths``` folder under ```cfg.SCENE_DIR```, using the COLMAP format (e.g., ```*.bin```). To visualize the dense point cloud (unprojected dense depth maps) in Visdom, set ```visual_dense_point_cloud=True``` (note it may take seconds to open the Visdom page when there are too many points).
+To enable dense depth prediction, set ```dense_depth=True``` when running `demo.py`. The generated depth maps will be saved in the ```depths``` folder under ```cfg.SCENE_DIR```, using the COLMAP format (e.g., ```*.bin```). To visualize the dense point cloud (unprojected dense depth maps) in Visdom, set ```visual_dense_point_cloud=True```. Note that due to the large number of points, we only support ```visual_dense_point_cloud``` in Visdom, not in Gradio.
+</details>
 
 
-### 6. Video Runner (Beta)
+### 6. Sequential Input
 
-You can choose to run on a video by: 
+Given ordered frames as input (e.g., videos), we support running reconstruction in a sliding window manner, which allows for the reconstruction of over ```1,000``` frames.
+
+Its launcher ```video_demo.py``` follows the same convention to ```demo.py``` above. You need to put images under  ```YOUR_VIDEO_FOLDER/images``` with the their image names ordered, e.g., ```0000.png```, ```0001.png```, ```0002.png```... Then, simply run the following command:
+
 
 ```bash
-python video_demo.py SCENE_DIR=/PATH/TO/YOUR/VIDEO/FOLDER
+python video_demo.py SCENE_DIR=/YOUR_VIDEO_FOLDER
 ```
 
-This script will call a VideoRunner to reconstruct the input frames in a sliding window manner. The input format is the same as the demo script, but just ensure the frames under the ```SCENE_DIR/images``` are ordered. 
+Please note that the config for video_demo is defaulted in  ```cfgs/video_demo.yaml```. Other utilies, such as output saving or visualization are exactly the same to ```demo.py```.
 
+Please note that the configuration for `video_demo.py` is initialized in `cfgs/video_demo.yaml`. Other flags, such as thoses regarding output saving or visualization, are exactly the same as in `demo.py`.
+
+
+### 7. Dynamic/Moving Objects
+
+Sometimes, the input frames may contain dynamic or moving objects. Our method can generally handle these when the dynamic objects are relatively small. However, if the dynamic objects occupy a significant portion of the frames, especially when the camera motion is minimal, we recommend filtering out these dynamic pixels.
+
+
+This codebase supports the use of masks to filter out dynamic pixels. The masks should be placed in the `masks` folder under `cfg.SCENE_DIR`, with filenames matching the corresponding images (e.g., `images/0000.png` and `masks/0000.png`). These masks should be binary, with 1 indicating pixels to be filtered out (i.e., dynamic pixels) and 0 for pixels that should remain. You can refer to the masks from the DAVIS dataset as an example. 
+
+Masks can be generated using object detection, video segmentation, or manual labeling. Here is an [instruction](https://github.com/vye16/shape-of-motion/blob/main/preproc/README.md) on how to build such masks using SAM and Track-Anything. [SAM2](https://github.com/facebookresearch/segment-anything-2) is also a good option for generating these masks.
 
 
 ### FAQ
+<details>
+<summary><strong>What should I do if I encounter an out-of-memory error?</strong></summary>
 
-* __What should I do if I encounter an out-of-memory error?__
+We may encounter an out-of-memory error when the number of input frames or query points is too high. In v2.0, we solve it by chunking points to several splits and iteratively run the prediction. This relates to two hardcored hyperparamters, ```max_points_num=163840``` in [predict_tracks](https://github.com/facebookresearch/vggsfm/blob/cfbc06e2f30639073b52d65828e6a6d27087c4f4/vggsfm/runners/runner.py#L894C20-L894C26) and ```max_tri_points_num=819200``` in [triangulate_tracks](https://github.com/facebookresearch/vggsfm/blob/cfbc06e2f30639073b52d65828e6a6d27087c4f4/vggsfm/utils/triangulation.py#L712). These two hyperparameters were defaulted for a ```32GB``` GPU. If your GPU has a lower or higher memory, decrease or increase them correspondingly. 
 
-To resolve an out-of-memory error, you can simply try reducing the number of ```max_query_pts``` to  a lower value. Be aware that this may result in a sparser point cloud and could potentially impact the accuracy of the reconstruction. Please note that in the latest commit, the value of ```query_frame_num``` will not affect the GPU memory consumption any more. Feel free to increase ```query_frame_num```.
+We may encounter an out-of-memory error when the number of input frames or query points is too high. In v2.0, we address this by splitting the points into several chunks and running the prediction separately. This involves two hardcoded hyperparameters: ```max_points_num=163840``` in [predict_tracks](https://github.com/facebookresearch/vggsfm/blob/cfbc06e2f30639073b52d65828e6a6d27087c4f4/vggsfm/runners/runner.py#L894C20-L894C26) and ```max_tri_points_num=819200``` in [triangulate_tracks](https://github.com/facebookresearch/vggsfm/blob/cfbc06e2f30639073b52d65828e6a6d27087c4f4/vggsfm/utils/triangulation.py#L712). These values are set for a ```32GB``` GPU. If your GPU has less or more memory, reduce or increase these values ​​accordingly.
+
+</details>
 
 
-* __How to handle sparse data with minimal view overlap?__
+<details>
+<summary><strong>How to handle sparse data with minimal view overlap?</strong></summary>
 
 For scenarios with sparse views and minimal overlap, the simplest solution is to set ```query_frame_num``` to the total number of your images and use a ```max_query_pts``` of 4096 or more. This ensures all frames are registered. Since we only have sparse views, the inference process remains very fast. For example, the following command took around 20 seconds to reconstruct an 8-frame scene:
 ```
 python demo.py SCENE_DIR=a_scene_with_8_frames query_frame_num=8 max_query_pts=4096 query_method=aliked
 ```
+</details>
 
 
-* __When should I set ```shared_camera``` to True?__
+<details>
+<summary><strong>When should I set shared_camera to True?</strong></summary>
 
 Set ```shared_camera``` to True when you know that the input frames were captured by the same camera and the camera focal length did not significantly change during the capture. This assumption is usually valid for images extracted from a video.
-
+</details>
 
 
 ## Testing 
