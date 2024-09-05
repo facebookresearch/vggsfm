@@ -33,6 +33,18 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 - Happy to share we were ranked 1st 🥇 in the CVPR24 IMC Challenge regarding camera pose (Rot&Trans) estimation.
 
+## Table of Contents
+- [Installation](#installation)
+- [Reconstruction](#reconstruction)
+  - [Download Model](#1-download-model)
+  - [Run a Demo](#2-run-a-demo)
+  - [Visualization](#3-visualization)
+  - [Try your own data](#4-try-your-own-data)
+  - [Dense depth Prediction (Beta)](#5-dense-depth-prediction-beta)
+  - [Sequential Input](#6-sequential-input)
+  - [Dynamic/Moving Objects](#7-dynamicmoving-objects)
+  - [Train a Gaussian Splatting model](#8-train-a-gaussian-splatting-model)
+  - [FAQs](#9-faqs)
 
 
 ## Installation
