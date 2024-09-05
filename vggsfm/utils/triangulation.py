@@ -712,8 +712,29 @@ def triangulate_tracks(
     max_tri_points_num=819200,
 ):
     """
-    Process tracks in smaller chunks to avoid memory issues during triangulation.
+    Triangulate Tracks. If necessary, process tracks in smaller chunks to avoid memory issues during triangulation.
+
+    Args:
+        extrinsics (torch.Tensor): S x 3 x 4 tensor, where S is the number of frames.
+                                   Extrinsics follow the convention of OpenCV R|t.
+        tracks_normalized (torch.Tensor): S x N x 2 tensor, where N is the number of tracks.
+                                          Tracks are normalized by intrinsics (i.e., cam_from_img).
+                                          Generally, if not considering distortion, it is in the form:
+                                          tracks_normalized = (pred_tracks - principal_point) / focal_length.
+                                          Refer to the following link for details:
+                                          https://github.com/facebookresearch/vggsfm/blob/5899a99ff263519c254110fde2036e5ce11f6874/vggsfm/utils/triangulation_helpers.py#L310
+        lo_num (int): The number of trials for local refinement for LORANSAC.
+                      If your GPU memory can afford it, higher is better, but usually doesn't need to go beyond 300.
+        max_angular_error (float): The maximum angular error for a track to be considered as an inlier.
+        min_tri_angle (float): The minimum triangulation angle to avoid some triangulation points leading to infinity.
+        track_vis (torch.Tensor, optional): Tensor to filter out low-quality correspondences.
+        track_score (torch.Tensor, optional): Tensor to filter out low-quality correspondences.
+
+    Note:
+        To filter out low-quality correspondences, use:
+        invalid_vis_conf_mask = torch.logical_or(track_vis <= 0.05, track_score <= 0.5)
     """
+    
     all_tri_points_num = extrinsics.shape[0] * tracks_normalized.shape[1]
 
     if all_tri_points_num > max_tri_points_num:
