@@ -21,6 +21,9 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 **Updates:**
 
 - [Aug 26, 2024]
+  - Added the instruction on how to train a Gaussian splatting model with our results! 
+
+- [Aug 26, 2024]
   - We have introduced a video runner that can process sequential frames, such as those in videos. It supports the reconstruction of over ```1000``` input frames. By using masks to filter out moving objects, it can also effectively recover camera poses and point clouds from dynamic video sequences.
 
 - [Jul 28, 2024]
@@ -40,13 +43,13 @@ source install.sh
 python -m pip install -e .
 ```
 
-This script installs official ```pytorch3d```, ```lightglue```, ```pycolmap```, ```poselib```, and ```visdom```. If you cannot install ```pytorch3d``` on your machine, feel free to comment the line, because now we only use it for visdom visualization (i.e., ```cfg.viz_visualize=True```). 
+This script installs official ```pytorch3d```, ```lightglue```, ```pycolmap```, ```poselib```, and ```visdom```. If you cannot install ```pytorch3d``` on your machine, feel free to skip it, because now we only use it for visdom visualization (i.e., ```cfg.viz_visualize=True```). 
 
 
 ## RECONSTRUCTION  
 
 ### 1. Download Model
-The checkpoint will be automatically downloaded from [Hugging Face](https://huggingface.co/facebook/VGGSfM/tree/main). Alternatively, you can manually download it from [Hugging Face](https://huggingface.co/facebook/VGGSfM/blob/main/vggsfm_v2_0_0.bin) or [Google Drive](https://drive.google.com/file/d/163bHiqeTJhQ2_UnihRNPRA4Y9X8-gZ1-/view?usp=sharing). If you prefer to specify the checkpoint path manually, set `auto_download_ckpt` to `False` and update `resume_ckpt` to your path in the Hydra config.
+The checkpoint will be automatically downloaded from [Hugging Face](https://huggingface.co/facebook/VGGSfM/tree/main) during the first run. Alternatively, you can manually download it from [Hugging Face](https://huggingface.co/facebook/VGGSfM/blob/main/vggsfm_v2_0_0.bin) or [Google Drive](https://drive.google.com/file/d/163bHiqeTJhQ2_UnihRNPRA4Y9X8-gZ1-/view?usp=sharing). If you prefer to specify the checkpoint path manually, set `auto_download_ckpt` to `False` and update `resume_ckpt` to your path in the Hydra config.
 
 
 ### 2. Run a Demo 
@@ -72,9 +75,9 @@ python demo.py shared_camera=True camera_type=SIMPLE_RADIAL query_frame_num=6
 python demo.py SCENE_DIR=examples/kitchen fine_tracking=False
 ```
 
-All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing ```max_query_pts``` to lower GPU memory usage, or increase ```query_frame_num``` to use more frames as query. To enforce a shared camera model for a scene, set ```shared_camera=True```. To use query points from different methods, set ```query_method``` to ```sp```, ```sift```, ```aliked```, or any combination like ```sp+sift```. Additionally, ```fine_tracking``` is set to True by default. Set it to False to switch to use coarse matching only for faster inference. 
+All default settings for the flags are specified in `cfgs/demo.yaml`. You can adjust these flags as needed, such as reducing the number of query points by ```max_query_pts```, or increase ```query_frame_num``` to use more frames as query. To enforce a shared camera model for a scene, set ```shared_camera=True```. To use query points from different methods, set ```query_method``` to ```sp```, ```sift```, ```aliked```, or any combination like ```sp+sift```. Additionally, ```fine_tracking``` is enabled by default, but you can set it to False to switch to coarse matching only, which speeds up inference a lot. 
 
-The reconstruction result (camera parameters and 3D points) will be automatically saved under ```SCENE_DIR``` in the COLMAP format, as ```cameras.bin```, ```images.bin```, and ```points3D.bin```. This format is widely supported by the recent NeRF/Gaussian Splatting codebases. You can use [COLMAP GUI](https://colmap.github.io/gui.html) or [viser](https://github.com/nerfstudio-project/viser) to view the reconstruction. 
+The reconstruction result (camera parameters and 3D points) will be automatically saved under ```SCENE_DIR/sparse``` in the COLMAP format, as ```cameras.bin```, ```images.bin```, and ```points3D.bin```. This format is widely supported by the recent NeRF/Gaussian Splatting codebases. You can use [COLMAP GUI](https://colmap.github.io/gui.html) or [viser](https://github.com/nerfstudio-project/viser) to view the reconstruction. 
 
 This sparse reconstruction mode can process up to ```400``` frames at a time. To handle more frames (e.g., over ```1,000``` frames), please refer to the ```Sequential Input``` section below for guidance.
 
@@ -188,7 +191,27 @@ This codebase supports the use of masks to filter out dynamic pixels. The masks 
 Masks can be generated using object detection, video segmentation, or manual labeling. Here is an [instruction](https://github.com/vye16/shape-of-motion/blob/main/preproc/README.md) on how to build such masks using SAM and Track-Anything. [SAM2](https://github.com/facebookresearch/segment-anything-2) is also a good option for generating these masks.
 
 
-### 8. FAQs
+### 8. Train a Gaussian Splatting model
+
+If you have successfully reconstructed a scene using the commands above, you should have a folder named `sparse` under your `SCENE_DIR`, with the following structure:
+``` 
+SCENE_DIR/
+├── images/
+└── sparse/
+    ├── cameras.bin
+    ├── images.bin
+    └── points3D.bin
+```
+
+You can now use [gsplat](https://github.com/nerfstudio-project/gsplat) to train your own Gaussian Splatting model. Please install `gsplat` according to their official instructions. We assume you are using `gsplat==1.3.0`.
+
+An example command to train the model is:
+```
+cd gsplat
+python examples/simple_trainer.py  default --data_factor 1 --data_dir /YOUR/SCENE_DIR/ --result_dir /YOUR/RESULT_DIR/
+```
+
+### 9. FAQs
 <details>
 <summary><strong>What should I do if I encounter an out-of-memory error?</strong></summary>
 
