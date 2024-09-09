@@ -260,7 +260,7 @@ We are highly inspired by [colmap](https://github.com/colmap/colmap), [pycolmap]
 
 
 ## License
-See the [LICENSE](./LICENSE) file for details about the license under which this code is made available.
+See the [LICENSE](./LICENSE.txt) file for details about the license under which this code is made available.
 
 
 ## Citing VGGSfM
