@@ -813,3 +813,27 @@ def generate_grid_samples(rect, N=None, pixel_interval=None):
     sampled_points = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=-1)
 
     return sampled_points
+
+
+def sample_subrange(N, idx, L):
+    start = idx - L // 2
+    end = start + L
+
+    # Adjust start and end to ensure they are within bounds and cover L frames
+    if start < 0:
+        end -= start  # Increase end by the negative amount of start
+        start = 0
+    if end > N:
+        start -= end - N  # Decrease start to adjust for end overshoot
+        end = N
+        if start < 0:  # In case the initial adjustment made start negative
+            start = 0
+
+    # Ensure the range is exactly L long
+    if (end - start) < L:
+        if end < N:
+            end = min(N, start + L)  # Extend end if possible
+        elif start > 0:
+            start = max(0, end - L)  # Extend start backward if possible
+
+    return start, end

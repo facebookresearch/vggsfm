@@ -12,6 +12,7 @@ import torch
 import pycolmap
 import datetime
 
+import time
 import numpy as np
 from visdom import Visdom
 from torch.cuda.amp import autocast
@@ -34,6 +35,7 @@ from vggsfm.utils.utils import (
     extract_dense_depth_maps,
     align_dense_depth_maps,
     switch_tensor_order,
+    sample_subrange,
     average_camera_prediction,
     create_video_with_reprojections,
     save_video_with_reprojections,
@@ -41,7 +43,7 @@ from vggsfm.utils.utils import (
 
 
 from vggsfm.utils.triangulation import triangulate_tracks
-from vggsfm.utils.triangulation_helpers import cam_from_img
+from vggsfm.utils.triangulation_helpers import cam_from_img, filter_all_points3D
 
 
 # Optional imports
@@ -505,9 +507,9 @@ class VGGSfMRunner:
                 camera_type=self.cfg.camera_type,
             )
 
-        extra_dict = None
+        additional_points_dict = None
         if self.cfg.extra_pt_pixel_interval > 0:
-            extra_dict = self.triangulate_extra_points(
+            additional_points_dict = self.triangulate_extra_points(
                 images,
                 masks,
                 fmaps_for_tracker,
@@ -519,12 +521,15 @@ class VGGSfMRunner:
                 frame_num,
             )
             all_extra_points3D = torch.cat(
-                [extra_dict[img_name]["points3D"] for img_name in image_paths],
+                [
+                    additional_points_dict[img_name]["points3D"]
+                    for img_name in image_paths
+                ],
                 dim=0,
             )
             all_extra_points3D_rgb = torch.cat(
                 [
-                    extra_dict[img_name]["points3D_rgb"]
+                    additional_points_dict[img_name]["points3D_rgb"]
                     for img_name in image_paths
                 ],
                 dim=0,
@@ -605,7 +610,7 @@ class VGGSfMRunner:
         predictions["pred_vis"] = pred_vis
         predictions["pred_score"] = pred_score
         predictions["valid_tracks"] = valid_tracks
-        predictions["extra_dict"] = extra_dict
+        predictions["additional_points_dict"] = additional_points_dict
         return predictions
 
     def triangulate_extra_points(
@@ -628,7 +633,7 @@ class VGGSfMRunner:
         """
         from vggsfm.models.utils import sample_features4d
 
-        extra_dict = {}
+        additional_points_dict = {}
         for frame_idx in range(frame_num):
             rect_for_sample = bound_bboxes[:, frame_idx].clone()
             rect_for_sample = rect_for_sample.floor()
@@ -643,26 +648,48 @@ class VGGSfMRunner:
                 images[:, frame_idx], grid_points[None]
             ).squeeze(0)
 
+            if self.cfg.extra_by_neighbor > 0:
+                neighbor_start, neighbor_end = sample_subrange(
+                    frame_num, frame_idx, self.cfg.extra_by_neighbor
+                )
+            else:
+                neighbor_start = 0
+                neighbor_end = frame_num
+
+            rel_frame_idx = frame_idx - neighbor_start
+
             extra_track, extra_vis, extra_score = predict_tracks(
                 self.cfg.query_method,
                 self.cfg.max_query_pts,
                 self.track_predictor,
-                images,
-                masks,
-                fmaps_for_tracker,
-                [frame_idx],
+                images[:, neighbor_start:neighbor_end],
+                (
+                    masks[:, neighbor_start:neighbor_end]
+                    if masks is not None
+                    else masks
+                ),
+                fmaps_for_tracker[:, neighbor_start:neighbor_end],
+                [rel_frame_idx],
                 fine_tracking=False,
-                bound_bboxes=bound_bboxes,
-                query_points_dict={frame_idx: grid_points[None]},
+                bound_bboxes=bound_bboxes[:, neighbor_start:neighbor_end],
+                query_points_dict={rel_frame_idx: grid_points[None]},
             )
 
+            extra_params_neighbor = (
+                extra_params[neighbor_start:neighbor_end]
+                if extra_params is not None
+                else None
+            )
+            extrinsics_neighbor = extrinsics_opencv[neighbor_start:neighbor_end]
+            intrinsics_neighbor = intrinsics_opencv[neighbor_start:neighbor_end]
+
             extra_track_normalized = cam_from_img(
-                extra_track, intrinsics_opencv, extra_params
+                extra_track, intrinsics_neighbor, extra_params_neighbor
             )
 
             (extra_triangulated_points, extra_inlier_num, extra_inlier_mask) = (
                 triangulate_tracks(
-                    extrinsics_opencv,
+                    extrinsics_neighbor,
                     extra_track_normalized.squeeze(0),
                     track_vis=extra_vis.squeeze(0),
                     track_score=extra_score.squeeze(0),
@@ -671,20 +698,34 @@ class VGGSfMRunner:
 
             valid_triangulation_mask = extra_inlier_num > 3
 
+            valid_poins3D_mask = filter_all_points3D(
+                extra_triangulated_points,
+                extra_track.squeeze(0),
+                extrinsics_neighbor,
+                intrinsics_neighbor,
+                extra_params=extra_params_neighbor,  # Pass extra_params to filter_all_points3D
+                max_reproj_error=4,
+                return_detail=False,
+            )
+
+            valid_triangulation_mask = torch.logical_and(
+                valid_triangulation_mask, valid_poins3D_mask
+            )
+
             extra_points3D = extra_triangulated_points[valid_triangulation_mask]
             extra_points3D_rgb = grid_rgb[valid_triangulation_mask]
 
-            extra_dict[image_paths[frame_idx]] = {
+            additional_points_dict[image_paths[frame_idx]] = {
                 "points3D": extra_points3D,
                 "points3D_rgb": extra_points3D_rgb,
                 "uv": grid_points[valid_triangulation_mask],
             }
 
-            from vggsfm.utils.utils import visual_query_points
-            visual_query_points(images, frame_idx, grid_points[valid_triangulation_mask][None],
-                                save_name=f"debug_extra_grid_points_{frame_idx}.png")
+            # from vggsfm.utils.utils import visual_query_points
+            # visual_query_points(images, frame_idx, grid_points[valid_triangulation_mask][None],
+            #                     save_name=f"debug_extra_grid_points_{frame_idx}.png")
 
-        return extra_dict
+        return additional_points_dict
 
     def extract_sparse_depth_and_point_from_reconstruction(self, predictions):
         """
