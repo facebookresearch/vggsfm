@@ -68,7 +68,7 @@ class Visualizer:
         fps: int = 1,
         mode: str = "rainbow",  # 'cool', 'optical_flow'
         linewidth: int = 1,
-        show_first_frame: int = -1,
+        show_first_frame: int = 3,
         tracks_leave_trace: int = 0,  # -1 for infinite
     ):
         self.mode = mode

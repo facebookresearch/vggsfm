@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 import os
 import cv2
+import math
 import random
 import struct
 from tqdm import tqdm
@@ -660,9 +661,8 @@ def align_dense_depth_maps(
     ):
         sparse_uvd = np.array(sparse_depth[img_basename])
 
-        if len(sparse_uvd)<=0:
+        if len(sparse_uvd) <= 0:
             raise ValueError("Too few points for depth alignment")
-
 
         disp_map = disp_dict[img_basename]
 
@@ -694,11 +694,9 @@ def align_dense_depth_maps(
         y = target_disps
         ransac_thres = np.median(y) / thres_ratio
 
-
         if ransac_thres <= 0:
             raise ValueError("Ill-posed scene for depth alignment")
-        
-        
+
         ransac = RANSACRegressor(
             LinearRegression(),
             min_samples=2,
@@ -770,3 +768,48 @@ def align_dense_depth_maps(
         unproj_dense_points3D = None
 
     return depth_dict, unproj_dense_points3D
+
+
+def generate_grid_samples(rect, N=None, pixel_interval=None):
+    """
+    Generate a tensor with shape (N, 2) representing grid-sampled points inside a rectangle.
+
+    Parameters:
+    rect (torch.Tensor): Tensor of shape (1, 4) indicating the rectangle [topleftx, toplefty, bottomrightx, bottomrighty].
+    N (int): Number of points to sample within the rectangle.
+
+    Returns:
+    torch.Tensor: Tensor of shape (N, 2) containing sampled points.
+    """
+    # Extract coordinates from the rectangle
+    topleft_x, topleft_y, bottomright_x, bottomright_y = rect[0]
+
+    # Calculate the width and height of the rectangle
+    width = bottomright_x - topleft_x
+    height = bottomright_y - topleft_y
+
+    # Determine the number of points along each dimension
+    if pixel_interval is not None:
+        num_samples_x = max(1, int(width // pixel_interval))
+        num_samples_y = max(1, int(height // pixel_interval))
+        N = num_samples_x * num_samples_y
+    else:
+        aspect_ratio = width / height
+        num_samples_x = int(math.sqrt(N * aspect_ratio))
+        num_samples_y = int(N / num_samples_x)
+
+    # Generate linspace for x and y coordinates
+    x_coords = torch.linspace(
+        topleft_x, bottomright_x, num_samples_x, device=rect.device
+    )
+    y_coords = torch.linspace(
+        topleft_y, bottomright_y, num_samples_y, device=rect.device
+    )
+
+    # Create a meshgrid of x and y coordinates
+    grid_x, grid_y = torch.meshgrid(x_coords, y_coords, indexing="ij")
+
+    # Flatten the grids and stack them to create the final tensor of shape (N, 2)
+    sampled_points = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=-1)
+
+    return sampled_points

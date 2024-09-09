@@ -148,11 +148,16 @@ def filter_all_points3D(
 
     Adapted from https://github.com/colmap/colmap/blob/0ea2d5ceee1360bba427b2ef61f1351e59a46f91/src/colmap/sfm/incremental_mapper.cc#L828
 
+    Args:
+        points3D Px3
+        points2D BxPx2
+        extrinsics Bx3x4
+        intrinsics Bx3x3
+
+    Returns:
+        return_mask: P
+        inlier_detail: (Optional) BxP
     """
-    # points3D Px3
-    # points2D BxPx2
-    # extrinsics Bx3x4
-    # intrinsics Bx3x3
 
     # compute reprojection error
     projected_points2D, projected_points_cam = project_3D_points(

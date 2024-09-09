@@ -11,6 +11,7 @@ max_query_pts: 1024
 init_window_size: 32
 window_size: 16
 joint_BA_interval: 6
+grid_based_sample: False
 
 ##########################
 
@@ -68,6 +69,7 @@ visual_dense_point_cloud: False
 
 query_by_interval: False
 
+extra_pt_pixel_interval: -1
 
 MODEL:
     _target_: vggsfm.models.VGGSfM

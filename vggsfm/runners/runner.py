@@ -9,6 +9,7 @@ import os
 import sys
 import copy
 import torch
+import pycolmap
 import datetime
 
 import numpy as np
@@ -25,6 +26,7 @@ from vggsfm.two_view_geo.estimate_preliminary import (
 
 from vggsfm.utils.utils import (
     write_array,
+    generate_grid_samples,
     generate_rank_by_midpoint,
     generate_rank_by_dino,
     generate_rank_by_interval,
@@ -36,6 +38,11 @@ from vggsfm.utils.utils import (
     create_video_with_reprojections,
     save_video_with_reprojections,
 )
+
+
+from vggsfm.utils.triangulation import triangulate_tracks
+from vggsfm.utils.triangulation_helpers import cam_from_img
+
 
 # Optional imports
 try:
@@ -498,6 +505,47 @@ class VGGSfMRunner:
                 camera_type=self.cfg.camera_type,
             )
 
+        extra_dict = None
+        if self.cfg.extra_pt_pixel_interval > 0:
+            extra_dict = self.triangulate_extra_points(
+                images,
+                masks,
+                fmaps_for_tracker,
+                bound_bboxes,
+                intrinsics_opencv,
+                extra_params,
+                extrinsics_opencv,
+                image_paths,
+                frame_num,
+            )
+            all_extra_points3D = torch.cat(
+                [extra_dict[img_name]["points3D"] for img_name in image_paths],
+                dim=0,
+            )
+            all_extra_points3D_rgb = torch.cat(
+                [
+                    extra_dict[img_name]["points3D_rgb"]
+                    for img_name in image_paths
+                ],
+                dim=0,
+            )
+
+            all_extra_points3D_numpy = all_extra_points3D.cpu().numpy()
+            all_extra_points3D_rgb_numpy = (
+                (all_extra_points3D_rgb * 255).long().cpu().numpy()
+            )
+            for extra_point_idx in range(len(all_extra_points3D)):
+                reconstruction.add_point3D(
+                    all_extra_points3D_numpy[extra_point_idx],
+                    pycolmap.Track(),
+                    all_extra_points3D_rgb_numpy[extra_point_idx],
+                )
+
+            points3D = torch.cat([points3D, all_extra_points3D], dim=0)
+            points3D_rgb = torch.cat(
+                [points3D_rgb, all_extra_points3D_rgb], dim=0
+            )
+
         if self.cfg.filter_invalid_frame:
             extrinsics_opencv = extrinsics_opencv[valid_frame_mask]
             intrinsics_opencv = intrinsics_opencv[valid_frame_mask]
@@ -557,7 +605,86 @@ class VGGSfMRunner:
         predictions["pred_vis"] = pred_vis
         predictions["pred_score"] = pred_score
         predictions["valid_tracks"] = valid_tracks
+        predictions["extra_dict"] = extra_dict
         return predictions
+
+    def triangulate_extra_points(
+        self,
+        images,
+        masks,
+        fmaps_for_tracker,
+        bound_bboxes,
+        intrinsics_opencv,
+        extra_params,
+        extrinsics_opencv,
+        image_paths,
+        frame_num,
+    ):
+        """
+        Triangulate extra points for each frame and return a dictionary containing 3D points and their RGB values.
+
+        Returns:
+            dict: A dictionary containing 3D points and their RGB values for each frame.
+        """
+        from vggsfm.models.utils import sample_features4d
+
+        extra_dict = {}
+        for frame_idx in range(frame_num):
+            rect_for_sample = bound_bboxes[:, frame_idx].clone()
+            rect_for_sample = rect_for_sample.floor()
+            rect_for_sample[:, :2] += self.cfg.extra_pt_pixel_interval // 2
+            rect_for_sample[:, 2:] -= self.cfg.extra_pt_pixel_interval // 2
+            grid_points = generate_grid_samples(
+                rect_for_sample, pixel_interval=self.cfg.extra_pt_pixel_interval
+            )
+            grid_points = grid_points.floor()
+
+            grid_rgb = sample_features4d(
+                images[:, frame_idx], grid_points[None]
+            ).squeeze(0)
+
+            extra_track, extra_vis, extra_score = predict_tracks(
+                self.cfg.query_method,
+                self.cfg.max_query_pts,
+                self.track_predictor,
+                images,
+                masks,
+                fmaps_for_tracker,
+                [frame_idx],
+                fine_tracking=False,
+                bound_bboxes=bound_bboxes,
+                query_points_dict={frame_idx: grid_points[None]},
+            )
+
+            extra_track_normalized = cam_from_img(
+                extra_track, intrinsics_opencv, extra_params
+            )
+
+            (extra_triangulated_points, extra_inlier_num, extra_inlier_mask) = (
+                triangulate_tracks(
+                    extrinsics_opencv,
+                    extra_track_normalized.squeeze(0),
+                    track_vis=extra_vis.squeeze(0),
+                    track_score=extra_score.squeeze(0),
+                )
+            )
+
+            valid_triangulation_mask = extra_inlier_num > 3
+
+            extra_points3D = extra_triangulated_points[valid_triangulation_mask]
+            extra_points3D_rgb = grid_rgb[valid_triangulation_mask]
+
+            extra_dict[image_paths[frame_idx]] = {
+                "points3D": extra_points3D,
+                "points3D_rgb": extra_points3D_rgb,
+                "uv": grid_points[valid_triangulation_mask],
+            }
+
+            from vggsfm.utils.utils import visual_query_points
+            visual_query_points(images, frame_idx, grid_points[valid_triangulation_mask][None],
+                                save_name=f"debug_extra_grid_points_{frame_idx}.png")
+
+        return extra_dict
 
     def extract_sparse_depth_and_point_from_reconstruction(self, predictions):
         """
@@ -722,7 +849,9 @@ class VGGSfMRunner:
 
         sfm_output_dir = os.path.join(output_dir, "sparse")
         print("-" * 50)
-        print(f"The output has been saved in COLMAP style at: {sfm_output_dir} ")
+        print(
+            f"The output has been saved in COLMAP style at: {sfm_output_dir} "
+        )
         os.makedirs(sfm_output_dir, exist_ok=True)
         reconstruction_pycolmap.write(sfm_output_dir)
 

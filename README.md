@@ -20,14 +20,15 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 
 **Updates:**
 
-- [Sep 5, 2024]
-  - Added the instruction on how to train a Gaussian splatting model with our results! 
+
+- [Sep 9, 2024] Allow to export a dense point cloud!
+
+- [Sep 5, 2024] Added the instruction on how to train a Gaussian splatting model with our results! 
 
 - [Aug 26, 2024]
   - We have introduced a video runner that can process sequential frames, such as those in videos. It supports the reconstruction of over ```1000``` input frames. By using masks to filter out moving objects, it can also effectively recover camera poses and point clouds from dynamic video sequences.
 
-- [Jul 28, 2024]
-  - Added support for filtering out dynamic objects using ```masks```.
+- [Jul 28, 2024] Added support for filtering out dynamic objects using ```masks```.
 
 - [Jul 10, 2024] Now we support exporting dense depth maps!
 
@@ -40,11 +41,12 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
   - [Run a Demo](#2-run-a-demo)
   - [Visualization](#3-visualization)
   - [Try your own data](#4-try-your-own-data)
-  - [Dense depth Prediction (Beta)](#5-dense-depth-prediction-beta)
-  - [Sequential Input](#6-sequential-input)
-  - [Dynamic/Moving Objects](#7-dynamicmoving-objects)
-  - [Train a Gaussian Splatting model](#8-train-a-gaussian-splatting-model)
-  - [FAQs](#9-faqs)
+  - [Denser point cloud](#5-denser-point-cloud)
+  - [Dense depth Prediction (Beta)](#6-dense-depth-prediction-beta)
+  - [Sequential Input](#7-sequential-input)
+  - [Dynamic/Moving Objects](#8-dynamicmoving-objects)
+  - [Train a Gaussian Splatting model](#9-train-a-gaussian-splatting-model)
+  - [FAQs](#10-faqs)
 
 
 ## Installation
@@ -162,8 +164,12 @@ python demo.py SCENE_DIR=/YOUR_FOLDER camera_type=SIMPLE_RADIAL gr_visualize=Tru
 Please ensure that the images are stored in ```YOUR_FOLDER/images```. This folder should contain only the images. Check the ```examples``` folder for the desired data structure.
 
 
+### 5. Denser Point Cloud
 
-### 5. Dense depth Prediction (Beta)
+To generate a denser point cloud, you can triangulate additional 3D points by setting the `extra_pt_pixel_interval` parameter. For each frame, a 2D grid is sampled with a pixel interval defined by `extra_pt_pixel_interval`. This grid is used as query points to estimate tracks, which are then triangulated into 3D points. After filtering out noisy 3D points, they are added to the existing point cloud. Since these extra 3D points are not optimized in the bundle adjustment process, this method is quite fast while maintaining reasonable quality. You can generally start from ```python demo.py extra_pt_pixel_interval=10```.
+
+
+### 6. Dense depth Prediction (Beta)
 
 <details>
 <summary>Click to expand</summary>
@@ -179,7 +185,7 @@ To enable dense depth prediction, set ```dense_depth=True``` when running `demo.
 </details>
 
 
-### 6. Sequential Input
+### 7. Sequential Input
 
 Given ordered frames as input (e.g., videos), we support running reconstruction in a sliding window manner, which allows for the reconstruction of over ```1,000``` frames.
 
@@ -193,7 +199,7 @@ python video_demo.py SCENE_DIR=/YOUR_VIDEO_FOLDER
 Please note that the configuration for `video_demo.py` is initialized in `cfgs/video_demo.yaml`. You can adjust ```init_window_size``` and ```window_size``` to control the number of frames for each window. The flag ```joint_BA_interval``` is used to control the frequency of joint bundle adjustment over the whole sequence. Other flags, such as thoses regarding output saving or visualization, are exactly the same as in `demo.py`.
 
 
-### 7. Dynamic/Moving Objects
+### 8. Dynamic/Moving Objects
 
 Sometimes, the input frames may contain dynamic or moving objects. Our method can generally handle these when the dynamic objects are relatively small. However, if the dynamic objects occupy a significant portion of the frames, especially when the camera motion is minimal, we recommend filtering out these dynamic pixels.
 
@@ -203,7 +209,7 @@ This codebase supports the use of masks to filter out dynamic pixels. The masks 
 Masks can be generated using object detection, video segmentation, or manual labeling. Here is an [instruction](https://github.com/vye16/shape-of-motion/blob/main/preproc/README.md) on how to build such masks using SAM and Track-Anything. [SAM2](https://github.com/facebookresearch/segment-anything-2) is also a good option for generating these masks.
 
 
-### 8. Train a Gaussian Splatting model
+### 9. Train a Gaussian Splatting model
 
 If you have successfully reconstructed a scene using the commands above, you should have a folder named `sparse` under your `SCENE_DIR`, with the following structure:
 ``` 
@@ -223,7 +229,7 @@ cd gsplat
 python examples/simple_trainer.py  default --data_factor 1 --data_dir /YOUR/SCENE_DIR/ --result_dir /YOUR/RESULT_DIR/
 ```
 
-### 9. FAQs
+### 10. FAQs
 <details>
 <summary><strong>What should I do if I encounter an out-of-memory error?</strong></summary>
 
@@ -260,7 +266,7 @@ We are highly inspired by [colmap](https://github.com/colmap/colmap), [pycolmap]
 
 
 ## License
-See the [LICENSE](./LICENSE) file for details about the license under which this code is made available.
+See the [LICENSE](./LICENSE.txt) file for details about the license under which this code is made available.
 
 
 ## Citing VGGSfM

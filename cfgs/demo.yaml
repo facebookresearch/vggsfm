@@ -62,6 +62,8 @@ visual_dense_point_cloud: False
 query_by_midpoint: False
 query_by_interval: False
 
+extra_pt_pixel_interval: -1
+
 
 MODEL:
     _target_: vggsfm.models.VGGSfM

@@ -420,7 +420,7 @@ def sample_features4d(input, coords):
 
     The field is sampled at coordinates :attr:`coords` using bilinear
     interpolation. :attr:`coords` is assumed to be of shape :math:`(B, R,
-    3)`, where each sample has the format :math:`(x_i, y_i)`. This uses the
+    2)`, where each sample has the format :math:`(x_i, y_i)`. This uses the
     same convention as :func:`bilinear_sampler` with `align_corners=True`.
 
     The output tensor has one feature per point, and has shape :math:`(B,

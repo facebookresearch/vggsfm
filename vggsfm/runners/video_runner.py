@@ -27,7 +27,7 @@ from .runner import (
     predict_tracks,
     get_query_points,
 )
-from vggsfm.utils.utils import average_camera_prediction
+from vggsfm.utils.utils import average_camera_prediction, generate_grid_samples
 
 from vggsfm.utils.tensor_to_pycolmap import (
     batch_matrix_to_pycolmap,
@@ -55,6 +55,11 @@ class VideoRunner(VGGSfMRunner):
         # TODO: add a loop detection
         # TODO: support the handle of invalid frames
         # TODO: support camera parameter change in the future
+
+        if self.cfg.extra_pt_pixel_interval > 0:
+            raise ValueError(
+                "Extra points have not been supported for video runner; Stay tuned Please!"
+            )
 
     def run(
         self,
@@ -139,7 +144,7 @@ class VideoRunner(VGGSfMRunner):
                 init_pred["intrinsics_opencv"],
                 init_pred["extra_params"],
             )
-            
+
             if init_extra is None:
                 init_extra = torch.zeros(len(init_intri), 1).to(self.device)
 
@@ -253,6 +258,11 @@ class VideoRunner(VGGSfMRunner):
         )
 
         basenames = [os.path.basename(path) for path in self.image_paths]
+
+        if self.cfg.extra_pt_pixel_interval > 0:
+            raise ValueError(
+                "Extra points have not been supported for video runner; Stay tuned Please!"
+            )
 
         if back_to_original_resolution:
             reconstruction = self.rename_colmap_recons_and_rescale_camera(
@@ -1338,43 +1348,3 @@ def remove_query(*vars):
     Removes the first element along dimension 1 for each variable in vars.
     """
     return [var[:, 1:, ...] if var is not None else None for var in vars]
-
-
-def generate_grid_samples(rect, N):
-    """
-    Generate a tensor with shape (N, 2) representing grid-sampled points inside a rectangle.
-
-    Parameters:
-    rect (torch.Tensor): Tensor of shape (1, 4) indicating the rectangle [topleftx, toplefty, bottomrightx, bottomrighty].
-    N (int): Number of points to sample within the rectangle.
-
-    Returns:
-    torch.Tensor: Tensor of shape (N, 2) containing sampled points.
-    """
-    # Extract coordinates from the rectangle
-    topleft_x, topleft_y, bottomright_x, bottomright_y = rect[0]
-
-    # Calculate the width and height of the rectangle
-    width = bottomright_x - topleft_x
-    height = bottomright_y - topleft_y
-
-    # Determine the number of points along each dimension
-    aspect_ratio = width / height
-    num_samples_x = int(math.sqrt(N * aspect_ratio))
-    num_samples_y = int(N / num_samples_x)
-
-    # Generate linspace for x and y coordinates
-    x_coords = torch.linspace(
-        topleft_x, bottomright_x, num_samples_x, device=rect.device
-    )
-    y_coords = torch.linspace(
-        topleft_y, bottomright_y, num_samples_y, device=rect.device
-    )
-
-    # Create a meshgrid of x and y coordinates
-    grid_x, grid_y = torch.meshgrid(x_coords, y_coords, indexing="ij")
-
-    # Flatten the grids and stack them to create the final tensor of shape (N, 2)
-    sampled_points = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=-1)
-
-    return sampled_points
