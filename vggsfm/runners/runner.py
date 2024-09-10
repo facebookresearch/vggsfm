@@ -240,6 +240,12 @@ class VGGSfMRunner:
                 self.save_sparse_reconstruction(
                     predictions, seq_name, output_dir
                 )
+                
+                if predictions["additional_points_dict"] is not None:
+                    additional_dir = os.path.join(output_dir, "additional")
+                    os.makedirs(additional_dir, exist_ok=True)
+                    torch.save(predictions["additional_points_dict"], os.path.join(additional_dir, "additional_points_dict.pt"))
+
 
             # Extract sparse depth and point information if needed for further processing
             if self.cfg.dense_depth or self.cfg.make_reproj_video:
@@ -507,8 +513,7 @@ class VGGSfMRunner:
                 camera_type=self.cfg.camera_type,
             )
 
-        additional_points3D = None
-        additional_points3D_rgb = None
+        
         additional_points_dict = None
         
         if self.cfg.extra_pt_pixel_interval > 0:
@@ -615,8 +620,6 @@ class VGGSfMRunner:
         predictions["valid_tracks"] = valid_tracks
         
         predictions["additional_points_dict"] = additional_points_dict
-        predictions["additional_points3D"] = additional_points3D
-        predictions["additional_points3D_rgb"] = additional_points3D_rgb
         
         return predictions
 

@@ -37,17 +37,16 @@ dir="auto">[<a href="https://arxiv.org/pdf/2312.04563.pdf" rel="nofollow">Paper<
 ## Table of Contents
 - [Installation](#installation)
 - [Reconstruction](#reconstruction)
-  - [Download Model](#1-download-model)
+  - [Download Pre-trained Model](#1-download-pre-trained-model)
   - [Run a Demo](#2-run-a-demo)
-  - [Visualization](#3-visualization)
-  - [Try your own data](#4-try-your-own-data)
-  - [Denser point cloud](#5-denser-point-cloud)
-  - [Dense depth Prediction (Beta)](#6-dense-depth-prediction-beta)
+  - [Visualization Options](#3-visualization-options)
+  - [Use Your Own Data](#4-use-your-own-data)
+  - [Generate Denser Point Cloud](#5-generate-denser-point-cloud)
+  - [Dense Depth Prediction (Beta)](#6-dense-depth-prediction-beta)
   - [Sequential Input](#7-sequential-input)
   - [Dynamic/Moving Objects](#8-dynamicmoving-objects)
-  - [Train a Gaussian Splatting model](#9-train-a-gaussian-splatting-model)
+  - [Train a Gaussian Splatting Model](#9-train-a-gaussian-splatting-model)
   - [FAQs](#10-faqs)
-
 
 ## Installation
 We provide a simple installation script that, by default, sets up a conda environment with Python 3.10, PyTorch 2.1, and CUDA 12.1.
@@ -62,7 +61,7 @@ This script installs official ```pytorch3d```, ```lightglue```, ```pycolmap```, 
 
 ## RECONSTRUCTION  
 
-### 1. Download Model
+### 1. Download Pre-trained Model
 The checkpoint will be automatically downloaded from [Hugging Face](https://huggingface.co/facebook/VGGSfM/tree/main) during the first run. Alternatively, you can manually download it from [Hugging Face](https://huggingface.co/facebook/VGGSfM/blob/main/vggsfm_v2_0_0.bin) or [Google Drive](https://drive.google.com/file/d/163bHiqeTJhQ2_UnihRNPRA4Y9X8-gZ1-/view?usp=sharing). If you prefer to specify the checkpoint path manually, set `auto_download_ckpt` to `False` and update `resume_ckpt` to your path in the Hydra config.
 
 
@@ -96,7 +95,7 @@ The reconstruction result (camera parameters and 3D points) will be automaticall
 This sparse reconstruction mode can process up to ```400``` frames at a time. To handle more frames (e.g., over ```1,000``` frames), please refer to the ```Sequential Input``` section below for guidance.
 
 
-### 3. Visualization
+### 3. Visualization Options
 
 If you want to visualize it more easily, we also provide visualization options using [Gradio](https://github.com/gradio-app/gradio) and [Visdom](https://github.com/fossasia/visdom).
 
@@ -153,7 +152,7 @@ You should see an interface like this:
   </details>
 
 
-### 4. Try your own data
+### 4. Use Your Own Data
 
 You only need to specify the address of your data. For example, I would recommend to start from 
 
@@ -164,12 +163,12 @@ python demo.py SCENE_DIR=/YOUR_FOLDER camera_type=SIMPLE_RADIAL gr_visualize=Tru
 Please ensure that the images are stored in ```YOUR_FOLDER/images```. This folder should contain only the images. Check the ```examples``` folder for the desired data structure.
 
 
-### 5. Denser Point Cloud
+### 5. Generate Denser Point Cloud
 
 To generate a denser point cloud, you can triangulate additional 3D points by setting the `extra_pt_pixel_interval` parameter. For each frame, a 2D grid is sampled with a pixel interval defined by `extra_pt_pixel_interval`. This grid is used as query points to estimate tracks, which are then triangulated into 3D points. After filtering out noisy 3D points, they are added to the existing point cloud. Since these extra 3D points are not optimized in the bundle adjustment process, this method is quite fast while maintaining reasonable quality. You can generally start from ```python demo.py extra_pt_pixel_interval=10```.
 
 
-### 6. Dense depth Prediction (Beta)
+### 6. Dense Depth Prediction (Beta)
 
 <details>
 <summary>Click to expand</summary>
