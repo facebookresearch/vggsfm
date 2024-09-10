@@ -507,7 +507,10 @@ class VGGSfMRunner:
                 camera_type=self.cfg.camera_type,
             )
 
+        additional_points3D = None
+        additional_points3D_rgb = None
         additional_points_dict = None
+        
         if self.cfg.extra_pt_pixel_interval > 0:
             additional_points_dict = self.triangulate_extra_points(
                 images,
@@ -520,14 +523,14 @@ class VGGSfMRunner:
                 image_paths,
                 frame_num,
             )
-            all_extra_points3D = torch.cat(
+            additional_points3D = torch.cat(
                 [
                     additional_points_dict[img_name]["points3D"]
                     for img_name in image_paths
                 ],
                 dim=0,
             )
-            all_extra_points3D_rgb = torch.cat(
+            additional_points3D_rgb = torch.cat(
                 [
                     additional_points_dict[img_name]["points3D_rgb"]
                     for img_name in image_paths
@@ -535,21 +538,21 @@ class VGGSfMRunner:
                 dim=0,
             )
 
-            all_extra_points3D_numpy = all_extra_points3D.cpu().numpy()
-            all_extra_points3D_rgb_numpy = (
-                (all_extra_points3D_rgb * 255).long().cpu().numpy()
+            additional_points3D_numpy = additional_points3D.cpu().numpy()
+            additional_points3D_rgb_numpy = (
+                (additional_points3D_rgb * 255).long().cpu().numpy()
             )
-            for extra_point_idx in range(len(all_extra_points3D)):
+            for extra_point_idx in range(len(additional_points3D)):
                 reconstruction.add_point3D(
-                    all_extra_points3D_numpy[extra_point_idx],
+                    additional_points3D_numpy[extra_point_idx],
                     pycolmap.Track(),
-                    all_extra_points3D_rgb_numpy[extra_point_idx],
+                    additional_points3D_rgb_numpy[extra_point_idx],
                 )
 
-            points3D = torch.cat([points3D, all_extra_points3D], dim=0)
-            points3D_rgb = torch.cat(
-                [points3D_rgb, all_extra_points3D_rgb], dim=0
-            )
+            # points3D = torch.cat([points3D, additional_points3D], dim=0)
+            # points3D_rgb = torch.cat(
+            #     [points3D_rgb, additional_points3D_rgb], dim=0
+            # )
 
         if self.cfg.filter_invalid_frame:
             extrinsics_opencv = extrinsics_opencv[valid_frame_mask]
@@ -610,7 +613,11 @@ class VGGSfMRunner:
         predictions["pred_vis"] = pred_vis
         predictions["pred_score"] = pred_score
         predictions["valid_tracks"] = valid_tracks
+        
         predictions["additional_points_dict"] = additional_points_dict
+        predictions["additional_points3D"] = additional_points3D
+        predictions["additional_points3D_rgb"] = additional_points3D_rgb
+        
         return predictions
 
     def triangulate_extra_points(
@@ -704,7 +711,7 @@ class VGGSfMRunner:
                 extrinsics_neighbor,
                 intrinsics_neighbor,
                 extra_params=extra_params_neighbor,  # Pass extra_params to filter_all_points3D
-                max_reproj_error=4,
+                max_reproj_error=self.cfg.max_reproj_error,
                 return_detail=False,
             )
 
