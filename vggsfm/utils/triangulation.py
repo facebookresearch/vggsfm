@@ -452,23 +452,7 @@ def refine_pose(
             np.stack(refined_extra_params)
         ).to(tracks.device)
 
-    valid_param_mask = torch.logical_and(
-        refined_intrinsics[:, 0, 0] >= 0.1 * scale,
-        refined_intrinsics[:, 0, 0] <= 30 * scale,
-    )
-
-    if extra_params is not None:
-        # Do not allow the extra params to be too large
-        if len(refined_extra_params.shape) == 1:
-            refined_extra_params = refined_extra_params[:, None]
-
-        valid_param_mask = torch.logical_and(
-            valid_param_mask, (refined_extra_params.abs() <= 0.2).all(dim=-1)
-        )
-
-    valid_trans_mask = (refined_extrinsics[:, :, 3].abs() <= 30).all(-1)
-
-    valid_frame_mask = torch.logical_and(valid_param_mask, valid_trans_mask)
+    valid_frame_mask = get_valid_frame_mask(refined_intrinsics, refined_extrinsics, extra_params, scale)
 
     if (~valid_frame_mask).sum() > 0:
         print("some frames are invalid after BA refinement")
@@ -633,24 +617,7 @@ def init_refine_pose(
 
     scale = image_size.max()
 
-    valid_param_mask = torch.logical_and(
-        refined_intrinsics[:, 0, 0] >= 0.1 * scale,
-        refined_intrinsics[:, 0, 0] <= 30 * scale,
-    )
-
-    if extra_params is not None:
-        # Do not allow the extra params to be too large
-
-        if len(refined_extra_params.shape) == 1:
-            refined_extra_params = refined_extra_params[:, None]
-
-        valid_param_mask = torch.logical_and(
-            valid_param_mask, (refined_extra_params.abs() <= 0.2).all(dim=-1)
-        )
-
-    valid_trans_mask = (refined_extrinsics[:, :, 3].abs() <= 30).all(-1)
-
-    valid_frame_mask = torch.logical_and(valid_param_mask, valid_trans_mask)
+    valid_frame_mask = get_valid_frame_mask(refined_intrinsics, refined_extrinsics, extra_params, scale)
 
     if (~valid_frame_mask).sum() > 0:
         print("some frames are invalid after BA refinement")
@@ -1242,3 +1209,28 @@ def filter_reconstruction(reconstruction, filter_points=False):
         observation_manager.filter_observations_with_negative_depth()
     reconstruction.normalize(5.0, 0.1, 0.9, True)
     return reconstruction
+
+
+
+
+def get_valid_frame_mask(refined_intrinsics, refined_extrinsics, extra_params, scale):
+    valid_param_mask = torch.logical_and(
+        refined_intrinsics[:, 0, 0] >= 0.1 * scale,
+        refined_intrinsics[:, 0, 0] <= 30 * scale,
+    )
+
+    if extra_params is not None:
+        # Do not allow the extra params to be too large
+
+        if len(refined_extra_params.shape) == 1:
+            refined_extra_params = refined_extra_params[:, None]
+
+        valid_param_mask = torch.logical_and(
+            valid_param_mask, (refined_extra_params.abs() <= 0.3).all(dim=-1)
+        )
+
+    valid_trans_mask = (refined_extrinsics[:, :, 3].abs() <= 30).all(-1)
+
+    valid_frame_mask = torch.logical_and(valid_param_mask, valid_trans_mask)
+    
+    return valid_frame_mask
