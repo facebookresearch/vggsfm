@@ -708,14 +708,13 @@ class VGGSfMRunner:
 
             valid_triangulation_mask = extra_inlier_num > 3
 
-            valid_poins3D_mask = filter_all_points3D(
+            valid_poins3D_mask, _ = filter_all_points3D(
                 extra_triangulated_points,
                 extra_track.squeeze(0),
                 extrinsics_neighbor,
                 intrinsics_neighbor,
                 extra_params=extra_params_neighbor,  # Pass extra_params to filter_all_points3D
                 max_reproj_error=self.cfg.max_reproj_error,
-                return_detail=False,
             )
 
             valid_triangulation_mask = torch.logical_and(
@@ -1145,6 +1144,8 @@ def predict_tracks(
         all_points_num = images_feed.shape[1] * max_query_pts
 
         if all_points_num > max_points_num:
+            print('Predict tracks in chunks to fit in memory')
+
             # Split query_points into smaller chunks to avoid memory issues
             all_points_num = images_feed.shape[1] * query_points.shape[1]
             num_splits = (all_points_num + max_points_num - 1) // max_points_num

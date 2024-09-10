@@ -223,7 +223,7 @@ def init_BA(
     )
 
     # Filter those invalid 3D points
-    valid_poins3D_mask = filter_all_points3D(
+    valid_poins3D_mask, _ = filter_all_points3D(
         points3D_opt,
         toBA_tracks,
         extrinsics_opt,
@@ -734,10 +734,12 @@ def triangulate_tracks(
         To filter out low-quality correspondences, use:
         invalid_vis_conf_mask = torch.logical_or(track_vis <= 0.05, track_score <= 0.5)
     """
-    
+
     all_tri_points_num = extrinsics.shape[0] * tracks_normalized.shape[1]
 
     if all_tri_points_num > max_tri_points_num:
+        print('Triangulate tracks in chunks to fit in memory')
+        
         num_splits = (
             all_tri_points_num + max_tri_points_num - 1
         ) // max_tri_points_num

@@ -130,8 +130,89 @@ def triangulate_multi_view_point_batched(
 
     return triangulated_points
 
-
 def filter_all_points3D(
+    points3D,
+    points2D,
+    extrinsics,
+    intrinsics,
+    extra_params=None,
+    max_reproj_error=4,
+    min_tri_angle=1.5,
+    check_triangle=True,
+    return_detail=False,
+    hard_max=300,
+    max_points_num=819200,  # adjust based on available memory
+):
+    """
+    Filter 3D points based on reprojection error and triangulation angle error.
+
+    Args:
+        points3D (torch.Tensor): Px3 tensor of 3D points.
+        points2D (torch.Tensor): BxPx2 tensor of corresponding 2D points.
+        extrinsics (torch.Tensor): Bx3x4 tensor of camera extrinsics.
+        intrinsics (torch.Tensor): Bx3x3 tensor of camera intrinsics.
+        max_reproj_error (float): Maximum allowed reprojection error.
+        min_tri_angle (float): Minimum triangulation angle in degrees.
+        check_triangle (bool): Whether to check triangulation angles.
+        return_detail (bool): Whether to return detailed inlier information.
+        hard_max (int): Maximum allowed value for any coordinate of 3D points.
+        max_points_num: Maximum number of points to process at once.
+                        Adjust based on available GPU memory.
+
+    Returns:
+        torch.Tensor: Mask of valid points, P
+        torch.Tensor (Optional): Detailed inlier information per batch, BxP
+    """
+
+    all_tri_points_num = points2D.shape[0] * points2D.shape[1]
+
+    if all_tri_points_num > max_points_num:
+        print('Filter 3D points in chunks to fit in memory')
+
+        num_splits = (all_tri_points_num + max_points_num - 1) // max_points_num
+        split_points3D = torch.chunk(points3D, num_splits, dim=0)
+        split_points2D = torch.chunk(points2D, num_splits, dim=1)
+
+        valid_mask_list = []
+        inlier_detail_list = []
+
+        for i in range(num_splits):
+            valid_mask, inlier_detail = filter_all_points3D_single_chunk(
+                split_points3D[i],
+                split_points2D[i],
+                extrinsics,
+                intrinsics,
+                extra_params,
+                max_reproj_error,
+                min_tri_angle,
+                check_triangle,
+                return_detail,
+                hard_max
+            )
+            valid_mask_list.append(valid_mask)
+            if return_detail:
+                inlier_detail_list.append(inlier_detail)
+
+        valid_mask = torch.cat(valid_mask_list, dim=0)
+        inlier_detail = torch.cat(inlier_detail_list, dim=1) if return_detail else None
+    else:
+        valid_mask, inlier_detail = filter_all_points3D_single_chunk(
+            points3D,
+            points2D,
+            extrinsics,
+            intrinsics,
+            extra_params,
+            max_reproj_error,
+            min_tri_angle,
+            check_triangle,
+            return_detail,
+            hard_max
+        )
+
+    return valid_mask, inlier_detail
+
+
+def filter_all_points3D_single_chunk(
     points3D,
     points2D,
     extrinsics,
@@ -217,12 +298,14 @@ def filter_all_points3D(
     else:
         return_mask = valid_track_mask
 
-    if check_triangle and return_detail:
+    inlier_detail = None
+    if return_detail:
         inlier_detail = reproj_error <= (max_reproj_error**2)
-        inlier_detail = triangles_valid_any_full_size[None] * inlier_detail
-        return return_mask, inlier_detail
+        if check_triangle:
+            inlier_detail = triangles_valid_any_full_size[None] * inlier_detail
+            
+    return return_mask, inlier_detail
 
-    return return_mask
 
 
 def project_3D_points(

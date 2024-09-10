@@ -158,6 +158,7 @@ class Triangulator(nn.Module):
                 init_max_reproj_error=init_max_reproj_error,
                 camera_type=camera_type,
             )
+            print("Finished init BA")
 
             # Given we have a well-conditioned point cloud,
             # we can optimize all the cameras by absolute pose refinement as in
@@ -180,7 +181,8 @@ class Triangulator(nn.Module):
                     camera_type=camera_type,
                 )
             )
-
+            print("Finished init refine pose")  
+            
             (
                 points3D,
                 extrinsics,
@@ -201,6 +203,8 @@ class Triangulator(nn.Module):
                 shared_camera=shared_camera,
                 camera_type=camera_type,
             )
+            print("Finished track triangulation and BA")
+
 
             if robust_refine > 0:
                 for refine_idx in range(robust_refine):
@@ -245,6 +249,7 @@ class Triangulator(nn.Module):
                         shared_camera=shared_camera,
                         camera_type=camera_type,
                     )
+                    print(f"Finished robust refine {refine_idx}")
 
             ba_options = pycolmap.BundleAdjustmentOptions()
             ba_options.print_summary = False
@@ -282,6 +287,9 @@ class Triangulator(nn.Module):
                     ba_options=ba_options,
                     camera_type=camera_type,
                 )
+                
+                print(f"Finished iterative BA {BA_iter}")
+                
                 max_reproj_error = max_reproj_error // 2
                 if max_reproj_error <= 1:
                     max_reproj_error = 1
@@ -406,7 +414,7 @@ class Triangulator(nn.Module):
             )
         )
 
-        valid_poins3D_mask = filter_all_points3D(
+        valid_poins3D_mask, _ = filter_all_points3D(
             points3D,
             pred_tracks[:, valid_tracks],
             extrinsics,
