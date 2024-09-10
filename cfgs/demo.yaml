@@ -12,7 +12,7 @@ img_size: 1024
 debug: False
 
 
-center_order: False
+center_order: True
 mixed_precision: fp16
 extract_color: True
 filter_invalid_frame: True

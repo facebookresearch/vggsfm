@@ -578,6 +578,11 @@ class VGGSfMRunner:
             intrinsics_opencv = intrinsics_opencv[center_order]
             if extra_params is not None:
                 extra_params = extra_params[center_order]
+            pred_track = pred_track[:, center_order]
+            pred_vis = pred_vis[:, center_order]
+            if pred_score is not None:
+                pred_score = pred_score[:, center_order]
+
 
         if back_to_original_resolution:
             reconstruction = self.rename_colmap_recons_and_rescale_camera(
