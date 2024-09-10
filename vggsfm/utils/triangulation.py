@@ -452,6 +452,8 @@ def refine_pose(
         refined_extra_params = torch.from_numpy(
             np.stack(refined_extra_params)
         ).to(tracks.device)
+        if len(refined_extra_params.shape) == 1:
+            refined_extra_params = refined_extra_params[:, None]
 
 
     valid_frame_mask = get_valid_frame_mask(refined_intrinsics, refined_extrinsics, refined_extra_params, scale)
@@ -616,6 +618,9 @@ def init_refine_pose(
         refined_extra_params = torch.from_numpy(
             np.stack(refined_extra_params)
         ).to(tracks.device)
+        if len(refined_extra_params.shape) == 1:
+            refined_extra_params = refined_extra_params[:, None]
+
 
     scale = image_size.max()
 
