@@ -1152,6 +1152,10 @@ def predict_tracks(
 
             # Split query_points into smaller chunks to avoid memory issues
             all_points_num = images_feed.shape[1] * query_points.shape[1]
+            
+            shuffle_indices = torch.randperm(query_points.size(1))
+            query_points = query_points[:, shuffle_indices]
+            
             num_splits = (all_points_num + max_points_num - 1) // max_points_num
             fine_pred_track, pred_vis, pred_score = predict_tracks_in_chunks(
                 track_predictor,
