@@ -543,24 +543,25 @@ class VGGSfMRunner:
                 dim=0,
             )
 
-            additional_points3D_numpy = additional_points3D.cpu().numpy()
-            additional_points3D_rgb_numpy = (
-                (additional_points3D_rgb * 255).long().cpu().numpy()
-            )
-            for extra_point_idx in range(len(additional_points3D)):
-                reconstruction.add_point3D(
-                    additional_points3D_numpy[extra_point_idx],
-                    pycolmap.Track(),
-                    additional_points3D_rgb_numpy[extra_point_idx],
-                )
-                
             additional_points_dict["sfm_points_num"] = len(points3D)
             additional_points_dict["additional_points_num"] = len(additional_points3D)
 
-            points3D = torch.cat([points3D, additional_points3D], dim=0)
-            points3D_rgb = torch.cat(
-                [points3D_rgb, additional_points3D_rgb], dim=0
-            )
+            if self.cfg.concat_extra_points:
+                additional_points3D_numpy = additional_points3D.cpu().numpy()
+                additional_points3D_rgb_numpy = (
+                    (additional_points3D_rgb * 255).long().cpu().numpy()
+                )
+                for extra_point_idx in range(len(additional_points3D)):
+                    reconstruction.add_point3D(
+                        additional_points3D_numpy[extra_point_idx],
+                        pycolmap.Track(),
+                        additional_points3D_rgb_numpy[extra_point_idx],
+                    )
+                    
+                points3D = torch.cat([points3D, additional_points3D], dim=0)
+                points3D_rgb = torch.cat(
+                    [points3D_rgb, additional_points3D_rgb], dim=0
+                )
 
         if self.cfg.filter_invalid_frame:
             extrinsics_opencv = extrinsics_opencv[valid_frame_mask]
