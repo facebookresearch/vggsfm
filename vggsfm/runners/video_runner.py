@@ -833,9 +833,7 @@ class VideoRunner(VGGSfMRunner):
         ba_success = log_ba_summary(summary)
 
         if not ba_success:
-            import pdb
-
-            pdb.set_trace()
+            raise RuntimeError("Bundle adjustment failed")
 
         window_points3D_opt, extrinsics, _, _ = pycolmap_to_batch_matrix(
             rec, device=self.device, camera_type=window_points_all.dtype

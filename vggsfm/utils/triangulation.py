@@ -1193,7 +1193,7 @@ def iterative_global_BA(
             image_size,
             shared_camera=shared_camera,
             camera_type=camera_type,
-            extra_params=extra_params,  # Pass extra_params to batch_matrix_to_pycolmap
+            extra_params=extra_params, 
         )
 
         reconstruction = filter_reconstruction(reconstruction)
@@ -1232,7 +1232,7 @@ def get_valid_frame_mask(intrinsics, extrinsics, extra_params, scale):
             extra_params = extra_params[:, None]
 
         valid_param_mask = torch.logical_and(
-            valid_param_mask, (extra_params.abs() <= 0.3).all(dim=-1)
+            valid_param_mask, (extra_params.abs() <= 1.0).all(dim=-1)
         )
 
     valid_trans_mask = (extrinsics[:, :, 3].abs() <= 30).all(-1)
