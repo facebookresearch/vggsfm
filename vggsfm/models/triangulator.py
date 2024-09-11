@@ -304,7 +304,7 @@ class Triangulator(nn.Module):
                 intrinsics[:, 0, 0] <= 30 * scale,
             )
             if extra_params is not None:
-                valid_extra_params_mask = (extra_params.abs() <= 0.2).all(-1)
+                valid_extra_params_mask = (extra_params.abs() <= 1.0).all(-1)
                 valid_param_mask = torch.logical_and(
                     valid_param_mask, valid_extra_params_mask
                 )
