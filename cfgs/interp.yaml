@@ -1,0 +1,117 @@
+hydra:
+    run:
+        dir: .
+
+
+subsample_fps: 10
+query_by_interval: True
+
+query_frame_num: 5
+shared_camera: True
+
+interp_extra_pt_pixel_interval: -1
+interp_extra_by_neighbor: -1
+
+dense_depth_min_res: 512
+###########
+
+model_name: "vggsfm_v2_0_0"
+
+seed: 0
+img_size: 1024
+
+
+debug: False
+
+
+center_order: True
+mixed_precision: fp16
+extract_color: True
+filter_invalid_frame: True
+
+comple_nonvis: True
+robust_refine: 2
+BA_iters: 1
+
+fine_tracking: True
+
+camera_type: "SIMPLE_PINHOLE"   # optional: ["SIMPLE_PINHOLE", "SIMPLE_RADIAL"]
+
+load_gt: False
+viz_visualize: False
+gr_visualize: False
+
+fmat_thres: 4.0
+max_reproj_error: 4.0
+init_max_reproj_error: 4.0
+max_query_pts: 2048
+
+dense_depth: False
+
+avg_pose: True
+
+save_to_disk: True
+SCENE_DIR: examples/kitchen
+
+resume_ckpt:  ckpt/vggsfm_v2_0_0.bin
+auto_download_ckpt: True
+
+query_method: "aliked"
+
+use_poselib: True
+
+shift_point2d_to_original_res: False
+
+make_reproj_video: False
+
+visual_tracks: False
+visual_query_points: False
+visual_dense_point_cloud: False
+
+
+query_by_midpoint: False
+
+concat_extra_points: False
+extra_pt_pixel_interval: -1
+extra_by_neighbor: -1
+
+MODEL:
+    _target_: vggsfm.models.VGGSfM
+
+    TRACK:
+        _target_: vggsfm.models.TrackerPredictor
+
+        efficient_corr: False
+
+        COARSE:
+            stride: 4
+            down_ratio: 2
+            FEATURENET:
+                _target_: vggsfm.models.BasicEncoder
+
+            PREDICTOR:
+                _target_: vggsfm.models.BaseTrackerPredictor
+
+        FINE:
+            FEATURENET:
+                _target_: vggsfm.models.ShallowEncoder
+
+
+            PREDICTOR:
+                _target_: vggsfm.models.BaseTrackerPredictor
+                depth: 4
+                corr_levels: 3
+                corr_radius: 3
+                latent_dim: 32
+                hidden_size: 256
+                fine: True
+                use_spaceatt: False
+
+    CAMERA:
+        _target_: vggsfm.models.CameraPredictor
+
+
+    TRIANGULAE:
+        _target_: vggsfm.models.Triangulator    
+
+

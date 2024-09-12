@@ -428,11 +428,12 @@ def filter_invisible_reprojections(uvs_int, depths):
 def create_video_with_reprojections(
     fname_prefix,
     video_size,
-    reconstruction,
     image_paths,
     sparse_depth,
     sparse_point,
     original_images=None,
+    reconstruction=None,
+    points3D=None,
     draw_radius=3,
     cmap="gist_rainbow",
     color_mode="dis_to_center",
@@ -460,9 +461,10 @@ def create_video_with_reprojections(
     video_size_rev = video_size[::-1]
     colormap = matplotlib.colormaps.get_cmap(cmap)
 
-    points3D = np.array(
-        [point.xyz for point in reconstruction.points3D.values()]
-    )
+    if points3D is None:
+        points3D = np.array(
+            [point.xyz for point in reconstruction.points3D.values()]
+        )
 
     if color_mode == "dis_to_center":
         median_point = np.median(points3D, axis=0)
@@ -472,7 +474,10 @@ def create_video_with_reprojections(
         distances = np.linalg.norm(points3D, axis=1)
         min_dis, max_dis = distances.min(), distances.max()
     elif color_mode == "point_order":
-        max_point3D_idx = max(reconstruction.point3D_ids())
+        if reconstruction is None:
+            max_point3D_idx = points3D.shape[0]
+        else:
+            max_point3D_idx = max(reconstruction.point3D_ids())
     else:
         raise NotImplementedError(
             f"Color mode '{color_mode}' is not implemented."
@@ -510,6 +515,10 @@ def create_video_with_reprojections(
         # Filter out occluded points
         vis_reproj_mask = filter_invisible_reprojections(uvs_int, uv_depth)
 
+        border_mask = (uvs_int[:, 0] >0) & (uvs_int[:, 0] < img_with_circles.shape[1]) & (uvs_int[:, 1] >0) & (uvs_int[:, 1] < img_with_circles.shape[0])
+        
+        vis_reproj_mask = vis_reproj_mask & border_mask
+        
         for (x, y), color in zip(
             uvs_int[vis_reproj_mask], colors[vis_reproj_mask]
         ):
@@ -523,6 +532,7 @@ def create_video_with_reprojections(
             )
 
         if img_with_circles.shape[:2] != video_size_rev:
+            import pdb;pdb.set_trace()
             # Center Pad
             target_h, target_w = video_size_rev
             h, w, c = img_with_circles.shape
@@ -600,7 +610,7 @@ def create_depth_map_visual(depth_map, raw_img, output_filename):
     return output_filename
 
 
-def extract_dense_depth_maps(depth_model, image_paths, original_images=None):
+def extract_dense_depth_maps(depth_model, image_paths, original_images=None, min_res=1024):
     """
     Extract dense depth maps from a list of image paths
     Note that the monocular depth model outputs disp instead of real depth map
@@ -623,7 +633,7 @@ def extract_dense_depth_maps(depth_model, image_paths, original_images=None):
 
         # raw resolution
         disp_map = depth_model.infer_image(
-            raw_img, min(1024, max(raw_img.shape[:2]))
+            raw_img, min(min_res, max(raw_img.shape[:2]))
         )
 
         disp_dict[basename] = disp_map
@@ -633,10 +643,10 @@ def extract_dense_depth_maps(depth_model, image_paths, original_images=None):
 
 
 def align_dense_depth_maps(
-    reconstruction,
     sparse_depth,
     disp_dict,
     original_images,
+    reconstruction=None,
     visual_dense_point_cloud=False,
 ):
     # For dense depth estimation
@@ -651,10 +661,15 @@ def align_dense_depth_maps(
 
     depth_dict = {}
     unproj_dense_points3D = {}
-    fname_to_id = {
-        reconstruction.images[imgid].name: imgid
-        for imgid in reconstruction.images
-    }
+    
+    if visual_dense_point_cloud:
+        assert reconstruction is not None, "Reconstruction is required for visual dense point cloud"
+        
+    if reconstruction is not None:
+        fname_to_id = {
+            reconstruction.images[imgid].name: imgid
+            for imgid in reconstruction.images
+        }
 
     for img_basename in tqdm(
         sparse_depth, desc="Load monocular depth and Align"
@@ -663,9 +678,11 @@ def align_dense_depth_maps(
 
         if len(sparse_uvd) <= 0:
             raise ValueError("Too few points for depth alignment")
-
+        
+        if sparse_uvd.shape[0] == 1:
+            sparse_uvd = sparse_uvd[0]
+            
         disp_map = disp_dict[img_basename]
-
         ww, hh = disp_map.shape
         # Filter out the projections outside the image
         int_uv = np.round(sparse_uvd[:, :2]).astype(int)

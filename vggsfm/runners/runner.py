@@ -769,11 +769,12 @@ class VGGSfMRunner:
                 uv = pycam.img_from_cam(projection)
                 sparse_depth[img_name].append(np.append(uv, depth))
                 sparse_point[img_name].append(np.append(pt3D.xyz, point3D_idx))
+
         predictions["sparse_depth"] = sparse_depth
         predictions["sparse_point"] = sparse_point
         return predictions
 
-    def dense_reconstruct(self, predictions, image_paths, original_images):
+    def dense_reconstruct(self, predictions, image_paths, original_images, min_res=512):
         """
         Args:
             predictions (dict): A dictionary containing the sparse reconstruction results.
@@ -791,7 +792,7 @@ class VGGSfMRunner:
         print("Predicting dense depth maps via monocular depth estimation.")
 
         disp_dict = extract_dense_depth_maps(
-            self.depth_model, image_paths, original_images
+            self.depth_model, image_paths, original_images, min_res=min_res,
         )
 
         sparse_depth = predictions["sparse_depth"]
@@ -800,10 +801,10 @@ class VGGSfMRunner:
         # Align dense depth maps
         print("Aligning dense depth maps by sparse SfM points")
         depth_dict, unproj_dense_points3D = align_dense_depth_maps(
-            reconstruction,
             sparse_depth,
             disp_dict,
             original_images,
+            reconstruction=reconstruction,
             visual_dense_point_cloud=self.cfg.visual_dense_point_cloud,
         )
 
@@ -856,11 +857,11 @@ class VGGSfMRunner:
         img_with_circles_list = create_video_with_reprojections(
             image_dir_prefix,
             video_size,
-            reconstruction,
             image_paths,
             sparse_depth,
             sparse_point,
             original_images,
+            reconstruction=reconstruction,
         )
 
         return img_with_circles_list
