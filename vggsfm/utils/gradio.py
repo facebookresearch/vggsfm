@@ -65,8 +65,8 @@ def vggsfm_predictions_to_glb(predictions) -> trimesh.Scene:
     camera_matrices = predictions["extrinsics_opencv"].cpu().numpy()
 
     # Calculate the 5th and 95th percentiles along each axis
-    lower_percentile = np.percentile(vertices_3d, 5, axis=0)
-    upper_percentile = np.percentile(vertices_3d, 95, axis=0)
+    lower_percentile = np.percentile(vertices_3d, 25, axis=0)
+    upper_percentile = np.percentile(vertices_3d, 75, axis=0)
 
     # Calculate the diagonal length of the percentile bounding box
     scene_scale = np.linalg.norm(upper_percentile - lower_percentile)
