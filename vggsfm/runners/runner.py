@@ -1146,14 +1146,12 @@ def predict_tracks(
             [images, fmaps_for_tracker], new_order
         )
 
-        all_points_num = images_feed.shape[1] * max_query_pts
+        all_points_num = images_feed.shape[1] * query_points.shape[1]
 
         if all_points_num > max_points_num:
             print('Predict tracks in chunks to fit in memory')
 
             # Split query_points into smaller chunks to avoid memory issues
-            all_points_num = images_feed.shape[1] * query_points.shape[1]
-            
             shuffle_indices = torch.randperm(query_points.size(1))
             query_points = query_points[:, shuffle_indices]
             
@@ -1166,6 +1164,14 @@ def predict_tracks(
                 fine_tracking,
                 num_splits,
             )
+            
+            # reverse the shuffle
+            # not necessary for most cases, but important for triangulate_extra_points
+            reverse_indices = torch.zeros_like(shuffle_indices)
+            reverse_indices[shuffle_indices] = torch.arange(query_points.size(1))
+            fine_pred_track = fine_pred_track[:, :, reverse_indices, :]
+            pred_vis = pred_vis[:, :, reverse_indices]
+            if pred_score is not None: pred_score = pred_score[:, :, reverse_indices]
         else:
             # Feed into track predictor
             fine_pred_track, _, pred_vis, pred_score = track_predictor(
