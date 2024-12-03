@@ -9,7 +9,7 @@ seed: 0
 img_size: 1024
 
 
-debug: False
+debug: True
 
 
 center_order: False
@@ -19,29 +19,29 @@ filter_invalid_frame: True
 
 comple_nonvis: True
 query_frame_num: 3
-robust_refine: 2
-BA_iters: 1
+robust_refine: 5
+BA_iters: 10
 
 fine_tracking: True
 
-camera_type: "SIMPLE_PINHOLE"   # optional: ["SIMPLE_PINHOLE", "SIMPLE_RADIAL"]
+camera_type: "SIMPLE_RADIAL"   # optional: ["SIMPLE_PINHOLE", "SIMPLE_RADIAL"]
 
 load_gt: False
 viz_visualize: False
 gr_visualize: False
 
-fmat_thres: 4.0
-max_reproj_error: 4.0
-init_max_reproj_error: 4.0
+fmat_thres: 1.0
+max_reproj_error: 1.0
+init_max_reproj_error: 2.0
 max_query_pts: 2048
 
-dense_depth: False
+dense_depth: True
 
 avg_pose: True
-shared_camera: False
+shared_camera: True
 
 save_to_disk: True
-SCENE_DIR: examples/kitchen
+SCENE_DIR: showroom_filt/
 
 resume_ckpt:  ckpt/vggsfm_v2_0_0.bin
 auto_download_ckpt: True
@@ -50,14 +50,13 @@ query_method: "aliked"
 
 use_poselib: True
 
-shift_point2d_to_original_res: False
+shift_point2d_to_original_res: True
 
-make_reproj_video: False
+make_reproj_video: True
 
 visual_tracks: False
-visual_query_points: False
-visual_dense_point_cloud: False
-
+visual_query_points: True
+visual_dense_point_cloud: True
 
 query_by_midpoint: False
 query_by_interval: False
