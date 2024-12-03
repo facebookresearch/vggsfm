@@ -837,3 +837,49 @@ def sample_subrange(N, idx, L):
             start = max(0, end - L)  # Extend start backward if possible
 
     return start, end
+
+
+def bin_to_dmap(bin_path, dmap_path):
+    """
+    Convert a VGGSfM .bin depth map to .dmap format.
+    
+    Args:
+        bin_path (str): Path to input .bin depth map
+        dmap_path (str): Path to output .dmap file
+    """
+    # Read the .bin depth map
+    depth_map = read_array(bin_path)
+    
+    # Convert to float32 if not already
+    depth_map = depth_map.astype(np.float32)
+    
+    # Get dimensions
+    if len(depth_map.shape) == 2:
+        height, width = depth_map.shape
+    else:
+        height, width, _ = depth_map.shape
+    
+    # Write .dmap format
+    with open(dmap_path, 'wb') as f:
+        # Write header (width and height as uint32)
+        f.write(struct.pack('II', width, height))
+        
+        # Write depth values as float32
+        depth_map.astype('<f4').tofile(f)
+
+
+def convert_depth_folder(input_dir, output_dir):
+    """
+    Convert all .bin depth maps in a folder to .dmap format
+    
+    Args:
+        input_dir (str): Directory containing .bin depth maps
+        output_dir (str): Output directory for .dmap files
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Convert all .bin files
+    for bin_file in os.glob.glob(os.path.join(input_dir, "*.bin")):
+        basename = os.path.splitext(os.path.basename(bin_file))[0]
+        dmap_path = os.path.join(output_dir, basename + ".dmap")
+        bin_to_dmap(bin_file, dmap_path)

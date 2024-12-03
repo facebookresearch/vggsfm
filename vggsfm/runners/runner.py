@@ -11,7 +11,7 @@ import copy
 import torch
 import pycolmap
 import datetime
-
+import struct
 import time
 import numpy as np
 from visdom import Visdom
@@ -349,6 +349,7 @@ class VGGSfMRunner:
                     frame_num, (frame_num // query_frame_num + 1)
                 )
             else:
+                print("***query by dino***")
                 query_frame_indexes = generate_rank_by_dino(
                     reshaped_image, self.camera_predictor, frame_num
                 )
@@ -815,21 +816,40 @@ class VGGSfMRunner:
 
     def save_dense_depth_maps(self, depth_dict, output_dir):
         """
-        Save the dense depth maps to disk.
+        Save the dense depth maps to disk in both .bin and .dmap formats.
 
         Args:
             depth_dict (dict): Dictionary containing depth maps.
             output_dir (str): Directory to save the depth maps.
         """
+        # Save in .bin format (original COLMAP format)
         depth_dir = os.path.join(output_dir, "depths")
         os.makedirs(depth_dir, exist_ok=True)
+        
+        # Also create directory for .dmap format
+        dmap_dir = os.path.join(output_dir, "depths_dmap")
+        os.makedirs(dmap_dir, exist_ok=True)
+        
         for img_basename in depth_dict:
             depth_map = depth_dict[img_basename]
             depth_map_path = os.path.join(depth_dir, img_basename)
 
+            # Save as .bin
             name_wo_extension = os.path.splitext(depth_map_path)[0]
             out_fname_with_bin = name_wo_extension + ".bin"
             write_array(depth_map, out_fname_with_bin)
+            
+            # Save as .dmap
+            dmap_path = os.path.join(dmap_dir, os.path.splitext(img_basename)[0] + ".dmap")
+            
+            # Write .dmap format directly (more efficient than converting later)
+            with open(dmap_path, 'wb') as f:
+                # Write header (width and height as uint32)
+                height, width = depth_map.shape[:2]
+                f.write(struct.pack('II', width, height))
+                
+                # Write depth values as float32
+                depth_map.astype('<f4').tofile(f)
 
     def make_reprojection_video(
         self, predictions, video_size, image_paths, original_images
