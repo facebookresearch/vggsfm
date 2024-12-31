@@ -103,7 +103,7 @@ def batch_matrix_to_pycolmap(
                 width=image_size[0],
                 height=image_size[1],
                 params=pycolmap_intri,
-                camera_id=fidx,
+                camera_id=fidx + 1,
             )
 
             # add camera
@@ -115,8 +115,8 @@ def batch_matrix_to_pycolmap(
             extrinsics[fidx][:3, 3],
         )  # Rot and Trans
         image = pycolmap.Image(
-            id=fidx,
-            name=f"image_{fidx}",
+            id=fidx + 1,
+            name=f"image_{fidx + 1}",
             camera_id=camera.camera_id,
             cam_from_world=cam_from_world,
         )
@@ -142,7 +142,7 @@ def batch_matrix_to_pycolmap(
 
                     # add element
                     track = reconstruction.points3D[point3D_id].track
-                    track.add_element(fidx, point2D_idx)
+                    track.add_element(fidx + 1, point2D_idx)
                     point2D_idx += 1
 
         assert point2D_idx == len(points2D_list)
@@ -189,8 +189,8 @@ def pycolmap_to_batch_matrix(
     extra_params = [] if camera_type == "SIMPLE_RADIAL" else None
 
     for i in range(num_images):
-        # Extract and append extrinsics
-        pyimg = reconstruction.images[i]
+        # Get image with ID i+1 since COLMAP uses 1-based indexing
+        pyimg = reconstruction.images[i + 1]
         pycam = reconstruction.cameras[pyimg.camera_id]
         matrix = pyimg.cam_from_world.matrix()
         extrinsics.append(matrix)
