@@ -38,7 +38,8 @@ cd ../../
 pip install numpy==1.26.3
 
 # Ensure the version of pycolmap is 3.10.0
-pip install pycolmap==3.10.0 pyceres
+pip install pycolmap==3.10.0 
+pip install pyceres==2.3
 
 # (Optional) Install poselib 
 pip install poselib==2.0.2
