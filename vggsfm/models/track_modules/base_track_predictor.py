@@ -97,7 +97,7 @@ class BaseTrackerPredictor(nn.Module):
         # its query_points should be query_points/4
         if down_ratio > 1:
             query_points = query_points / float(down_ratio)
-            query_points = query_points / float(self.stride)
+        query_points = query_points / float(self.stride)
 
         # Init with coords as the query points
         # It means the search will start from the position of query points at the reference frames
