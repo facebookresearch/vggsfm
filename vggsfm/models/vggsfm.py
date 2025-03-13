@@ -6,15 +6,30 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict
 
 from hydra.utils import instantiate
 
+from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 
-class VGGSfM(nn.Module):
-    def __init__(self, TRACK: Dict, CAMERA: Dict, TRIANGULAE: Dict, cfg=None):
+from huggingface_hub import PyTorchModelHubMixin
+
+
+class VGGSfM(nn.Module,
+             PyTorchModelHubMixin,
+             repo_url="https://github.com/facebookresearch/vggsfm",
+             pipeline_tag="image-to-3d",
+             license="cc-by-nc-sa-4.0",
+             coders={
+                DictConfig : (
+                    lambda x: OmegaConf.to_container(x, resolve=True),  # Encoder: how to convert a `DictConfig` to a valid jsonable value?
+                    lambda data: OmegaConf.create(data),  # Decoder: how to reconstruct a `DictConfig` from a dictionary?
+                ),
+            }
+    ):
+    def __init__(self, TRACK: DictConfig, CAMERA: DictConfig, TRIANGULAE: DictConfig, cfg: DictConfig = None):
         """
         Initializes a VGGSfM model
 
@@ -33,19 +48,3 @@ class VGGSfM(nn.Module):
 
         # models.Triangulator
         self.triangulator = instantiate(TRIANGULAE, _recursive_=False, cfg=cfg)
-
-    def from_pretrained(self, model_name):
-        try:
-            from huggingface_hub import hf_hub_download
-
-            ckpt_path = hf_hub_download(
-                repo_id="facebook/VGGSfM", filename=model_name + ".bin"
-            )
-            checkpoint = torch.load(ckpt_path)
-        except:
-            # In case the model is not hosted on huggingface
-            # or the user cannot import huggingface_hub correctly
-            _VGGSFM_URL = "https://huggingface.co/facebook/VGGSfM/resolve/main/vggsfm_v2_0_0.bin"
-            checkpoint = torch.hub.load_state_dict_from_url(_VGGSFM_URL)
-
-        self.load_state_dict(checkpoint, strict=True)
