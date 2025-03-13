@@ -1022,12 +1022,12 @@ class VGGSfMRunner:
             # Rename the images to the original names
             pyimage = reconstruction.images[pyimageid]
             pycamera = reconstruction.cameras[pyimage.camera_id]
-            pyimage.name = image_paths[pyimageid]
+            pyimage.name = image_paths[pyimageid-1]
 
             if rescale_camera:
                 # Rescale the camera parameters
                 pred_params = copy.deepcopy(pycamera.params)
-                real_image_size = crop_params[0, pyimageid][:2]
+                real_image_size = crop_params[0, pyimageid-1][:2]
                 resize_ratio = real_image_size.max() / img_size
                 real_focal = resize_ratio * pred_params[0]
                 real_pp = real_image_size.cpu().numpy() // 2
@@ -1042,7 +1042,7 @@ class VGGSfMRunner:
 
             if shift_point2d_to_original_res:
                 # Also shift the point2D to original resolution
-                top_left = crop_params[0, pyimageid][-4:-2].abs().cpu().numpy()
+                top_left = crop_params[0, pyimageid-1][-4:-2].abs().cpu().numpy()
                 for point2D in pyimage.points2D:
                     point2D.xy = (point2D.xy - top_left) * resize_ratio
 
